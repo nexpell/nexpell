@@ -1,0 +1,72 @@
+<!-- navigation_main_head -->
+<li><a class="nav-link" href="{url}" target="{windows}">{name}&nbsp;</a></li>
+<!-- END -->
+
+<!-- navigation_dd_head -->
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">{name}&nbsp;</a>
+<!-- END -->
+
+<!-- navigation_sub_open -->
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="servicesDropdown">
+<!-- END -->
+
+<!-- navigation_sub_nav -->
+    <li><a class="dropdown-item" href="{url}">{name}</a></li>
+<!-- END -->
+
+<!-- navigation_sub_close -->
+    </ul>
+<!-- END -->
+
+<!-- navigation_dd_foot -->
+</li>
+<!-- END -->
+
+<!-- navigation_login_head -->
+<li class="dropdown">
+<!-- END -->
+
+<!-- navigation_login_loggedin -->
+{messenger}
+{new_forum_posts}
+
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" id="servicesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">&nbsp;
+        <img class="avatar_small" style="height: 21px;width: 28px;margin-left: -5px;" src="{l_avatar}" alt="{nickname}" title="{nickname}" data-toggle="tooltip" data-html="true" data-bs-placement="right" data-bs-original-title="{nickname}"/>&nbsp;{my_account}
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="servicesDropdown" style="margin-top: 0px;">
+        {profile}        
+        {dashboard}        
+        {logout}
+    </ul>
+</li>
+<!-- END -->
+
+<!-- navigation_login_admin -->          
+<!-- END -->
+
+<!-- navigation_login_log_off -->
+<!-- END -->
+
+<!-- navigation_login_login -->
+{login}
+<!-- END -->
+
+<!-- navigation_login_foot -->
+<!-- END -->
+
+<!-- navigation_languages -->                
+<!-- Icon dropdown -->
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" id="servicesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        &nbsp;{flag_ok}&nbsp;
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="servicesDropdown" style="margin-top: 0px;">
+        <li>{languages_ok}</li>
+        <li><hr class="dropdown-divider" /></li>
+        <li>{languages}</li>        
+    </ul>
+</li>
+<!-- END -->
+

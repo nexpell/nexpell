@@ -1,0 +1,74 @@
+<!-- login_content -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <div class="card shadow-lg overflow-hidden">
+                <div class="card-body p-0">
+                    <div class="row g-0">
+                        <!-- Linke Bildhälfte -->
+                        <div class="col-sm-5 d-none d-sm-block sign_pic_bg"></div>
+
+                        <!-- Rechte Login-Hälfte -->
+                        <div class="col-sm-7 p-4">
+                            <div class="text-start">
+                                <!-- Überschrift -->
+                                <div class="h3 fw-light">
+                                    <span>{login_headline}</span>
+                                </div>
+
+                                <!-- Fehlermeldungen und Zusatznachrichten -->
+                                {error_message}
+                                {message_zusatz}
+
+                                {if isIpBanned}
+                                    <!-- Hier kannst du eine gesperrt-Meldung einfügen -->
+                                {else}
+                                    <!-- Registrierungshinweis -->
+                                    <p class="mb-4 text-end">
+                                        {reg_text}
+                                        {registerlink}
+                                    </p>
+
+                                    <!-- Begrüßung -->
+                                    <div class="h4 fw-light">{welcome_back}</div>
+
+                                    <!-- Login-Formular -->
+                                    <form method="post" action="">
+                                        <div class="mb-3">
+                                            <label for="email" class="form-label">{email_label}</label>
+                                            <input type="email" class="form-control" id="email" name="email" placeholder="{your_email}" required>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="password" class="form-label">{pass_label}</label>
+                                            <input type="password" class="form-control" id="password" name="password_hash" placeholder="{your_pass}" required>
+                                        </div>
+
+                                        <div class="mb-3 text-end">
+                                            {lostpasswordlink}
+                                        </div>
+
+                                        <!--<div class="mb-3 form-check">
+                                            <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                                            <label class="form-check-label" for="remember">{remember_me}</label>
+                                        </div>-->
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-primary w-100">{login_button}</button>
+                                        </div>
+                                    </form>
+
+                                    <hr>
+                                    <p class="message">{login_text}
+                                    </p>
+                                {endif}
+                            </div>
+                        </div>
+                        <!-- Ende rechte Spalte -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- END -->

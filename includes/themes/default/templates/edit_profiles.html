@@ -1,0 +1,175 @@
+<!-- edit_profiles_head -->
+<div class="head-boxes {class}">
+    <span class="head-boxes-head">{title}</span>
+    <h2 class="head-h2">
+        <span class="head-boxes-title">{title}</span>
+    </h2>
+    <p class="head-boxes-foot">{subtitle}</p>
+</div>
+<!-- END -->
+
+<!-- edit_profiles_content -->
+ <!-- Cropper.js CDN -->
+<link href="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.css" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.5.13/dist/cropper.min.js"></script>
+<div class="card">
+  <div class="card-body">
+    <div class="container my-4">
+      <h4>{edit_profile_title}</h4>
+
+      <div class="row mb-3">
+          <div class="col-md-6">
+            {edit_password}
+          </div>
+          <div class="col-md-6">
+            {edit_email}
+          </div>
+        </div>
+      </div>  
+
+      <form method="POST" enctype="multipart/form-data" class="container mt-4">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="firstname" class="form-label">{label_firstname}</label>
+            <input type="text" class="form-control" id="firstname" name="firstname" value="{firstname}">
+          </div>
+          <div class="col-md-6">
+            <label for="lastname" class="form-label">{label_lastname}</label>
+            <input type="text" class="form-control" id="lastname" name="lastname" value="{lastname}">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="location" class="form-label">{label_location}</label>
+          <input type="text" class="form-control" id="location" name="location" value="{location}">
+        </div>
+
+        <div class="mb-3">
+          <label for="birthday" class="form-label">{label_birthday}</label>
+          <input type="date" class="form-control" id="birthday" name="birthday" value="{birthday}">
+        </div>
+
+        <div class="mb-3">
+          <label for="gender" class="form-label">{label_gender}</label>
+          <select name="gender" class="form-select">
+          <option value="" {gender_select_empty}>{select_gender}</option>
+          <option value="male" {gender_select_male}>{gender_male}</option>
+          <option value="female" {gender_select_female}>{gender_female}</option>
+          <option value="other" {gender_select_other}>{gender_other}</option>
+        </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="about_me" class="form-label">{label_about_me}</label>
+          <textarea class="form-control" id="about_me" name="about_me" rows="4">{about_me}</textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="signatur" class="form-label">{label_signature}</label>
+          <textarea class="form-control" id="signatur" name="signatur" rows="2">{signatur}</textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="avatar" class="form-label">{label_avatar}</label><br>
+          <img id="avatar-preview" src="{avatar_url}" alt="Avatar Vorschau" class="mb-2 rounded" style="max-height: 100px; {avatar_url:empty ? 'display:none;' : ''}">
+          <input type="file" class="form-control" id="avatarInput" name="avatarInput" accept="image/*">
+          <input type="hidden" id="croppedAvatar" name="croppedAvatar">
+          <div id="cropper-container" style="max-width: 400px; margin-top:10px; display:none;">
+            <img id="cropper-image" style="max-width:100%;"/>
+            <button type="button" id="cropAvatarBtn" class="btn btn-sm btn-primary mt-2">{btn_crop}</button>
+          </div>
+        </div>
+        <hr>
+
+        <h5>{title_social_networks}</h5>
+        <div class="row mb-3">
+          <div class="col-md-4">
+            <label for="twitter" class="form-label">{label_twitter}</label>
+            <input type="text" class="form-control" id="twitter" name="twitter" value="{twitter}">
+          </div>
+          <div class="col-md-4">
+            <label for="facebook" class="form-label">{label_facebook}</label>
+            <input type="text" class="form-control" id="facebook" name="facebook" value="{facebook}">
+          </div>
+          <div class="col-md-4">
+            <label for="website" class="form-label">{label_website}</label>
+            <input type="text" class="form-control" id="website" name="website" value="{website}">
+          </div>
+          <div class="col-md-4">
+            <label for="github" class="form-label">{label_github}</label>
+            <input type="text" class="form-control" id="github" name="github" value="{github}">
+          </div>
+          <div class="col-md-4">
+            <label for="instagram" class="form-label">{label_instagram}</label>
+            <input type="text" class="form-control" id="instagram" name="instagram" value="{instagram}">
+          </div>
+        </div>
+        <hr>
+        <h5>{title_settings}</h5>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="dark_mode" name="dark_mode" {dark_mode_checked}>
+          <label class="form-check-label" for="dark_mode"><s>{label_dark_mode}</s></label>
+        </div>
+        <div class="form-check mb-4">
+          <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications" {email_notifications_checked}>
+          <label class="form-check-label" for="email_notifications"><s>{label_email_notifications}</s></label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">{btn_save}</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  let cropper;
+  const avatarInput = document.getElementById('avatarInput');
+  const cropperContainer = document.getElementById('cropper-container');
+  const cropperImage = document.getElementById('cropper-image');
+  const croppedAvatar = document.getElementById('croppedAvatar');
+  const avatarPreview = document.getElementById('avatar-preview');
+
+  avatarInput.addEventListener('change', function(e) {
+    if(e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const url = URL.createObjectURL(file);
+
+      cropperImage.src = url;
+      cropperContainer.style.display = 'block';
+
+      if(cropper) {
+        cropper.destroy();
+      }
+      cropper = new Cropper(cropperImage, {
+        aspectRatio: 1,
+        viewMode: 1,
+        background: false,
+        movable: true,
+        zoomable: true,
+        rotatable: false,
+        scalable: false,
+      });
+    }
+  });
+  document.getElementById('cropAvatarBtn').addEventListener('click', function() {
+    if(cropper) {
+      cropper.getCroppedCanvas({
+      width: 400,        // Größere Dimension
+      height: 400,
+      fillColor: '#fff', // Weißer Hintergrund, falls transparent
+      imageSmoothingQuality: 'high'
+      }).toBlob(function(blob) {
+          const reader = new FileReader();
+          reader.readAsDataURL(blob);
+          reader.onloadend = function() {
+            croppedAvatar.value = reader.result;
+            avatarPreview.src = reader.result;
+            avatarPreview.style.display = 'block';
+            cropper.destroy();
+            cropperContainer.style.display = 'none';
+            avatarInput.value = ''; // Reset File Input nach Zuschnitt
+          }
+      }, 'image/jpeg', 0.95); // JPEG mit 95% Qualität
+    }
+  });
+</script>
+<!-- END -->

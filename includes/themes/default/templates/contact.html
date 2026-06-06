@@ -1,0 +1,97 @@
+<!-- contact_head -->
+<div class="head-boxes {class}">
+    <span class="head-boxes-head">{title}</span>
+    <h2 class="head-h2">
+        <span class="head-boxes-title">{title}</span>
+    </h2>
+    <p class="head-boxes-foot">{subtitle}</p>
+</div>
+<!-- END -->
+
+<!-- contact_form -->
+<!-- Fehlernachricht -->
+{if showerror}
+<div class="alert alert-danger" role="alert">
+    {showerror}
+</div>
+{endif}
+
+<!-- Weitere Fehlermeldung für keine Kontaktinformationen -->
+{if no_contact_setup}
+<div class="alert alert-warning" role="alert">
+    {no_contact_setup}
+</div>
+{endif}
+
+<!-- Kontaktformular -->
+<div class="card">
+  <div class="card-body">
+    <!-- Description -->
+    <p>{description}</p>
+    
+    <form action="index.php?site=contact" method="post" role="form" onsubmit="return validate()" class="form-horizontal needs-validation" novalidate>
+      <input type="hidden" name="action" value="send">
+      <div class="row">
+        <div class="col-sm-5">
+          <!-- Receiver -->
+          <div class="input-group mb-3">
+            <select class="form-select" name="getemail" aria-label="Default select example">
+              {getemail}
+            </select>
+          </div>
+          
+          <!-- Name -->          
+          <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon1"><i class="bi bi-person"></i></span>
+            <input type="text" name="name" class="form-control" value="{name}" aria-label="name" aria-describedby="basic-addon1" placeholder="{user}" required>
+          </div>
+
+          <!-- Mail -->
+          <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon2"><i class="bi bi-envelope"></i></span>
+            <input type="email" name="from" class="form-control" value="{from}" aria-label="mail" aria-describedby="basic-addon2" placeholder="{mail}" required>
+          </div>
+        
+          <small>{e_mail_info}</small><br />
+        </div>
+
+        <div class="col-sm-7">
+          <!-- Subject -->
+          <div class="input-group mb-3">
+            <span class="input-group-text" id="basic-addon3"><i class="bi bi-info-circle"></i></span>
+            <input type="text" name="subject" class="form-control" placeholder="{subject}" aria-label="subject" aria-describedby="basic-addon3" required>
+          </div>
+
+          <!-- Message -->
+          <div class="input-group mb-3">
+            <span class="input-group-text"><i class="bi bi-chat-square-text"></i></span>
+            <textarea name="text" class="form-control" aria-label="With textarea" rows="9" placeholder="{message}" required>{text}</textarea>
+          </div>
+
+          <!-- Security code (only for not logged in) -->
+          {if info_captcha}
+          <div class="form-group">
+            <label for="input-security-code" class="control-label">{security_code}:</label>
+            <div class="input-group">
+              {info_captcha}
+            </div>
+          </div>
+          {endif}
+        </div>
+
+        <div class="col-sm-12">
+          <blockquote>
+            <input type="checkbox" class="form-check-input" id="accept_gdpr" value="1" required> 
+            <label class="form-check-label" for="invalidCheck">{lang_GDPRinfo}</label>
+          </blockquote>
+        </div>
+      </div>
+      
+      <!-- Submit button -->
+      <div class="form-group text-right">
+        <button type="submit" class="btn btn-primary">{send}</button>
+      </div>
+    </form>
+  </div>
+</div>
+<!-- END -->

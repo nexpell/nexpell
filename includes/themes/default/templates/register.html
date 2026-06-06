@@ -1,0 +1,108 @@
+<!-- register_content -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <div class="card shadow-lg overflow-hidden">
+                <div class="card-body p-0">
+                    <div class="row g-0">
+                        <!-- Linke Bildhälfte -->
+                        <div class="col-sm-5 d-none d-sm-block sign_pic_bg"></div>
+
+                        <!-- Rechte Inhaltshälfte -->
+                        <div class="col-sm-7 p-4">
+                            <div class="text-start">
+
+                                <!-- Überschrift -->
+                                <div class="h3 fw-light">
+                                    <span>{reg_title}</span>
+                                </div>
+
+                                <!-- Fehlermeldungen -->
+                                {if error_message}
+                                    <div class="alert alert-danger">{error_message}</div>
+                                {endif}
+
+                                <!-- Erfolgsmeldung -->
+                                {if success_message}
+                                    <div class="alert alert-success">{success_message}</div>
+                                {endif}
+
+                                <!-- Zusätzliche Nachricht -->
+                                {if message_zusatz}
+                                    <p>{message_zusatz}</p>
+                                {endif}
+
+                                {if isreg}
+
+                                {else}
+
+                                <!-- Login-Hinweis -->
+                                <p class="mb-4 text-end">
+                                    {login_text}
+                                    {loginlink}
+                                </p>
+
+                                <!-- Formular -->
+                                <form action="{form_action}" method="POST" novalidate>
+                                    <input type="hidden" name="csrf_token" value="{csrf_token}">
+
+                                    <div class="mb-3">
+                                        <label for="username" class="form-label">{username_label}</label>
+                                        <input type="text" name="username" class="form-control" id="username" required
+                                               pattern="[a-zA-Z0-9_-]{3,20}" placeholder="{enter_your_name}">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">{email_address_label}</label>
+                                        <input type="email" name="email" class="form-control" id="email" required
+                                               placeholder="{enter_your_email}">
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="password" class="form-label">{password_label}</label>
+                                        <input type="password" name="password" class="form-control" id="password"
+                                               placeholder="{enter_password}" required>
+                                        <small class="form-text text-muted">{pass_text}</small>
+                                        <div id="passwordStrength" class="mt-2 bg-secondary"></div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="password_repeat" class="form-label">{password_repeat_label}</label>
+                                        <input type="password" name="password_repeat" class="form-control"
+                                               id="password_repeat" placeholder="{enter_password_repeat}" required>
+                                    </div>
+
+                                    <div class="form-check mb-3">
+                                        <input type="checkbox" name="terms" class="form-check-input" id="terms" required>
+                                        <label for="terms" class="form-check-label">
+                                            {terms_of_use_text}
+                                        </label>
+                                    </div>
+
+                                    <!-- Optional reCAPTCHA -->
+                                    <div class="form-group">
+                                        <label for="input-security-code" class="control-label">{security_code}:</label>
+                                        <div class="input-group">
+                                            {recaptcha_site_key}
+                                        </div>
+                                    </div>
+
+                                    <button type="submit" class="btn btn-primary w-100">{register}</button>
+                                </form>
+                                 <hr>
+                                {reg_info_text}
+
+                                {endif}
+
+                               
+                            </div>
+                        </div>
+                        <!-- Ende Rechte Inhaltshälfte -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- END -->

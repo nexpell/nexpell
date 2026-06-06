@@ -1,0 +1,34 @@
+<!-- privacy_policy_content -->
+<div class="card">
+    <div class="card-header">
+        {privacy_policy_label}
+    </div>
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb t-5 p-2 bg-light">
+            <li class="breadcrumb-item">
+                <a href="admincenter.php?site=settings_privacy_policy">{privacy_policy_label}</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
+        </ol>
+    </nav>
+
+    <div class="card-body">
+        <div class="container py-5">
+            <h3 class="mb-4">{privacy_policy_label}</h3>
+            <form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=settings_privacy_policy" onsubmit="return chkFormular();">
+                <div class="mb-3 row">
+                    <label class="col-sm-3 control-label">{editor_is_editor}:</label>
+                    <div class="col-sm-8 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="toggle-editor" name="editor" value="1" {editor_checked}>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <textarea class="{editor_checked}" id="ckeditor" rows="25" name="message" style="width: 100%;">{privacy_policy_text}</textarea>
+                </div>
+                <input type="hidden" name="captcha_hash" value="{captcha_hash}" />
+                <button class="btn btn-warning btn-sm" type="submit" name="submit">{update_button_label}</button>
+            </form>
+        </div>
+    </div>
+</div>
+<!-- end -->

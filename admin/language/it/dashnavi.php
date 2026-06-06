@@ -1,0 +1,30 @@
+<?php
+
+$language_array = array(
+    'access_denied'                 => 'Accesso negato',
+    'accesslevel'                   => 'Livello di accesso',
+    'actions'                       => 'Azioni',
+    'add_category'                  => 'Aggiungi categoria',
+    'add_link'                      => 'Aggiungi link',
+    'close'                         => 'Chiudi',
+    'dashnavi'                      => 'Navigazione Admincenter',
+    'delete'                        => 'Elimina',
+    'edit'                           => 'Modifica',
+    'edit_category'                  => 'Modifica categoria',
+    'edit_link'                      => 'Modifica link',
+    'fa_name'                        => 'Icone Bootstrap',
+    'modulname'                      => 'Nome modulo',
+    'name'                           => 'Nome',
+    'new_category'                   => 'Nuova categoria',
+    'new_link'                       => 'Nuovo link',
+    'no_additional_links_available'  => 'Non ci sono link aggiuntivi',
+    'options'                        => 'Opzioni',
+    'really_delete_category'         => 'Eliminare davvero questa categoria?<br><br><b>Attenzione:</b> Eliminando questa categoria verranno rimossi permanentemente tutti i link associati e i diritti. Questa azione non può essere annullata!',
+    'really_delete_link'             => 'Eliminare davvero questo link?<br><br><b>Attenzione:</b> Eliminando questo link verranno rimossi anche tutti i diritti associati. Questa azione non può essere annullata!',
+    'sort'                           => 'Ordinamento',
+    'to_sort'                        => 'Ordina',
+    'text'                           => 'Nome link',
+    'transaction_invalid'            => 'ID transazione non valida',
+    'url'                            => 'URL',
+);
+

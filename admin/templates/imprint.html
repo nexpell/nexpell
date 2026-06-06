@@ -1,0 +1,165 @@
+<!-- imprint_content -->
+<style>
+.type-fields { display: none; }
+</style>
+
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-paragraph"></i> {imprint}
+    </div>
+
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb t-5 p-2 bg-light">
+            <li class="breadcrumb-item">
+                <a href="admincenter.php?site=user_roles">{imprint}</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
+        </ol>
+    </nav>
+
+    <div class="card-body">
+        <div class="container py-5">
+            <h3 class="mb-4">{imprint}</h3>
+
+            <h2>{imprint}</h2>
+
+{errors}
+
+<form method="post" action="">
+    <div class="mb-3">
+        <label for="type" class="form-label">Typ *</label>
+        <select id="type" name="type" class="form-select" required>
+            <option value="">Bitte auswählen</option>
+            <option value="private" {private_selected}>Privatperson</option>
+            <option value="association" {association_selected}>Verein / Verband</option>
+            <option value="small_business" {small_business_selected}>Kleinunternehmer</option>
+            <option value="company" {company_selected}>Firma / Unternehmen</option>
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label for="company_name_private" class="form-label">Name (Privatperson)</label>
+        <input type="text" id="company_name_private" name="company_name_private" class="form-control" value="{company_name_private_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="company_name_association" class="form-label">Vereinsname / Verband</label>
+        <input type="text" id="company_name_association" name="company_name_association" class="form-control" value="{company_name_association_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="represented_by_association" class="form-label">Vertreten durch (Verein)</label>
+        <input type="text" id="represented_by_association" name="represented_by_association" class="form-control" value="{represented_by_association_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="company_name_small_business" class="form-label">Name (Kleinunternehmer)</label>
+        <input type="text" id="company_name_small_business" name="company_name_small_business" class="form-control" value="{company_name_small_business_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="tax_id_small_business" class="form-label">Steuer-ID (Kleinunternehmer)</label>
+        <input type="text" id="tax_id_small_business" name="tax_id_small_business" class="form-control" value="{tax_id_small_business_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="company_name_company" class="form-label">Name (Firma)</label>
+        <input type="text" id="company_name_company" name="company_name_company" class="form-control" value="{company_name_company_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="represented_by_company" class="form-label">Vertreten durch (Firma)</label>
+        <input type="text" id="represented_by_company" name="represented_by_company" class="form-control" value="{represented_by_company_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="tax_id_company" class="form-label">Steuer-ID (Firma)</label>
+        <input type="text" id="tax_id_company" name="tax_id_company" class="form-control" value="{tax_id_company_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="email" class="form-label">E-Mail *</label>
+        <input type="email" id="email" name="email" class="form-control" value="{email_value}" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="website" class="form-label">Website</label>
+        <input type="url" id="website" name="website" class="form-control" value="{website_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="phone" class="form-label">Telefon</label>
+        <input type="text" id="phone" name="phone" class="form-control" value="{phone_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="address" class="form-label">Adresse *</label>
+        <input type="text" id="address" name="address" class="form-control" value="{address_value}" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="postal_code" class="form-label">Postleitzahl *</label>
+        <input type="text" id="postal_code" name="postal_code" class="form-control" value="{postal_code_value}" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="city" class="form-label">Ort *</label>
+        <input type="text" id="city" name="city" class="form-control" value="{city_value}" required>
+    </div>
+
+    <div class="mb-3">
+        <label for="register_office" class="form-label">Registergericht</label>
+        <input type="text" id="register_office" name="register_office" class="form-control" value="{register_office_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="register_number" class="form-label">Register-Nr.</label>
+        <input type="text" id="register_number" name="register_number" class="form-control" value="{register_number_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="vat_id" class="form-label">Umsatzsteuer-ID</label>
+        <input type="text" id="vat_id" name="vat_id" class="form-control" value="{vat_id_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="supervisory_authority" class="form-label">Aufsichtsbehörde</label>
+        <input type="text" id="supervisory_authority" name="supervisory_authority" class="form-control" value="{supervisory_authority_value}">
+    </div>
+
+    <div class="mb-3">
+        <label for="disclaimer" class="form-label">Haftungsausschluss / Disclaimer</label>
+        <textarea id="disclaimer" name="disclaimer" class="form-control" rows="5">{disclaimer_value}</textarea>
+    </div>
+
+    <div class="mb-3">
+        <label for="captcha_hash" class="form-label">Captcha</label>
+        <input type="hidden" name="captcha_hash" value="{hash}">
+        <!-- CAPTCHA hier einbinden, falls notwendig -->
+    </div>
+
+    <button type="submit" name="submit" class="btn btn-primary">Speichern</button>
+</form>
+
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const typeSelect = document.getElementById('type');
+    const typeFields = document.querySelectorAll('.type-fields');
+
+    function updateTypeFields() {
+        typeFields.forEach(el => el.style.display = 'none');
+        const selected = typeSelect.value;
+        const activeField = document.getElementById('fields_' + selected);
+        if (activeField) activeField.style.display = 'block';
+    }
+
+    typeSelect.addEventListener('change', updateTypeFields);
+    updateTypeFields(); // Initial bei Seitenladen
+});
+</script>
+
+<!-- end -->

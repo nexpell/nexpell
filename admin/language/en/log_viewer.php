@@ -1,0 +1,28 @@
+<?php
+
+$language_array = array(
+    'log_viewer' => 'Log Viewer',
+    'log_viewer_overview' => 'Log Viewer - Overview',
+    'access_control_log' => 'Access Control Log',
+    'filter_placeholder_access' => 'Filter (IP, userID, module name)',
+    'search' => 'Search',
+    'display_log_entries' => 'Showing %s of %s entries (Page %s of %s)',
+    'suspicious_access_log' => 'Suspicious Access Log',
+    'filter_placeholder_suspicious' => 'Filter (IP, userID, module name)',
+    'blocked_ips_title' => 'Blocked IPs',
+    'ip_address_placeholder' => 'IP Address',
+    'reason_placeholder' => 'Reason',
+    'block_ip_button' => 'Block IP',
+    'filter_placeholder_blocked' => 'Filter IP/Reason',
+    'ip' => 'IP',
+    'reason' => 'Reason',
+    'date' => 'Date',
+    'status' => 'Status',
+    'action' => 'Action',
+    'critical_status' => 'Critical',
+    'warning_status' => 'Warning',
+    'info_status' => 'Info',
+    'unblock_button' => 'Unblock',
+    'reason_failed_logins' => 'failed',
+    'reason_test' => 'test',
+);

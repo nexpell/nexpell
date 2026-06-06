@@ -1,0 +1,150 @@
+<!-- profile_head -->
+<div class="head-boxes {class}">
+    <span class="head-boxes-head">{title}</span>
+    <h2 class="head-h2">
+        <span class="head-boxes-title">{title}</span>
+    </h2>
+    <p class="head-boxes-foot">{subtitle}</p>
+</div>
+<!-- END -->
+
+<!-- profile_content -->
+<div class="card">
+  <div class="card-body">
+
+    {isLocked}
+
+    <div class="container my-4">
+      <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-4 text-center">
+          <img src="{avatar}" class="img-fluid mb-3" width="150" alt="{lang_alt_profile_picture}">
+          <h4>{username}</h4>
+          <div class="mt-2 mb-2">
+            <span class="badge bg-primary">
+              <i class="bi bi-star-fill me-1"></i>{user_points} {lang_points}
+            </span>
+          </div>
+          {if achievements_plugin_active}
+            <div class="mt-2 mb-2">{achievements_sidebar}</div>
+          {endif}
+          <small class="text-muted">{user_role}</small>
+
+          <!-- Level-Fortschritt -->
+          <div class="my-2">
+            <small class="text-muted">{lang_level} {user_level}</small>
+            <div class="progress" style="height: 8px;">
+              <div class="progress-bar" role="progressbar" style="width: {level_progress}%;" aria-valuenow="{level_progress}" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+          </div>
+
+          <!-- Social Icons mit Tooltips -->
+          <div class="d-flex justify-content-center gap-3 mt-3">
+            {if github_url}
+              <a href="{github_url}" target="_blank" data-bs-toggle="tooltip" title="{lang_tooltip_github}">
+                <i class="bi bi-github fs-4 text-dark"></i>
+              </a>
+            {endif}
+            
+            {if twitter_url}
+              <a href="{twitter_url}" target="_blank" data-bs-toggle="tooltip" title="{lang_tooltip_twitter}">
+                <i class="bi bi-twitter-x fs-4 text-primary"></i>
+              </a>
+            {endif}
+            
+            {if instagram_url}
+              <a href="{instagram_url}" target="_blank" data-bs-toggle="tooltip" title="{lang_tooltip_instagram}">
+                <i class="bi bi-instagram fs-4 text-danger"></i>
+              </a>
+            {endif}
+            
+            {if website_url}
+              <a href="{website_url}" target="_blank" data-bs-toggle="tooltip" title="{lang_tooltip_website}">
+                <i class="bi bi-globe fs-4 text-success"></i>
+              </a>
+            {endif}
+          </div>
+
+          <!-- Profil bearbeiten -->
+          <div class="mt-4">
+            {edit_button}
+          </div>
+        </div>
+
+        <!-- Main Content mit Tabs -->
+        <div class="col-md-8">
+          <ul class="nav nav-tabs mb-3" id="profileTab" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="about-tab" data-bs-toggle="tab" data-bs-target="#about" type="button" role="tab">{lang_tab_about}</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="posts-tab" data-bs-toggle="tab" data-bs-target="#posts" type="button" role="tab">{lang_tab_posts}</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button" role="tab">{lang_tab_activity}</button>
+            </li>
+            {if achievements_plugin_active}
+              {achievements_tab_button}
+            {endif}
+          </ul>
+
+          <div class="tab-content" id="profileTabContent">
+            <!-- Über mich -->
+            <div class="tab-pane fade show active" id="about" role="tabpanel">
+              <h5>{lang_about_title}</h5>
+              <table class="table table-sm">
+                <tr><th>{lang_about_firstname}</th><td>{user_name}</td></tr>
+                <tr><th>{lang_about_lastname}</th><td>{user_surname}</td></tr>
+                <tr><th>{lang_about_birthday}</th><td>{user_birthday}</td></tr>
+                <tr><th>{lang_about_age}</th><td>{user_age}</td></tr>
+                <tr><th>{lang_about_location}</th><td>{user_location}</td></tr>
+                <tr><th>{lang_about_gender}</th><td>{user_gender}</td></tr>
+                <tr><th>{lang_registered_since}</th><td>{register_date}</td></tr>
+              </table>
+
+              <h6 class="mt-3">{lang_about_text}</h6>
+              <p>{user_about}</p>
+
+              <h6>{lang_about_signature}</h6>
+              <p>{user_signature}</p>
+            </div>
+
+            <!-- Beiträge -->
+            <div class="tab-pane fade" id="posts" role="tabpanel">
+              <h5>{lang_latest_posts}</h5>
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>{typ}</th><th>{number}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {user_posts}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Aktivität -->
+            <div class="tab-pane fade" id="activity" role="tabpanel">
+              <h5>{lang_latest_activity}</h5>
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>{typ}</th><th>{activity}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {user_activity}
+                </tbody>
+              </table>
+            </div>
+            {if achievements_plugin_active}
+              {achievements_tab_content}
+            {endif}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END -->

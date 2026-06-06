@@ -1,0 +1,287 @@
+@media (min-width: 992px) { /* ab Bootstrap lg breakpoint = Desktop */
+/*--------------------------------------------------------------
+# CSS Variablen für Navbar
+--------------------------------------------------------------*/
+:root {
+    /* Navbar Grundfarben */
+    --bs-nav-bg-rgb: 255, 255, 255;          /* Hintergrund RGB */
+    --bs-nav-border-top-color-rgb: 254, 130, 29;
+    --bs-nav-border-bottom-color-rgb: 234, 234, 234;
+    --bs-nav-border-top-size: 1px;
+    --bs-nav-border-bottom-size: 1px;
+
+    /* Link Farben */
+    --bs-nav-link-color-rgb: 102, 102, 102;          /* normale Links */
+    --bs-nav-link-hover-color-rgb: 254, 130, 29;     /* Hover Links */
+    
+    /* Dropdown Farben */
+    --bs-navdrp-link-color-rgb: 33, 38, 42;          /* normale Dropdown-Links */
+    --bs-navdrp-link-hover-color-rgb: 254, 130, 29;  /* Hover Dropdown */
+    --bs-navdrp-link-bg-rgb: 255, 255, 255;          /* Hintergrund Dropdown-Links */
+    --bs-navdrp-link-hover-bg-rgb: 234, 234, 234;    /* Hover Hintergrund Dropdown */
+    
+    /* Schriftgrößen */
+    --bs-nav-font-size: 14px;
+    --bs-navdrp-font-size: 13px;
+}
+
+.navbar {
+  min-height: 80px;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.navbar .container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.logo-link img {
+  max-height: clamp(50px, 8vw, 65px);
+  height: auto;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.logo-link:hover img {
+  transform: scale(1.05);
+}
+
+.navbar .nav-link {
+  font-weight: 500;
+  text-transform: uppercase;
+  transition: color 0.3s ease;
+}
+
+.navbar-colored {
+  background-color: var(--bs-primary) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+}
+
+.navbar-colored .nav-link {
+  color: #fff;
+}
+
+/* Messenger Link */
+.messenger-link {
+    position: relative;
+    padding-right: 2rem; /* Platz rechts für Icon & Badge */
+}
+
+/* Icon */
+/* Icon läuft inline mit dem Text der Nav */
+#mail-icon {
+    font-size: 1.5em;        /* 1.0em = gleiche Größe wie Text, 1.5em ≈ 2 Stufen größer */
+    vertical-align: middle;  /* bleibt auf Zeilenhöhe */
+    line-height: 1;          /* verhindert Verrutschen */
+}
+
+/* Badge */
+#total-unread-badge {
+    position: absolute;
+    top: 6px;             /* leicht nach oben über das Icon */
+    right: -6px;           /* leicht nach rechts über das Icon */
+
+    display: flex;         /* damit Text mittig */
+    align-items: center;
+    justify-content: center;
+
+    min-width: 1.5rem;     /* Mindestbreite für runden Kreis */
+    height: 1.5rem;        /* Höhe = Breite für Kreis */
+    padding: 0 0.4rem;     /* bei 2–3 Zeichen breiter */
+
+    background-color: #dc3545; /* Bootstrap Danger */
+    color: #fff;
+    border-radius: 50%;    /* rund */
+
+    
+    line-height: 1.5rem;   /* Text vertikal ausbalanciert */
+    white-space: nowrap;
+}
+
+.navbar
+{
+    height: 80px;
+    transition: all 0.5s;
+    z-index: 997;
+    transition: all 0.5s;
+    background: rgba(var(--bs-nav-bg-rgb), 1);
+    box-shadow: 0px 2px 15px rgba(255, 255, 255, 0.5);
+    
+    border-top: var(--bs-nav-border-top-size) solid rgba(var(--bs-nav-border-top-color-rgb), 1) !important;
+    border-bottom: var(--bs-nav-border-bottom-size) solid rgba(var(--bs-nav-border-bottom-color-rgb), 1) !important;
+    box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,0.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1);
+    
+}
+
+
+
+
+
+/*--------------------------------------------------------------
+# Navigation Menu
+--------------------------------------------------------------*/
+.navbar
+{
+    padding: 0;
+}
+
+.navbar ul
+{
+    margin: 0;
+    padding: 0;
+    display: flex;
+    list-style: none;
+    align-items: center;
+}
+
+.navbar li
+{
+    position: relative;
+    border-right: 0px solid rgba(85, 85, 85, 0.125) !important;
+    border-left: 1px solid rgba(85, 85, 85, 0.125) !important;
+}
+
+.navbar a,
+.navbar a:focus
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 16px 28px 16px;
+    font-family: "Poppins", sans-serif;
+    font-size: var(--bs-nav-font-size);
+    font-weight: 500;
+    /*color: rgb(102,102,102);*/
+    color:rgba(var(--bs-nav-link-color-rgb), 1);
+    /*color:rgba(var(--bs-link-color), 1);*/
+    /*navi hover Farbe*/
+    white-space: nowrap;
+    transition: 0.3s;
+}
+
+.navbar a:hover,
+.navbar .active,
+.navbar .active:focus,
+.navbar li:hover>a
+{
+    color: rgba(var(--bs-nav-link-hover-color-rgb), 1);
+    /*navi hover Farbe*/
+    background-color: rgba(var(--bs-rm-nav-link-hover-bg-rgb), 1);
+}
+
+.navbar a,
+.navbar a:focus,
+.navbar a:active,
+.navbar .active,
+.navbar .active:focus,
+.navbar .active:active {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 16px 28px 16px;
+    font-family: "Poppins", sans-serif;
+    font-size: var(--bs-nav-font-size);
+    font-weight: 500;
+    color: rgba(var(--bs-nav-link-color-rgb), 1) !important; /* immer Standardfarbe */
+    hite-space: nowrap;
+    transition: 0.3s;
+}
+
+/* Hover bleibt normal */
+.navbar a:hover,
+.navbar li:hover > a {
+    color: rgba(var(--bs-nav-link-hover-color-rgb), 1) !important;
+    background-color: rgba(var(--bs-rm-nav-link-hover-bg-rgb), 1) !important;
+}
+
+
+
+.navbar .dropdown ul
+{
+    display: block;
+    position: absolute;
+    left: -3px;
+    top: calc(100% + 30px);
+    margin: 0px;    
+    z-index: 99;
+    opacity: 0;
+    visibility: hidden;
+    /*background: #fff;*/
+    /*background-image: linear-gradient(rgba(var(--bs-nav-bg-rgb),1),rgba(var(--bs-nav-sec-bg-rgb),1));
+    box-shadow: 0px 0px 30px rgba(127, 137, 161, 0.05);*/
+    transition: 0.3s;
+    /*border-color: transparent;*/
+    background-color: transparent;
+    border: var(--bs-nav-border-top-size) solid rgba(var(--bs-nav-border-bottom-color-rgb), 1) !important;
+
+}
+
+.navbar .dropdown ul li
+{
+    min-width: 200px;
+}
+
+.navbar .dropdown ul a
+{
+    padding: 10px 20px;
+    /*font-size: 14px;*/
+    font-weight: 400;
+    /*color: #21262a;*/
+    color: rgba(var(--bs-navdrp-link-color-rgb),1);
+    font-size: var(--bs-navdrp-font-size);
+    text-decoration: none;
+    background-color: rgba(var(--bs-navdrp-link-bg-rgb), 1);
+}
+
+.navbar .dropdown ul a i
+{
+    font-size: 12px;
+}
+
+.navbar .dropdown ul a:hover,
+.navbar .dropdown ul .active:hover,
+.navbar .dropdown ul li:hover>a
+{
+    /*color: #8fc04e;*/
+  color: rgba(var(--bs-navdrp-link-hover-color-rgb),1);
+  text-decoration: none;
+  /*background-color: rgba(var(--bs-navdrp-link-hover-bg-rgb),1);*/
+  background-color: rgba(var(--bs-navdrp-link-hover-bg-rgb), 1) !important;
+}
+
+.navbar .dropdown:hover>ul
+{
+    opacity: 1;
+    top: 100%;
+    visibility: visible;
+}
+
+.navbar .dropdown .dropdown ul
+{
+    top: 0;
+    left: calc(100% - 30px);
+    visibility: hidden;
+}
+
+.navbar .dropdown .dropdown:hover>ul
+{
+    opacity: 1;
+    top: 0;
+    left: 100%;
+    visibility: visible;
+}
+
+
+}
+
+/* Logo */
+.logo-link img {
+    max-height: clamp(50px, 8vw, 65px);
+    height: auto;
+    transition: transform 0.3s ease;
+}
+
+.logo-link:hover img {
+    transform: scale(1.05);
+}

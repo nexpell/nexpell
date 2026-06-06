@@ -1,0 +1,48 @@
+<?php
+
+$language_array = array(
+    'access_denied' => 'Accesso negato',
+    'accesslevel' => 'Livello di accesso',
+    'actions' => 'Azioni',
+    'add' => 'Aggiungi',
+    'category' => 'Categoria',
+    'clanmember_only' => 'solo membri del clan',
+    'close' => 'Chiudi',
+    'content' => 'Contenuto',
+    'delete' => 'Elimina',
+    'delete_info' => 'Vuoi davvero rimuovere questa pagina statica? <br><br>Tutto sarà eliminato definitivamente.',
+    'editor_is_displayed' => 'Attiva/disattiva editor',
+    'id' => 'ID',
+    'new_static_page' => 'Nuova pagina statica',
+    'options' => 'Opzioni',
+    'public' => 'Pubblico',
+    'really_delete' => 'Eliminare davvero questa pagina statica?',
+    'registered_only' => 'Solo utenti registrati',
+    'saved_successfully' => 'Salvato con successo',
+    'static_pages' => 'Pagine statiche',
+    'tags' => 'Tag',
+    'text' => 'Testo',
+    'title' => 'Titolo',
+    'transaction_invalid' => 'ID transazione non valido',
+    'you_can_use_html' => 'Puoi usare tag HTML',
+
+    'admin' => 'Admin',
+    'co-admin' => 'Co-Admin',
+    'co-leader' => 'Co-Leader',
+    'designer' => 'Designer',
+    'ehrenmitglied' => 'Membro onorario',
+    'gast' => 'Ospite',
+    'leader' => 'Leader',
+    'member' => 'Membro',
+    'moderator' => 'Moderatore',
+    'redakteur' => 'Redattore',
+    'registrierter benutzer' => 'Utente registrato',
+    'squad-leader' => 'Squad leader',
+    'streamer' => 'Streamer',
+    'techniker' => 'Tecnico',
+    'trial-member' => 'Membro in prova',
+    'war-organisator' => 'Organizzatore guerra',
+
+    'changes_successful' => 'Modifiche effettuate con successo'
+);
+

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>📘 nexpell Dokumentation</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: row;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    }
+    nav.sidebar {
+      width: 260px;
+      height: 100vh;
+      position: fixed;
+      top: 0; left: 0;
+      overflow-y: auto;
+      background-color: #f8f9fa;
+      border-right: 1px solid #ddd;
+      padding: 1rem 1.5rem;
+      box-sizing: border-box;
+      z-index: 1000;
+    }
+    nav.sidebar h5 {
+      font-weight: 600;
+      margin-top: 1rem;
+      margin-bottom: 0.5rem;
+      color: #333;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 0.2rem;
+    }
+    nav.sidebar ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    nav.sidebar ul li {
+      margin-bottom: 0.5rem;
+    }
+    nav.sidebar ul li a {
+      text-decoration: none;
+      color: #007bff;
+      cursor: pointer;
+    }
+    nav.sidebar ul li a:hover, nav.sidebar ul li a.active {
+      text-decoration: underline;
+      font-weight: 600;
+    }
+
+    main.content {
+      margin-left: 260px;
+      padding: 2rem 3rem;
+      flex-grow: 1;
+      max-width: 900px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+    h1, h2 {
+      margin-top: 1.5rem;
+      border-bottom: 1px solid #ccc;
+      padding-bottom: 0.4rem;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    pre {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+    }
+    .breadcrumb {
+      background: none;
+      padding: 0;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .language-switcher {
+      margin-bottom: 1rem;
+    }
+    .language-switcher button {
+      margin-right: 0.5rem;
+    }
+    /* Responsive */
+    @media (max-width: 768px) {
+      nav.sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+      }
+      main.content {
+        margin-left: 0;
+        padding: 1rem;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="sidebar" aria-label="Dokumentationsnavigation">
+    <h4>nexpell Doku</h4>
+
+    <div class="language-switcher" aria-label="Sprache wechseln">
+      <button type="button" data-lang="de" class="btn btn-sm btn-outline-primary active" aria-pressed="true">🇩🇪 DE</button>
+      <button type="button" data-lang="en" class="btn btn-sm btn-outline-primary" aria-pressed="false">🇬🇧 EN</button>
+      <button type="button" data-lang="it" class="btn btn-sm btn-outline-primary" aria-pressed="false">🇮🇹 IT</button>
+    </div>
+
+    <input type="text" id="searchInput" class="form-control form-control-sm mb-3" placeholder="Suchen..." aria-label="Suche in der Dokumentation" />
+
+    <h5>Erste Schritte</h5>
+    <ul>
+      <li><a href="#erste-schritte" class="nav-link">Erste Schritte</a></li>
+      <li><a href="#installation" class="nav-link">Installation</a></li>
+      
+    </ul>
+
+   <h5>Plugins</h5>
+  <ul>
+    <li><a href="#plugin-installation" class="nav-link">Plugin-Installation</a></li>
+    <li><a href="#plugin-news">News</a></li>
+    <li><a href="#plugin-gallery">Gallery</a></li>
+    <li><a href="#plugin-counter">Counter</a></li>
+    <li><a href="#plugin-partners">Partners / Sponsors</a></li>
+    <li><a href="#plugin-articles">Articles</a></li>
+    <li><a href="#plugin-about">About / Resume / Pricing</a></li>
+  </ul>
+
+
+
+    <h5>Templates & Entwicklung</h5>
+    <ul>
+      <li><a href="#template-system" class="nav-link">Template-System</a></li>
+      <li><a href="#entwicklerhinweise" class="nav-link">Entwicklerhinweise</a></li>
+      <li><a href="#changelog" class="nav-link">Changelog</a></li>
+      <li><a href="#sicherheit" class="nav-link">Sicherheit & DSGVO</a></li>
+      <li><a href="#faq" class="nav-link">FAQ</a></li>
+    </ul>
+
+    <hr />
+    <small>© 2025 Webspell-RM</small>
+  </nav>
+
+  <main class="content" tabindex="0">
+    <nav aria-label="Breadcrumb">
+      <ol class="breadcrumb" id="breadcrumb">
+        <li class="breadcrumb-item active" aria-current="page">Startseite</li>
+      </ol>
+    </nav>
+
+    <!-- Inhalt DE -->
+    <section data-lang="de" class="lang-section active" id="doc-de">
+
+      <h1>📘 nexpell Dokumentation</h1>
+      <p class="text-muted">Einsteigerhilfe, Plugin-Erweiterungen und Entwicklertipps auf einer Seite.</p>
+
+      <h2 id="erste-schritte">🚀 Erste Schritte</h2>
+      <ul>
+        <li>Webserver mit <strong>PHP 8.1+</strong> und <strong>MySQL/MariaDB</strong></li>
+        <li>mod_rewrite aktiviert (für sprechende URLs)</li>
+        <li>Verzeichnisse <code>/includes</code>, <code>/templates_c</code>, <code>/images</code> beschreibbar</li>
+      </ul>
+
+      <h2 id="installation">🛠 Installation</h2>
+      <ol>
+        <li>Repository von GitHub klonen oder ZIP herunterladen</li>
+        <li>Projekt auf den Webserver hochladen</li>
+        <li><code>/install</code> im Browser öffnen und Setup ausführen</li>
+        <li>Datenbank & Admin-Zugang einrichten</li>
+        <li>Fertig! Du kannst dich im <code>/admincenter.php</code> anmelden</li>
+      </ol>
+
+      <h2 id="plugin-installation">🧩 Plugin-Installation</h2>
+      <p>Ab nexpell erfolgt die Plugin-Verwaltung über den Plugin-Installer:</p>
+      <ol>
+  <li>Repository von GitHub klonen <strong>oder</strong> ZIP-Archiv herunterladen</li>
+  <li>Projektverzeichnis auf deinen Webserver hochladen</li>
+  <li>Im Browser <code>/install</code> aufrufen und das Setup ausführen</li>
+  <li>Datenbankverbindung und Admin-Zugang einrichten</li>
+  <li><strong>Fertig!</strong> Du kannst dich im Adminbereich unter <code>/admincenter.php</code> anmelden</li>
+  <li>Plugins kannst du bequem über den integrierten <strong>Plugin-Installer</strong> verwalten und aktualisieren</li>
+</ol>
+
+
+      <h2 id="wichtige-plugins-de">📦 Wichtige Plugins</h2>
+<p>Die folgende Liste gibt einen Überblick über die wichtigsten mitgelieferten Plugins von Webspell-RM. Jedes Plugin erweitert das System um spezifische Funktionen und kann über das Admin-Panel konfiguriert werden.</p>
+
+<ul>
+  <li>
+    <strong>📰 News:</strong>  
+    Ein flexibles News-System zur Veröffentlichung von Nachrichten und Ankündigungen.  
+    Unterstützt Kategorien, Bilder, Archivierung, mehrsprachige Inhalte sowie ein Veröffentlichungsdatum. Inklusive Admin-Modul mit Editor und Kommentaroption.
+  </li>
+  <li>
+    <strong>🖼️ Gallery:</strong>  
+    Verwaltung und Darstellung von Bildern in einer dynamischen Galerie.  
+    Funktionen: Drag-&-Drop-Sortierung, mehrseitige Verwaltung, Bild-Upload mit Vorschau, Klassensystem (.wide/.tall/.big), sowie anpassbare Galerie-Layouts.
+  </li>
+  <li>
+    <strong>📈 Counter:</strong>  
+    Ein datenschutzfreundlicher Besucherzähler mit Session-Schutz und Bot-Erkennung.  
+    Zeichnet echte Besucher anonymisiert auf, bietet Zeitfilterung (Tag/Woche/Monat), einfache Diagramme und CSV-Export. Nur im Adminbereich sichtbar.
+  </li>
+  <li>
+    <strong>🤝 Partners / Sponsors:</strong>  
+    Anzeige und Verwaltung von Partner- oder Sponsorenlogos mit optionalem Link.  
+    Logos können hochgeladen, sortiert und mit Ziel-URLs versehen werden. Ideal für Unternehmenskooperationen oder Werbepartner.
+  </li>
+  <li>
+    <strong>✍️ Articles:</strong>  
+    Redaktionssystem zur Veröffentlichung umfangreicher Artikel und Blogbeiträge.  
+    Enthält Bewertungssystem (1–5 Sterne), Kommentarfunktion mit Bearbeitung, Kategorieverwaltung und mehrsprachige Unterstützung.
+  </li>
+  <li>
+    <strong>📄 About / Resume / Pricing:</strong>  
+    Drei kombinierte Info-Module für Unternehmenspräsentation.  
+    <ul>
+      <li><strong>About:</strong> Erzählt die Geschichte und Philosophie des Projekts.</li>
+      <li><strong>Resume:</strong> Lebenslauf-ähnliche Darstellung z. B. für Freelancer oder Teams.</li>
+      <li><strong>Pricing:</strong> Darstellung von Preisplänen mit Features, ideal für Services.</li>
+    </ul>
+  </li>
+</ul>
+
+
+      <h2 id="template-system">🎨 Template-System</h2>
+      <p>Unser eigenes Template-System nutzt <code>{if}</code> und <code>{foreach}</code>-Blöcke für Flexibilität.</p>
+      <p>Templates liegen in <code>/themes/[theme]/</code> oder <code>/admin/</code> bzw. <code>/plugins/[plugin]/templates/</code>.</p>
+
+      <h2 id="entwicklerhinweise">👨‍💻 Entwicklerhinweise</h2>
+      <ul>
+        <li>DB-Zugang über <code>$_database</code></li>
+        <li>CSRF-Schutz in Formularen implementieren</li>
+        <li>Sprache über URL-Parameter oder Cookie steuern</li>
+        <li>Modulare Plugin-Struktur verwenden</li>
+      </ul>
+
+      <h2 id="changelog">📝 Changelog</h2>
+      <ul>
+        <li>2025-06: Erstveröffentlichung nexpell</li>
+        <li>2025-05: Plugin-System komplett überarbeitet</li>
+        <li>2025-04: Template-Engine optimiert</li>
+      </ul>
+
+      <h2 id="sicherheit">🔒 Sicherheit & DSGVO</h2>
+      <ul>
+        <li>Session-Management und Bot-Filter im Counter</li>
+        <li>Keine Tracking-Cookies standardmäßig</li>
+        <li>Admin-Login mit Rate-Limiting</li>
+        <li>SQL-Injections durch Prepared Statements vermeiden</li>
+      </ul>
+
+      <h2 id="faq">❓ FAQ</h2>
+      <p><strong>Q:</strong> Wie aktualisiere ich Webspell-RM?<br />
+         <strong>A:</strong> Backup machen, Dateien ersetzen, Datenbank aktualisieren über Adminbereich.</p>
+      <p><strong>Q:</strong> Wie füge ich ein neues Plugin hinzu?<br />
+         <strong>A:</strong> Plugin-Installer benutzen oder manuell Dateien kopieren und DB-Einträge setzen.</p>
+
+    </section>
+
+    <!-- Inhalt EN -->
+    <section data-lang="en" class="lang-section" id="doc-en" hidden>
+
+      <h1>📘 nexpell Documentation</h1>
+      <p class="text-muted">Getting started, plugin extensions and developer tips on one page.</p>
+
+      <h2 id="erste-schritte-en">🚀 Getting Started</h2>
+      <ul>
+        <li>Webserver with <strong>PHP 8.1+</strong> and <strong>MySQL/MariaDB</strong></li>
+        <li>mod_rewrite enabled (for pretty URLs)</li>
+        <li>Writable directories: <code>/includes</code>, <code>/templates_c</code>, <code>/images</code></li>
+      </ul>
+
+      <h2 id="installation-en">🛠 Installation</h2>
+      <ol>
+        <li>Clone repository or download ZIP</li>
+        <li>Upload to your webserver</li>
+        <li>Open <code>/install</code> in your browser and run setup</li>
+        <li>Configure database & admin user</li>
+        <li>Done! Log in at <code>/admincenter.php</code></li>
+      </ol>
+
+      <h2 id="plugin-installation-en">🧩 Plugin Installation</h2>
+      <p>Since nexpell plugins are managed via Plugin Installer:</p>
+      <ol>
+  <li>Clone the repository from GitHub <strong>or</strong> download the ZIP archive</li>
+  <li>Upload the project to your web server</li>
+  <li>Open <code>/install</code> in your browser and run the setup</li>
+  <li>Configure your database connection and admin login</li>
+  <li><strong>Done!</strong> You can log in to the admin panel at <code>/admincenter.php</code></li>
+  <li>Plugins are managed and updated via the built-in <strong>Plugin Installer</strong></li>
+</ol>
+
+
+      <h2 id="wichtige-plugins-en">📦 Important Plugins</h2>
+<p>The following list provides an overview of the most important built-in plugins of Webspell-RM. Each plugin adds specific functionality and can be configured via the admin panel.</p>
+
+<ul>
+  <li>
+    <strong>📰 News:</strong>  
+    A flexible news system for publishing announcements and updates.  
+    Supports categories, images, archiving, multilingual content, and publish dates. Includes admin module with editor and optional comments.
+  </li>
+  <li>
+    <strong>🖼️ Gallery:</strong>  
+    Manage and display images in a dynamic gallery layout.  
+    Features: drag-and-drop sorting, multi-page navigation, image uploads with preview, class system (.wide/.tall/.big), and customizable layouts.
+  </li>
+  <li>
+    <strong>📈 Counter:</strong>  
+    A GDPR-friendly visitor counter with session protection and bot detection.  
+    Records real visitors anonymously, provides time filters (day/week/month), basic charts, and CSV export. Visible to admins only.
+  </li>
+  <li>
+    <strong>🤝 Partners / Sponsors:</strong>  
+    Display and manage partner or sponsor logos with optional links.  
+    Upload, sort and assign URLs to each logo – ideal for business cooperation or advertising banners.
+  </li>
+  <li>
+    <strong>✍️ Articles:</strong>  
+    Editorial system for publishing detailed articles and blog posts.  
+    Includes star rating system (1–5), comment function with editing, category management and multilingual support.
+  </li>
+  <li>
+    <strong>📄 About / Resume / Pricing:</strong>  
+    Three combined info modules for presenting your organization or services.  
+    <ul>
+      <li><strong>About:</strong> Tells the story and philosophy of your project.</li>
+      <li><strong>Resume:</strong> CV-style overview, useful for freelancers or teams.</li>
+      <li><strong>Pricing:</strong> Displays price plans with features – ideal for commercial offerings.</li>
+    </ul>
+  </li>
+</ul>
+
+
+      <h2 id="template-system-en">🎨 Template System</h2>
+      <p>Our own template system uses <code>{if}</code> and <code>{foreach}</code> blocks for flexibility.</p>
+      <p>Templates reside in <code>/themes/[theme]/</code>, <code>/admin/</code> or <code>/plugins/[plugin]/templates/</code>.</p>
+
+      <h2 id="entwicklerhinweise-en">👨‍💻 Developer Notes</h2>
+      <ul>
+        <li>DB access via <code>$_database</code></li>
+        <li>Implement CSRF protection in forms</li>
+        <li>Language controlled via URL or cookie</li>
+        <li>Use modular plugin structure</li>
+      </ul>
+
+      <h2 id="changelog-en">📝 Changelog</h2>
+      <ul>
+        <li>2025-06: Initial release nexpell</li>
+        <li>2025-05: Plugin system completely revamped</li>
+        <li>2025-04: Template engine optimized</li>
+      </ul>
+
+      <h2 id="sicherheit-en">🔒 Security & GDPR</h2>
+      <ul>
+        <li>Session management and bot filter in counter</li>
+        <li>No tracking cookies by default</li>
+        <li>Admin login with rate limiting</li>
+        <li>SQL injections prevented with prepared statements</li>
+      </ul>
+
+      <h2 id="faq-en">❓ FAQ</h2>
+      <p><strong>Q:</strong> How do I update Webspell-RM?<br />
+         <strong>A:</strong> Backup, replace files, update database via admin.</p>
+      <p><strong>Q:</strong> How do I add a new plugin?<br />
+         <strong>A:</strong> Use plugin installer or manually copy files and set DB entries.</p>
+
+    </section>
+
+    <!-- Inhalt IT -->
+    <section data-lang="it" class="lang-section" id="doc-it" hidden>
+
+      <h1>📘 Documentazione nexpell</h1>
+      <p class="text-muted">Guida introduttiva, estensioni plugin e consigli per sviluppatori in una pagina.</p>
+
+      <h2 id="erste-schritte-it">🚀 Primi Passi</h2>
+      <ul>
+        <li>Server web con <strong>PHP 8.1+</strong> e <strong>MySQL/MariaDB</strong></li>
+        <li>mod_rewrite abilitato (per URL leggibili)</li>
+        <li>Cartelle scrivibili: <code>/includes</code>, <code>/templates_c</code>, <code>/images</code></li>
+      </ul>
+
+      <h2 id="installation-it">🛠 Installazione</h2>
+      <ol>
+        <li>Clona il repository o scarica lo ZIP</li>
+        <li>Carica sul tuo server web</li>
+        <li>Apri <code>/install</code> nel browser e avvia l’installazione</li>
+        <li>Configura database e utente admin</li>
+        <li>Fatto! Accedi tramite <code>/admincenter.php</code></li>
+      </ol>
+
+      <h2 id="plugin-installation-it">🧩 Installazione Plugin</h2>
+      <p>Da nexpell i plugin si gestiscono tramite Plugin Installer:</p>
+      <ol>
+  <li>Clona il repository da GitHub <strong>oppure</strong> scarica il file ZIP</li>
+  <li>Carica il progetto sul tuo server web</li>
+  <li>Apri <code>/install</code> nel browser ed esegui il setup</li>
+  <li>Configura il database e crea l'account amministratore</li>
+  <li><strong>Fatto!</strong> Puoi accedere al pannello admin tramite <code>/admincenter.php</code></li>
+  <li>I plugin si installano e si aggiornano tramite il <strong>Plugin Installer</strong> integrato</li>
+</ol>
+
+
+      <h2 id="wichtige-plugins-it">📦 Plugin Importanti</h2>
+<p>L’elenco seguente presenta una panoramica dei principali plugin inclusi in Webspell-RM. Ogni plugin estende il sistema con funzionalità specifiche ed è configurabile dal pannello di amministrazione.</p>
+
+<ul>
+  <li>
+    <strong>📰 News:</strong>  
+    Un sistema di notizie flessibile per pubblicare annunci e aggiornamenti.  
+    Supporta categorie, immagini, archiviazione, contenuti multilingue e data di pubblicazione. Include modulo admin con editor e opzione commenti.
+  </li>
+  <li>
+    <strong>🖼️ Gallery:</strong>  
+    Gestione e visualizzazione di immagini in una galleria dinamica.  
+    Funzioni: ordinamento tramite drag & drop, gestione multi-pagina, caricamento immagini con anteprima, sistema classi (.wide/.tall/.big) e layout personalizzabili.
+  </li>
+  <li>
+    <strong>📈 Counter:</strong>  
+    Contatore visite conforme al GDPR, con protezione sessioni e filtro bot.  
+    Registra visitatori reali in modo anonimo, filtri per periodo (giorno/settimana/mese), grafici semplici e esportazione CSV. Visibile solo nell'area admin.
+  </li>
+  <li>
+    <strong>🤝 Partners / Sponsors:</strong>  
+    Visualizzazione e gestione dei loghi di partner o sponsor con link opzionali.  
+    Carica loghi, ordina e assegna URL di destinazione. Ideale per collaborazioni aziendali o spazi pubblicitari.
+  </li>
+  <li>
+    <strong>✍️ Articles:</strong>  
+    Sistema editoriale per pubblicare articoli e post dettagliati.  
+    Include sistema di valutazione a stelle (1–5), commenti con modifica, gestione categorie e supporto multilingua.
+  </li>
+  <li>
+    <strong>📄 About / Resume / Pricing:</strong>  
+    Tre moduli informativi per presentare il tuo progetto o servizio.  
+    <ul>
+      <li><strong>About:</strong> Racconta la storia e la filosofia del progetto.</li>
+      <li><strong>Resume:</strong> Presentazione in stile CV, utile per freelance o team.</li>
+      <li><strong>Pricing:</strong> Visualizzazione dei piani tariffari con funzionalità – ideale per offerte commerciali.</li>
+    </ul>
+  </li>
+</ul>
+
+
+      <h2 id="template-system-it">🎨 Sistema Template</h2>
+      <p>Il nostro sistema usa <code>{if}</code> e <code>{foreach}</code> per flessibilità.</p>
+      <p>I template sono in <code>/themes/[theme]/</code>, <code>/admin/</code> o <code>/plugins/[plugin]/templates/</code>.</p>
+
+      <h2 id="entwicklerhinweise-it">👨‍💻 Note per Sviluppatori</h2>
+      <ul>
+        <li>Accesso DB tramite <code>$_database</code></li>
+        <li>Implementa CSRF nei form</li>
+        <li>Lingua gestita via URL o cookie</li>
+        <li>Usa struttura modulare per plugin</li>
+      </ul>
+
+      <h2 id="changelog-it">📝 Changelog</h2>
+      <ul>
+        <li>2025-06: Rilascio iniziale nexpell</li>
+        <li>2025-05: Sistema plugin completamente rifatto</li>
+        <li>2025-04: Motore template ottimizzato</li>
+      </ul>
+
+      <h2 id="sicherheit-it">🔒 Sicurezza & GDPR</h2>
+      <ul>
+        <li>Gestione sessioni e filtro bot nel counter</li>
+        <li>Nessun cookie di tracciamento di default</li>
+        <li>Login admin con limitazione tentativi</li>
+        <li>Prevenzione SQL injection con prepared statements</li>
+      </ul>
+
+      <h2 id="faq-it">❓ FAQ</h2>
+      <p><strong>Q:</strong> Come aggiorno Webspell-RM?<br />
+         <strong>A:</strong> Backup, sostituisci file, aggiorna DB via admin.</p>
+      <p><strong>Q:</strong> Come aggiungo un nuovo plugin?<br />
+         <strong>A:</strong> Usa plugin installer o copia manuale e DB.</p>
+
+    </section>
+  </main>
+
+<script>
+  (() => {
+    const langButtons = document.querySelectorAll(".language-switcher button");
+    const langSections = document.querySelectorAll(".lang-section");
+    const navLinks = document.querySelectorAll("nav.sidebar a.nav-link");
+    const breadcrumb = document.getElementById("breadcrumb");
+    const searchInput = document.getElementById("searchInput");
+
+    function setLanguage(lang) {
+      langSections.forEach(sec => {
+        if (sec.getAttribute("data-lang") === lang) {
+          sec.classList.add("active");
+          sec.removeAttribute("hidden");
+        } else {
+          sec.classList.remove("active");
+          sec.setAttribute("hidden", "");
+        }
+      });
+      langButtons.forEach(btn => {
+        if (btn.getAttribute("data-lang") === lang) {
+          btn.classList.add("active");
+          btn.setAttribute("aria-pressed", "true");
+        } else {
+          btn.classList.remove("active");
+          btn.setAttribute("aria-pressed", "false");
+        }
+      });
+      updateBreadcrumb(null); // reset breadcrumb on language change
+    }
+
+    langButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        setLanguage(btn.getAttribute("data-lang"));
+      });
+    });
+
+    // Scroll to section and highlight nav link + update breadcrumb
+    navLinks.forEach(link => {
+      link.addEventListener("click", e => {
+        e.preventDefault();
+        const href = link.getAttribute("href");
+        if (!href.startsWith("#")) return;
+        const id = href.substring(1);
+        // Scroll smoothly
+        const targetSection = document.querySelector(".lang-section.active #" + id);
+        if (targetSection) {
+          targetSection.scrollIntoView({ behavior: "smooth" });
+          updateBreadcrumb(id);
+          // Highlight active link
+          navLinks.forEach(l => l.classList.remove("active"));
+          link.classList.add("active");
+        }
+      });
+    });
+
+    function updateBreadcrumb(sectionId) {
+      while (breadcrumb.firstChild) {
+        breadcrumb.removeChild(breadcrumb.firstChild);
+      }
+      const liHome = document.createElement("li");
+      liHome.className = "breadcrumb-item";
+      const homeLink = document.createElement("a");
+      homeLink.href = "#";
+      homeLink.textContent = "Startseite";
+      homeLink.addEventListener("click", e => {
+        e.preventDefault();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        navLinks.forEach(l => l.classList.remove("active"));
+        breadcrumbReplace("Startseite");
+      });
+      liHome.appendChild(homeLink);
+      breadcrumb.appendChild(liHome);
+
+      if (sectionId) {
+        const section = document.querySelector(`.lang-section.active #${sectionId}`);
+        if (section) {
+          const title = section.tagName === "SECTION"
+            ? section.querySelector("h1, h2")?.textContent || sectionId
+            : section.textContent || sectionId;
+          const liCurrent = document.createElement("li");
+          liCurrent.className = "breadcrumb-item active";
+          liCurrent.setAttribute("aria-current", "page");
+          liCurrent.textContent = title;
+          breadcrumb.appendChild(liCurrent);
+        }
+      }
+    }
+
+    // On page load, set default language DE
+    setLanguage("de");
+
+    // Search function
+    searchInput.addEventListener("input", () => {
+      const term = searchInput.value.toLowerCase();
+      const activeSection = document.querySelector(".lang-section.active");
+      if (!activeSection) return;
+
+      // Highlight matched nav links and sections
+      navLinks.forEach(link => {
+        const text = link.textContent.toLowerCase();
+        if (text.includes(term) || term === "") {
+          link.style.display = "";
+        } else {
+          link.style.display = "none";
+        }
+      });
+
+      // Filter sections by hiding headings without match
+      const headings = activeSection.querySelectorAll("h1, h2, h3, h4, h5, h6");
+      headings.forEach(h => {
+        if (term === "" || h.textContent.toLowerCase().includes(term)) {
+          h.style.display = "";
+        } else {
+          h.style.display = "none";
+        }
+      });
+    });
+
+  })();
+</script>
+
+</body>
+</html>

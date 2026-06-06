@@ -1,0 +1,33 @@
+<?php
+
+$language_array = array(
+
+    'address'                 => 'Address',
+    'changes_successful'      => 'Changes successful',
+    'city'                    => 'City',
+    'disclaimer'              => 'Disclaimer',
+    'email'                   => 'E-mail',
+    'editor_is_editor'        => 'Toggle editor on/off:',
+    'imprint'                 => 'Imprint',
+    'name_association'        => 'Name of the association',
+    'name_company'            => 'Company name',
+    'name_private'            => 'Name of private person',
+    'name_small_business'     => 'Name of the small business',
+    'new_edit'                => 'New / Edit',
+    'phone'                   => 'Phone number',
+    'postal_code'             => 'Postal code',
+    'represented_by_association' => 'Represented by',
+    'represented_by_company'  => 'Represented by',
+    'register_number'         => 'Registration No.',
+    'register_office'         => 'Registry court',
+    'save'                    => 'Save',
+    'save_changes'            => 'Changes have been saved.',
+    'select_type'             => 'Please select',
+    'supervisory_authority'   => 'Supervisory authority',
+    'tax_id_company'          => 'Tax ID',
+    'tax_id_small_business'   => 'Tax ID',
+    'type_hint'               => 'Please select the type of imprint',
+    'type_label'              => 'Type',
+    'transaction_invalid'     => 'Transaction ID invalid',
+    'website'                 => 'Website',
+);

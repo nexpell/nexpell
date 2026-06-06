@@ -1,0 +1,60 @@
+<!-- edit_email_content -->
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <div class="card shadow-lg overflow-hidden">
+                <div class="card-body p-0">
+                    <div class="row g-0">
+                        <!-- Linke Bildhälfte -->
+                        <div class="col-sm-5 d-none d-sm-block sign_pic_bg"></div>
+
+                        <!-- Rechte Login-Hälfte -->
+                        <div class="col-sm-7 p-4">
+                            <div class="text-start">
+                                <!-- Überschrift -->
+                                <div class="h3 fw-light">
+                                    <span>{edit_mail_headline}</span>
+                                </div>
+
+                                <!-- Fehlermeldungen und Zusatznachrichten -->
+                                {error_message}
+                                {message_zusatz}
+
+                                {if isIpBanned}
+                                    <!-- Hier kannst du eine gesperrt-Meldung einfügen -->
+                                {else}
+                                                                        
+                                    <!-- Begrüßung -->
+                                    <p>{welcome_edit}</p>
+
+                                    <form method="POST">
+                                        <label for="current_email">{lang_current_email}:</label><br>
+                                        <input type="email" class="form-control" id="current_email" name="current_email" required><br><br>
+
+                                        <label for="new_email">{lang_new_email}:</label><br>
+                                        <input type="email" class="form-control" id="new_email" name="new_email" required><br><br>
+
+                                        <label for="confirm_email">{lang_confirm_email}:</label><br>
+                                        <input type="email" class="form-control" id="confirm_email" name="confirm_email" required><br><br>
+
+                                        <label for="password_hash">{lang_password_confirm}:</label><br>
+                                        <input type="password" class="form-control" id="password_hash" name="password_hash" required><br><br> <!-- Korrektur hier -->
+
+                                        <input type="hidden" name="csrf_token" value="{csrf_token}">
+                                        <input type="submit" class="btn btn-primary w-100" value="{edit}">
+                                    </form>
+
+                                    <hr>
+                                    <p class="message">{edit_text}
+                                    </p>
+                                {endif}
+                            </div>
+                        </div>
+                        <!-- Ende rechte Spalte -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- end -->

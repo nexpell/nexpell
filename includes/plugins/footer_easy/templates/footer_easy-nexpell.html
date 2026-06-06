@@ -1,0 +1,136 @@
+<!-- footer_easy_content -->
+<!--<footer class="footer footer-top border-top py-4 bg-dark text-white">
+    <div class="container text-center">
+        <ul class="list-inline mb-2">
+            {copyright_link1}
+            {copyright_link2}
+            {copyright_link3}
+            {copyright_link4}
+            {copyright_link5}
+        </ul>
+        <p class="mb-0 small">
+            &copy; {date} {myclanname} &middot; Since {since} &middot; All rights reserved.
+        </p>
+    </div>
+</footer>-->
+
+<!-- /client logo slider -->
+<footer class="footer-bg-secondary text-white mt-3">
+  <div class="py-5 border-bottom border-2" style="border-color: #454547 !important;">
+    <div class="container">
+      <div class="row">
+        <div class="col-lg-4 col-md-4">
+          <div class="mb-5 mb-md-0 text-center text-md-left"> 
+            <!-- logo --> 
+            <img class="mb-30" src="images/logo-weiss.png" alt="footer-logo" style="width: 250px;">
+            <p class="text-white mb-30">nexpell ist ein modernes, quelloffenes CMS, das für Communities, Gaming-Clans, Vereine, kleine Unternehmen und ähnliche Websites entwickelt wurde. Es basiert auf dem beliebten Bootstrap-Framework.</p>
+          </div>
+        </div>
+        <!-- footer links -->
+        <div class="col-lg-2 col-md-4 col-6">
+          <h4 class="text-white mb-4">Community</h4>
+          <ul class="footer-links">
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_self" href="" rel="nofollow">Referenzen</a></li>
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_self" href="/de/partners" rel="nofollow">Unsere Partner</a></li>
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_self" href="/de/userlist" rel="nofollow">nexpell Mitglieder</a></li>
+          </ul>
+        </div>
+        <!-- footer links -->
+        <div class="col-lg-2 col-md-4 col-6">
+          <h4 class="text-white mb-4">Quick Links</h4>
+          <ul class="footer-links">
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_self" href="/de/downloads" rel="nofollow">Download</a></li>
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_blank" href="https://github.com/nexpell" rel="nofollow">Github</a></li>
+            <li><i class="bi bi-chevron-right me-2"></i> <a target="_self" href="#" rel="nofollow">nexpell-Projekte</a></li>
+          </ul>
+        </div>
+        <!-- subscribe form -->
+        <div class="col-lg-3 col-md-12 offset-lg-1">
+          <div class="mt-5 mt-lg-0 text-center text-md-left text-white">
+            <h4 class="text-white mb-4">Wir im Social Web</h4>
+            <p class="text-white mb-4">Chatte mit uns auf Discord oder folge uns auf Facebook &amp; Twitter.</p>
+            <!-- social icon -->
+            <ul class="list-inline pd-footer">
+              <li class="list-inline-item">| <a target="_blank" href="https://discordapp.com/invite/kErxPxb?utm_source=Discord%20Widget&amp;utm_medium=Connect" rel="nofollow">Discord</a></li>
+              <li class="list-inline-item">| <s><a target="_blank" href="#" rel="nofollow"> Facebook</a></s></li>
+              <li class="list-inline-item">| <s><a target="_blank" href="#" rel="nofollow"> Twitter</a></s> |</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- copyright -->
+  <div class="pt-4 pb-3 position-relative">
+    <div class="container">
+  <div class="row align-items-center"> <!-- <- sorgt für gleiche Höhe -->
+    <div class="col-lg-6 col-md-5">
+      <p class="text-white text-center text-md-left mb-0">
+        <span class="text-primary">&copy; {date} {myclanname}</span>
+        &middot; Since {since} &middot; All rights reserved.
+      </p>
+    </div>
+    <div class="col-lg-6 col-md-7">
+      <ul class="list-inline text-center text-md-right mb-0">
+        <li class="list-inline-item">{copyright_link1}</li>
+        <li class="list-inline-item">{copyright_link2}</li>
+        <li class="list-inline-item">{copyright_link3}</li>
+        <li class="list-inline-item">{copyright_link4}</li>
+        <li class="list-inline-item">{copyright_link5}</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+    <!-- back to top -->
+    <!-- Back to Top (rechts) -->
+    <button class="back-to-top" id="back-to-top" data-bs-toggle="tooltip" title="Nach oben scrollen">
+      <i class="bi bi-chevron-double-up" style="font-size: 1.5rem;"></i>
+    </button>
+
+    <!-- Cookie Consent (links) -->
+<!-- Cookie-Consent Button (links unten) -->
+<div class="cookies-wrapper">
+    <span class="cookie-consent" id="cookie-consent"><i class="bi bi-gear" style="font-size: 2rem;" data-bs-toggle="tooltip" title="Cookie-Einstellungen" id="cookie-settings-icon"></i></span>
+</div>
+
+
+  </div>
+</footer>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  // Scroll-to-top Funktion
+  const backToTopBtn = document.getElementById('back-to-top');
+  if (backToTopBtn) {
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
+  // Bootstrap Tooltip initialisieren
+  const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
+
+  // Cookie Consent
+  const cookieBtn = document.getElementById('cookie-consent');
+  const overlay = document.getElementById('cookie-overlay');
+  const content = document.getElementById('cookie-content'); // Div in index.php, wo cookie-consent.php eingebunden ist
+
+  if (cookieBtn && overlay && content) {
+    // Button klicken → Overlay + Inhalt anzeigen
+    cookieBtn.addEventListener('click', () => {
+      overlay.style.display = 'block';
+      content.style.display = 'block';
+    });
+
+    // Overlay klicken → alles wieder schließen
+    overlay.addEventListener('click', () => {
+      overlay.style.display = 'none';
+      content.style.display = 'none';
+    });
+  }
+});
+</script>
+
+<!-- END -->
+

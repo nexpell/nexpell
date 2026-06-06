@@ -1,0 +1,178 @@
+/* =================================
+------------------------------------
+  nexpell Template
+------------------------------------ 
+====================================*/
+
+body, .sticky-footer-wrapper {
+  min-height:100vh;  
+} 
+
+.flex-fill {
+  flex:1 1 auto;
+}
+
+.footer-top {
+  margin-top: 40px;
+}
+
+/* Öffnet Dropdown-Menü bei Hover */
+.dropdown:hover .dropdown-menu {
+  display: block;
+  margin-top: 0; /* optional: verhindert Sprung */
+}
+
+
+.page-link {
+  color: rgba(var(--bs-link-color),1);
+  background-color: rgba(var(--bs-card-bg-rgb), 1);
+  border: 1px solid rgba(var(--bs-card-border-color-rgb), 1);
+  border-radius: var(--bs-border-radius);
+}
+
+.page-item.active .page-link {
+  z-index: 3;
+  color: #fff;
+  background-color: rgba(var(--bs-primary-rgb), 1);
+  border: 1px solid rgba(var(--bs-card-border-color-rgb), 1);
+}
+
+.avatar_small {
+  vertical-align: middle;
+  width: 32px;
+    height: 32px;
+  border-radius: var(--bs-border-radius);
+  box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,0.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1);
+}
+
+.avatar {
+  vertical-align: middle;
+  width: auto;
+  height: 120px;
+  border-radius: var(--bs-border-radius);
+  box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,0.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1);
+}
+
+.userpic {
+  vertical-align: middle;
+  width: 250px;
+  height: 250px;
+  border-radius: var(--bs-border-radius);
+  box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,0.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1);
+}
+
+.bi-color {
+  color: rgba(var(--bs-primary-rgb), 1);
+}
+
+.login,
+.image {
+  min-height: 79.5vh;
+}
+
+.sign_pic_bg {
+  background-image: url('/images/login_bg.jpg');
+  background-position: center center;
+  background-size: cover;
+  min-height: 59.5vh;
+}
+
+.bg-image {
+  background-image: url('/images/login_bg.jpg');
+  background-position: center center;
+  background-size: cover;
+}
+
+.reg_pic_text {  
+  color: rgba(var(--bs-primary-rgb), 1);
+}
+
+.signup-greeting {  
+  padding: 20px;
+  text-align: center;
+}
+
+.signup-greeting h4 {
+  margin-bottom: 20px;
+  position: relative;
+  z-index: 9;
+}
+
+.signup-greeting p {
+  position: relative;
+  z-index: 9;  
+}
+
+@media (max-width: 1199px) {
+  
+}
+
+@media (max-width: 767px) {
+  
+}
+
+@media (max-width: 575px) {
+    
+  .login,.image {
+    min-height: 72vh;
+  }
+}
+
+.flag {
+    display: inline-block;
+    width: 32px;
+    height: 22px;
+    border-radius: 4px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    vertical-align: middle; /* <- Das ist neu */
+}
+
+.flag::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.4) 0%,
+        rgba(255, 255, 255, 0.15) 40%,
+        transparent 60%
+    );
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+
+#cookie-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6); /* Schwarz mit 60% Transparenz */
+  display: none;
+  z-index: 999; /* über allem */
+}
+
+#cookie-content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff; /* weißes Fenster */
+  padding: 2rem;
+  border-radius: 10px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  display: none;
+  z-index: 1000; /* über dem Overlay */
+  max-width: 500px;
+  width: 90%;
+}

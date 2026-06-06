@@ -1,0 +1,192 @@
+
+/* Allgemeine Einstellungen */
+body {
+    color: #000;
+    font-family: 'Raleway', sans-serif;
+
+    /* Hintergrundbild mit linearem Verlauf und Bild */
+    background: 
+        linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.1) 100%), 
+        url(/images/lock_bg.jpg) no-repeat center center;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+}
+
+/* Überschriften */
+h1, h3, h5 {
+    color: #000;
+}
+
+/* Header und Abstand */
+#header {
+    margin-top: 20px;
+    margin-bottom: 120px;
+}
+
+#main {
+    margin-top: 20px;
+    margin-bottom: 50px;
+}
+
+#social {
+    margin-top: 50px;
+    margin-bottom: 50px;
+}
+
+#contact {
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+#foot {}
+
+/* Buttons */
+.btn {
+    border-radius: 0px;
+}
+
+/* Karten-Styling */
+.card {
+    background-color: #fff;
+    border: none;
+    border-radius: 0px;
+    /* Entfernte Box-Schatten */
+    /* box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1); */
+}
+
+.card .card-text {
+    margin-bottom: 1.5625rem;
+}
+
+.card a:hover {
+    text-decoration: none;
+}
+
+.card-body {
+    padding: 1.875rem;
+    color: #000;
+}
+
+.card-title {
+    font-weight: 500;
+    margin-bottom: .75rem;
+}
+
+/* Formulare */
+.form-control {
+    height: 42px;
+    padding: 8px 18px;
+    border: none;
+    border-radius: 0px;
+}
+
+/* Login-Karte */
+.login_card {
+    /* Hintergrundfarbe auskommentiert */
+    /* background-color: rgba(255,255,255,0.35); */
+    border: none;
+    border-radius: 0px;
+    /* Entfernte Box-Schatten */
+    /* box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1); */
+    background-color: transparent;
+}
+
+/* Links */
+.url-link {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.url-link:hover {
+    color: #FF6600;
+}
+
+/* Social Media Links */
+.twitter {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.twitter:hover {
+    color: #179cf0;
+}
+
+.facebook {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.facebook:hover {
+    color: #3b5998;
+}
+
+.steam {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.steam:hover {
+    color: #455a64;
+}
+
+.discord {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.discord:hover {
+    color: #7289da;
+}
+
+.twitch {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.twitch:hover {
+    color: #9147ff;
+}
+
+.youtube {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.youtube:hover {
+    color: #ff0000;
+}
+
+.rss {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.rss:hover {
+    color: #FF6600;
+}
+
+.vine {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.vine:hover {
+    color: #00a478;
+}
+
+.flickr {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.flickr:hover {
+    color: #ff0084;
+}
+
+.linkedin {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.linkedin:hover {
+    color: #007bb6;
+}
+
+.instagram {
+    color: rgba(var(--bs-body-color), 1);
+}
+
+.instagram:hover {
+    color: #000000;
+}

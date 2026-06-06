@@ -1,0 +1,55 @@
+# 📦 Drittanbieter-Lizenzen
+
+Diese Datei listet alle in nexpell verwendeten Drittanbieter-Bibliotheken inklusive ihrer jeweiligen Lizenzbedingungen.
+🏗️ Lizenz der Kernsoftware
+
+nexpell ist ein modernes, modulares Open-Source-Content-Management-System,
+veröffentlicht unter der GNU General Public License (GPL) v3.0 oder neuer.
+---
+
+Die Software wurde vollständig neu entwickelt und verwendet keinerlei proprietären oder inkompatiblen Code.
+Jegliche Weitergabe oder Modifikation muss gemäß der GPL erfolgen.
+📚 Verwendete Bibliotheken & Frameworks
+
+Die gesamte Codebasis steht ebenfalls unter der **GPL v3.0 oder neuer**. Jegliche Weitergabe oder Modifikation muss gemäß der GPL erfolgen.
+
+---
+
+## 📚 Verwendete Bibliotheken & Frameworks
+
+### 🧱 PHP
+
+| Bibliothek                | Lizenz                         | Link                                           |
+|---------------------------|--------------------------------|------------------------------------------------|
+| PHPMailer                 | LGPL-2.1 or later              | https://github.com/PHPMailer/PHPMailer         |
+| reCAPTCHA PHP Client      | MIT                            | https://github.com/google/recaptcha            |
+| Password Compatibility    | Public Domain                  | https://github.com/ircmaxell/password_compat   |
+
+---
+
+### 🧩 JavaScript / CSS
+
+| Bibliothek                | Lizenz                         | Link                                           |
+|---------------------------|--------------------------------|------------------------------------------------|
+| Bootstrap                 | MIT                            | https://getbootstrap.com                       |
+| jQuery                    | MIT                            | https://jquery.com                             |
+| Font Awesome              | CC BY 4.0 / MIT                | https://fontawesome.com                        |
+| Bootswatch                | MIT                            | https://bootswatch.com                         |
+| Google reCAPTCHA          | Google APIs Terms of Service   | https://www.google.com/recaptcha/about/        |
+
+---
+
+📝 Hinweise
+
+    Alle genannten Bibliotheken sind Open-Source oder frei nutzbar und werden in Übereinstimmung mit ihren Lizenzen eingebunden.
+
+    Die Lizenztexte befinden sich ggf. im jeweiligen Verzeichnis (vendor/, assets/, js/, etc.) oder in der offiziellen Dokumentation der jeweiligen Projekte.
+
+    Änderungen an Drittanbieter-Code wurden nicht vorgenommen, sofern nicht ausdrücklich im Code oder Changelog dokumentiert.
+
+📄 Haftungsausschluss
+
+    Die Entwickler von nexpell übernehmen keine Verantwortung für die Lizenzkonformität beim Weitervertrieb durch Dritte.
+    Bitte prüfe eigenverantwortlich, ob deine Nutzung und Verteilung den Lizenzbedingungen aller eingebundenen Drittanbieter-Bibliotheken entspricht.
+
+© 2025 nexpell Team – Veröffentlicht unter der GNU GENERAL PUBLIC LICENSE (GPL v3.0+)

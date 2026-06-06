@@ -1,0 +1,56 @@
+GNU GENERAL PUBLIC LICENSE
+
+Version 3, 29 June 2007
+
+Copyright (C) 2025
+The nexpell Team (https://www.nexpell.de)
+
+Everyone is permitted to copy and distribute verbatim copies
+of this license document, but changing it is not allowed.
+📜 Preamble
+
+The GNU General Public License is a free, copyleft license for
+software and other kinds of works.
+
+The licenses for most software and other practical works are designed
+to take away your freedom to share and change the works. By contrast,
+the GNU General Public License is intended to guarantee your freedom to
+share and change all versions of a program — to make sure it remains free
+software for all its users.
+
+We, the developers of the nexpell project, apply this license to ensure
+that it remains a free and open-source system for building and managing
+web communities, with modern architecture and full transparency.
+📄 Terms and Conditions
+
+This software is licensed under the GNU General Public License, Version 3, 29 June 2007,
+as published by the Free Software Foundation. You may use, modify, and distribute
+this software in accordance with the terms of that license.
+
+For the full legal text, please refer to:
+🔗 https://www.gnu.org/licenses/gpl-3.0.en.html
+📌 Project Notice
+
+nexpell is a standalone open-source project, fully designed from the ground up.
+It follows a modern, modular architecture and includes its own:
+
+    Template engine with multilanguage support
+
+    Plugin and theme manager
+
+    Role-based access control system
+
+    Secure installer and admin interface
+
+    Full separation of core, system logic, and UI components
+
+It is not a fork of any proprietary or third-party CMS,
+and contains no reused code from other protected systems.
+
+All contributors and downstream developers must comply with the GPL v3 license
+and preserve this license notice in any derivative works.
+
+© 2025 nexpell Team
+License: GNU General Public License v3.0 or later
+Website: https://www.nexpell.de
+

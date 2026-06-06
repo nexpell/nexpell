@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>nexpell Nachrichtenticker</title>
+        <link>https://www.nexpell.de</link>
+        <atom:link href="https://www.nexpell.de/tmp/rss.xml" rel="self" type="application/rss+xml" />
+        <description>Aktuelle Neuigkeiten von https://www.nexpell.de</description>
+        <language>de-de</language>
+        <pubDate>Mon, 24 Mar 2025 12:00:00 +0100</pubDate>
+
+        <item>
+            <title>nexpell – Das modulare CMS für Communities, Clans und Creator</title>
+            <description><![CDATA[
+                <strong>nexpell</strong> ist die neue Generation eines modernen, modularen CMS – ideal für Communities, Clans, Vereine und kreative Projekte.<br /><br />
+                Mit überarbeiteten Plugins, einer intuitiven Template-Engine, responsivem Design (Bootstrap 5.3) und vollständiger Mehrsprachigkeit ist nexpell der perfekte Einstieg in ein datenschutzkonformes Webprojekt.<br /><br />
+                ➤ Jetzt entdecken unter <a href="https://www.nexpell.de">www.nexpell.de</a>
+            ]]></description>
+            <author>info@nexpell.de (nexpell Team)</author>
+            <guid><![CDATA[https://www.nexpell.de]]></guid>
+            <link><![CDATA[https://www.nexpell.de]]></link>
+        </item>
+    </channel>
+</rss>
