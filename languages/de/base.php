@@ -125,6 +125,8 @@ $language_array = Array(
     'transaction_failed'     => 'Transaktion fehlgeschlagen. Bitte versuchen Sie es erneut.',
     'transaction_invalid'    => 'Transaktion ungültig.',
     'transaction_successful' => 'Transaktion erfolgreich',
+    'submission_too_fast'    => 'Bitte warte einen Moment, bevor du das Formular absendest.',
+    'rate_limit_exceeded'    => 'Zu viele Anfragen in kurzer Zeit. Bitte versuche es später erneut.',
 
     // Tabellen / Statistik
     'clicks'                 => 'Klicks',
@@ -201,7 +203,6 @@ $language_array = Array(
     'settings_social_media'  => 'Social-Media Einstellungen',
     'site_lock'              => 'Seitensperrung',
     'sitemap'                => 'Sitemap',
-    'use_seo_urls'           => 'SEO URLs',
     'user_roles'             => 'Benutzerrollen',
     'visitor_statistic'      => 'Statistiken',
     'visitor_statistics'     => 'Besucher Statistiken',

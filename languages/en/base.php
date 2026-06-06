@@ -121,6 +121,8 @@ $language_array = Array(
     'transaction_failed' => 'Transaction failed. Please try again.',
     'transaction_invalid' => 'Invalid transaction.',
     'transaction_successful' => 'Transaction successful',
+    'submission_too_fast' => 'Please wait a moment before submitting the form.',
+    'rate_limit_exceeded' => 'Too many requests in a short time. Please try again later.',
 
     // Delete Modal
     'confirm_delete' => 'Do you really want to delete this entry?',

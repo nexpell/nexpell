@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 use nexpell\LanguageService;
 use nexpell\AccessControl;
+use nexpell\PluginCatalogService;
+use nexpell\PluginInstallerMaintenance;
+use nexpell\PluginPackageService;
 use nexpell\PluginUninstaller;
-use nexpell\PluginMigrationHelper;
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -40,212 +42,15 @@ if (!empty($_SESSION['userID'])) {
     }
 }
 
-// HELPER: CORE / VISIBILITY
-function pluginMatchesCore(array $plugin, string $coreVersion): bool
-{
-    $min = $plugin['core']['min'] ?? null;
-    $max = $plugin['core']['max'] ?? null;
-
-    if ($min && version_compare($coreVersion, $min, '<')) return false;
-    if ($max && version_compare($coreVersion, $max, '>')) return false;
-
-    return true;
-}
-
-function pluginIsInstallable(array $p, string $adminEmail, string $coreVersion, array &$dbg = []): bool
-{
-    $adminEmail = strtolower(trim($adminEmail));
-    $version    = $p['version'] ?? 'unknown';
-
-    // Core min
-    if (!empty($p['core']['min']) &&
-        version_compare($coreVersion, $p['core']['min'], '<')) {
-
-        $dbg[] = "{$p['modulname']} {$version}: core {$coreVersion} < min {$p['core']['min']}";
-        return false;
-    }
-
-    // Core max (NULL erlaubt!)
-    if (!empty($p['core']['max']) &&
-        version_compare($coreVersion, $p['core']['max'], '>')) {
-
-        $dbg[] = "{$p['modulname']} {$version}: core {$coreVersion} > max {$p['core']['max']}";
-        return false;
-    }
-
-    $visibleFor = strtoupper($p['visible_for'] ?? 'ALL');
-
-    if ($visibleFor === 'ALL') {
-        $dbg[] = "{$p['modulname']} {$version}: visible_for ALL";
-        return true;
-    }
-
-    if ($visibleFor === 'CUSTOM') {
-        $emails = array_map('strtolower', $p['visible_emails'] ?? []);
-        if (in_array($adminEmail, $emails, true)) {
-            $dbg[] = "{$p['modulname']} {$version}: CUSTOM match {$adminEmail}";
-            return true;
-        }
-
-        $dbg[] = "{$p['modulname']} {$version}: CUSTOM no match ({$adminEmail})";
-        return false;
-    }
-
-    $dbg[] = "{$p['modulname']} {$version}: unknown visible_for";
-    return false;
-}
-
-/**
- * Resolve localized plugin text without depending on the multiLanguage class.
- * Supports:
- * 1) Legacy format: [[lang:de]]...[[lang:gb]]...
- * 2) Object format: {"de":"...", "gb":"...", "it":"..."}
- */
-function resolvePluginLocalizedText($value, string $lang): string
-{
-    $lang = strtolower(trim($lang));
-    if ($lang === '') {
-        $lang = 'de';
-    }
-
-    if (is_array($value)) {
-        foreach ([$lang, 'en', 'gb', 'de', 'it'] as $k) {
-            if (isset($value[$k]) && trim((string)$value[$k]) !== '') {
-                return (string)$value[$k];
-            }
-        }
-        foreach ($value as $v) {
-            if (trim((string)$v) !== '') {
-                return (string)$v;
-            }
-        }
-        return '';
-    }
-
-    $text = (string)$value;
-    if ($text === '') {
-        return '';
-    }
-
-    if (preg_match('/\[\[lang:' . preg_quote($lang, '/') . '\]\](.*?)(?=\[\[lang:|$)/si', $text, $m)) {
-        return trim((string)$m[1]);
-    }
-
-    foreach (['en', 'gb', 'de', 'it'] as $fb) {
-        if (preg_match('/\[\[lang:' . preg_quote($fb, '/') . '\]\](.*?)(?=\[\[lang:|$)/si', $text, $m)) {
-            return trim((string)$m[1]);
-        }
-    }
-
-    return trim($text);
-}
-
-function cleanupDuplicateWebsiteNavigationEntries(string $modulname): void
-{
-    global $_database;
-
-    $modulnameEscaped = escape($modulname);
-    $navResult = safe_query("
-        SELECT snavID, mnavID, url, sort, indropdown
-        FROM navigation_website_sub
-        WHERE modulname = '" . $modulnameEscaped . "'
-        ORDER BY sort ASC, snavID ASC
-    ");
-
-    $rows = [];
-    while ($row = mysqli_fetch_assoc($navResult)) {
-        $rows[] = $row;
-    }
-
-    if (empty($rows)) {
-        return;
-    }
-
-    $keepId = (int)$rows[0]['snavID'];
-    $keepContentKey = 'nav_sub_' . $keepId;
-
-    safe_query("
-        UPDATE navigation_website_sub
-        SET last_modified = NOW()
-        WHERE snavID = " . $keepId
-    );
-
-    if (count($rows) < 2) {
-        return;
-    }
-
-    for ($i = 1, $count = count($rows); $i < $count; $i++) {
-        $deleteId = (int)$rows[$i]['snavID'];
-        $deleteContentKey = 'nav_sub_' . $deleteId;
-
-        safe_query("
-            INSERT INTO navigation_website_lang
-                (content_key, language, content, modulname, updated_at, lang, translation, name)
-            SELECT
-                '" . $keepContentKey . "',
-                language,
-                content,
-                modulname,
-                NOW(),
-                lang,
-                translation,
-                name
-            FROM navigation_website_lang
-            WHERE content_key = '" . $deleteContentKey . "'
-            ON DUPLICATE KEY UPDATE
-                updated_at = NOW(),
-                modulname = VALUES(modulname)
-        ");
-
-        safe_query("
-            DELETE FROM navigation_website_lang
-            WHERE content_key = '" . $deleteContentKey . "'
-        ");
-
-        safe_query("
-            DELETE FROM navigation_website_sub
-            WHERE snavID = " . $deleteId
-        );
-    }
-
-    safe_query("
-        UPDATE navigation_website_sub
-        SET last_modified = NOW()
-        WHERE modulname = '" . $modulnameEscaped . "'
-          AND (last_modified IS NULL OR snavID = " . $keepId . ")
-    ");
-}
-
-// LOAD PLUGIN REGISTRY (JSON v2)
-function loadPluginsRegistry(string $url): array
-{
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_SSL_VERIFYPEER => true,
-        CURLOPT_USERAGENT      => 'Nexpell Plugin Installer'
-    ]);
-
-    $json = curl_exec($ch);
-    if ($json === false) {
-        throw new RuntimeException(curl_error($ch));
-    }
-
-    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) {
-        throw new RuntimeException('Registry HTTP error');
-    }
-    $data = json_decode($json, true);
-    if (!isset($data['plugins']) || !is_array($data['plugins'])) {
-        throw new RuntimeException('Invalid plugins_v2.json');
-    }
-
-    return $data['plugins'];
-}
+PluginInstallerMaintenance::ensureLegacyLanguageColumns([
+    'settings_plugins_lang',
+    'navigation_dashboard_lang',
+    'navigation_website_lang'
+]);
+PluginInstallerMaintenance::backfillMissingModuleNames();
 
 try {
-    $rawPlugins = loadPluginsRegistry($pluginJsonUrl);
+    $rawPlugins = PluginCatalogService::loadPluginsRegistry($pluginJsonUrl);
 } catch (Throwable $e) {
     nx_alert('danger', $e->getMessage(), false, true, true);
     $rawPlugins = [];
@@ -278,7 +83,7 @@ foreach ($grouped as $modulname => $versions) {
     }
 
     foreach ($versions as $plugin) {
-        if (pluginIsInstallable($plugin, $adminEmail, $coreVersion, $installerDebug)) {
+        if (PluginCatalogService::isInstallable($plugin, $adminEmail, $coreVersion, $installerDebug)) {
             $plugins[] = $plugin;
 
             $installerDebug[] = sprintf(
@@ -330,7 +135,7 @@ if ($action !== null) {
         if (($p['modulname'] ?? '') === $modul) { $plugin = $p; break; }
     }
 
-    if (!$plugin || !pluginIsInstallable($plugin, $adminEmail, $coreVersion)) nx_redirect('admincenter.php?site=plugin_installer', 'danger', 'alert_plugin_not_installable', false);
+    if (!$plugin || !PluginCatalogService::isInstallable($plugin, $adminEmail, $coreVersion)) nx_redirect('admincenter.php?site=plugin_installer', 'danger', 'alert_plugin_not_installable', false);
 
     $pluginPath = $pluginDir . $modul;
     $bundledPluginPath = $bundledPluginDir . $modul;
@@ -341,12 +146,12 @@ if ($action !== null) {
 
     $filesRefreshed = false;
     if (in_array($action, ['install', 'update', 'reinstall'], true)) {
-        $filesRefreshed = download_plugin_files($plugin, $pluginPath, $languageService);
+        $filesRefreshed = PluginPackageService::downloadPluginFiles($plugin, $pluginPath, $languageService);
 
         if (!$filesRefreshed) {
-            $localZipPath = findLocalPluginPackagePath($plugin, $pluginPath);
+            $localZipPath = PluginPackageService::findLocalPluginPackagePath($plugin, $pluginPath);
             if ($localZipPath !== null) {
-                $filesRefreshed = install_plugin_files_from_zip($localZipPath, $pluginPath, $modul, $languageService);
+                $filesRefreshed = PluginPackageService::installPluginFilesFromZip($localZipPath, $pluginPath, $modul, $languageService);
                 if ($filesRefreshed) {
                     nx_alert(
                         'warning',
@@ -360,7 +165,7 @@ if ($action !== null) {
         }
 
         if (!$filesRefreshed && is_dir($bundledPluginPath)) {
-            syncPluginDirectoryFromSource($bundledPluginPath, $pluginPath, $modul);
+            PluginPackageService::syncPluginDirectoryFromSource($bundledPluginPath, $pluginPath, $modul);
             $filesRefreshed = true;
             nx_alert(
                 'warning',
@@ -395,26 +200,7 @@ if ($action !== null) {
             'navigation_website_lang'
         ];
 
-        $legacyCols = [
-            'name'        => "VARCHAR(255) NOT NULL DEFAULT ''",
-            'lang'        => "VARCHAR(10) NOT NULL DEFAULT 'de'",
-            'translation' => "TEXT NULL"
-        ];
-
-        foreach ($compatTables as $tableName) {
-            $tableRes = safe_query("SHOW TABLES LIKE '" . escape($tableName) . "'");
-            $hasTable = $tableRes && mysqli_num_rows($tableRes) > 0;
-            if (!$hasTable) {
-                continue;
-            }
-
-            foreach ($legacyCols as $colName => $colType) {
-                $colRes = safe_query("SHOW COLUMNS FROM `$tableName` LIKE '" . escape($colName) . "'");
-                if (!$colRes || mysqli_num_rows($colRes) === 0) {
-                    safe_query("ALTER TABLE `$tableName` ADD COLUMN `$colName` $colType");
-                }
-            }
-        }
+        PluginInstallerMaintenance::ensureLegacyLanguageColumns($compatTables);
 
     }
 
@@ -438,7 +224,12 @@ if ($action !== null) {
         include $scriptPath;
     }
 
-    cleanupDuplicateWebsiteNavigationEntries($plugin['modulname']);
+    PluginInstallerMaintenance::cleanupDuplicateAdminNavigationEntries($plugin['modulname']);
+    PluginInstallerMaintenance::cleanupDuplicateWebsiteNavigationEntries($plugin['modulname']);
+    PluginInstallerMaintenance::cleanupDuplicateNavigationLanguageRows('navigation_dashboard_lang');
+    PluginInstallerMaintenance::cleanupDuplicateNavigationLanguageRows('navigation_website_lang');
+    PluginInstallerMaintenance::ensureUniqueContentLanguageIndex('navigation_dashboard_lang');
+    PluginInstallerMaintenance::ensureUniqueContentLanguageIndex('navigation_website_lang');
 
     safe_query("
         INSERT INTO settings_plugins_installed
@@ -472,6 +263,14 @@ usort($plugins, fn($a, $b) =>
 // 2) VIEW DATA
 $currentLang = strtolower((string)(isset($lang) ? $lang : ($_SESSION['language'] ?? 'de')));
 $searchQuery = '';
+$pluginsPerPage = 12;
+$currentPage = max(1, (int)($_GET['plugin_page'] ?? 1));
+$totalPlugins = count($plugins);
+$totalPages = max(1, (int)ceil($totalPlugins / $pluginsPerPage));
+if ($currentPage > $totalPages) {
+    $currentPage = $totalPages;
+}
+$pageOffset = ($currentPage - 1) * $pluginsPerPage;
 
 
 
@@ -505,7 +304,7 @@ $searchQuery = '';
                 <?php
                 endif;
 
-                foreach ($plugins as $p):
+                foreach ($plugins as $pluginIndex => $p):
 
                     $inst = $installed[$p['modulname']] ?? null;
 
@@ -517,7 +316,7 @@ $searchQuery = '';
                     $hasUpdate   = $isInstalled && version_compare($latestVersion, $installedVersion, '>');
 
                     // Beschreibung übersetzen
-                    $desc = resolvePluginLocalizedText($p['description'] ?? '', $currentLang);
+                    $desc = PluginCatalogService::resolveLocalizedText($p['description'] ?? '', $currentLang);
 
                     // Flaggen aus lang generieren
                     $flags_html = '';
@@ -540,8 +339,10 @@ $searchQuery = '';
                         (string)($p['author'] ?? ''),
                         trim(strip_tags((string) $desc)),
                     ])));
+                    $pluginPage = (int)floor($pluginIndex / $pluginsPerPage) + 1;
+                    $isVisibleOnCurrentPage = ($pluginPage === $currentPage);
                     ?>
-                    <div class="col-xl-3 col-lg-4 col-md-6 plugin-card-item mb-4 mt-4" data-search="<?= htmlspecialchars($searchText, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="col-xl-3 col-lg-4 col-md-6 plugin-card-item mb-4 mt-4<?= $isVisibleOnCurrentPage ? '' : ' d-none' ?>" data-search="<?= htmlspecialchars($searchText, ENT_QUOTES, 'UTF-8') ?>" data-page="<?= $pluginPage ?>">
                         <div class="card h-100 shadow-sm">
 
                             <img class="card-img-top"
@@ -667,7 +468,7 @@ $uid = 'desc_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $p['modulname']);
                                             </button>
                                         </div>
 
-                                    <?php elseif (pluginIsInstallable($p, $adminEmail, $coreVersion)): ?>
+                                    <?php elseif (PluginCatalogService::isInstallable($p, $adminEmail, $coreVersion)): ?>
 
                                         <!-- Noch nicht installiert -->
                                         <a class="btn btn-success w-100"
@@ -698,6 +499,38 @@ $uid = 'desc_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $p['modulname']);
 
         <!-- Zurück -->
 
+<?php if ($totalPages > 1): ?>
+    <div class="col-12">
+        <div id="pluginPagination" class="d-flex justify-content-center mt-2 mb-1">
+            <nav aria-label="Plugin pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <?php
+                    $baseParams = $_GET;
+                    unset($baseParams['plugin_page']);
+                    $baseParams['site'] = 'plugin_installer';
+                    $prevParams = $baseParams;
+                    $prevParams['plugin_page'] = max(1, $currentPage - 1);
+                    $nextParams = $baseParams;
+                    $nextParams['plugin_page'] = min($totalPages, $currentPage + 1);
+                    ?>
+                    <li class="page-item <?= $currentPage <= 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= htmlspecialchars(http_build_query($prevParams), ENT_QUOTES, 'UTF-8') ?>">Zurueck</a>
+                    </li>
+                    <?php for ($page = 1; $page <= $totalPages; $page++): ?>
+                        <?php $pageParams = $baseParams; $pageParams['plugin_page'] = $page; ?>
+                        <li class="page-item <?= $page === $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="?<?= htmlspecialchars(http_build_query($pageParams), ENT_QUOTES, 'UTF-8') ?>"><?= $page ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?= $currentPage >= $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="?<?= htmlspecialchars(http_build_query($nextParams), ENT_QUOTES, 'UTF-8') ?>">Weiter</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+<?php endif; ?>
+
 <style>
 .desc-box {
     overflow: hidden;
@@ -711,6 +544,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!input) return;
     var cards = Array.prototype.slice.call(document.querySelectorAll(".plugin-card-item"));
     var emptyState = document.getElementById("pluginSearchEmpty");
+    var pagination = document.getElementById("pluginPagination");
+    var currentPage = <?= (int)$currentPage ?>;
 
     function applyFilter() {
         var query = (input.value || "").toLowerCase().trim();
@@ -718,7 +553,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
         cards.forEach(function (card) {
             var haystack = (card.getAttribute("data-search") || "").toLowerCase();
-            var show = !query || haystack.indexOf(query) !== -1;
+            var cardPage = parseInt(card.getAttribute("data-page") || "1", 10);
+            var show = query ? haystack.indexOf(query) !== -1 : cardPage === currentPage;
             card.classList.toggle("d-none", !show);
             if (show) {
                 visible++;
@@ -727,6 +563,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (emptyState) {
             emptyState.classList.toggle("d-none", visible !== 0);
+        }
+
+        if (pagination) {
+            pagination.classList.toggle("d-none", query !== "");
         }
     }
 
@@ -744,7 +584,7 @@ document.addEventListener("DOMContentLoaded", function () {
 </div>
 </div>
 
-<?php
+<?php if (false) {
 
 // DOWNLOAD
 function download_plugin_files(array $plugin, string $target, $languageService): bool
@@ -1281,7 +1121,7 @@ function deleteFolder(string $d): void
     rmdir($d);
 }
 
-?>
+} ?>
 <script>
 document.addEventListener('click', function (e) {
 

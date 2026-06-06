@@ -39,12 +39,58 @@ class PluginManager
     public function plugin_updatetitle($site)
     {
         $arr = $this->plugin_data($site);
-        return $arr['name'] ?? null;
+        if (!$arr) {
+            return null;
+        }
+
+        $modulname = (string)($arr['modulname'] ?? '');
+        if ($modulname === '') {
+            return null;
+        }
+
+        $lang = 'de';
+        if (!empty($_SESSION['language'])) {
+            $lang = substr(strtolower((string)$_SESSION['language']), 0, 2);
+        }
+        if (!preg_match('/^[a-z]{2}$/', $lang)) {
+            $lang = 'de';
+        }
+
+        $modulnameEsc = $this->_database->real_escape_string($modulname);
+        $langEsc = $this->_database->real_escape_string($lang);
+        $titleRes = safe_query("
+            SELECT content
+            FROM settings_plugins_lang
+            WHERE content_key = 'plugin_name_{$modulnameEsc}'
+              AND language = '{$langEsc}'
+            LIMIT 1
+        ");
+        if ($titleRes && ($title = mysqli_fetch_assoc($titleRes))) {
+            $content = trim((string)($title['content'] ?? ''));
+            if ($content !== '') {
+                return $content;
+            }
+        }
+
+        return $modulname;
     }
 
     public function pluginID_by_name($name)
     {
-        $request = safe_query("SELECT * FROM `settings_plugins` WHERE `activate`='1' AND `name` LIKE '%" . $name . "%'");
+        $nameEsc = $this->_database->real_escape_string((string)$name);
+        $request = safe_query("
+            SELECT sp.pluginID
+            FROM settings_plugins sp
+            LEFT JOIN settings_plugins_lang spl
+              ON spl.content_key = CONCAT('plugin_name_', sp.modulname)
+            WHERE sp.activate = '1'
+              AND (
+                sp.modulname LIKE '%{$nameEsc}%'
+                OR spl.content LIKE '%{$nameEsc}%'
+              )
+            ORDER BY sp.pluginID ASC
+            LIMIT 1
+        ");
         if (mysqli_num_rows($request)) {
             $tmp = mysqli_fetch_array($request);
             return $tmp['pluginID'];

@@ -78,5 +78,9 @@ $language_array = array(
     'user_roles_and_rights'         => 'User roles & rights',
     'username'                      => 'Username',
     'view_assigned_rights'          => 'View assigned rights',
+    'remember_device_trust_column'       => 'Remember 2FA device',
+    'remember_device_trust_column_title' => 'Indicates whether a “remember device” key is stored in the database for this account. Whether the user can log in without an email code depends on the browser on their device and is not directly visible here.',
+    'remember_device_clear_title'        => 'Clear “remember this device” for this user',
+    'alert_remember_device_cleared'      => '“Remember device” has been removed. 2FA codes will be generated again.',
 );
 ?>

@@ -12,7 +12,7 @@ $language_array = array(
     'update_step_download'         => 'Lade Updates herunter',
     'update_step_migration_action' => 'Führe Datenbank-Migrationen aus',
     'update_step_extract_files'    => 'Entpacke Update-Dateien und prüfe Dateiänderungen',
-    'update_step_system_sync'      => '5️⃣ System-Synchronisation',
+    'update_step_system_sync'      => '5. System-Synchronisation',
     'update_show_finish'           => 'Abschluss anzeigen',
 
     /* =====================================================

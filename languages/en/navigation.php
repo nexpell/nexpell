@@ -10,6 +10,7 @@ $language_array = array(
     'clan'              => 'Clan',
     'community'         => 'Community',
     'contact'           => 'Contact Form',
+    'cookie_policy'     => 'Cookie Policy',
     'demos'             => 'Demos',
     'downloads'         => 'Downloads',
     'faq'               => 'Frequently Asked Questions',
@@ -45,4 +46,3 @@ $language_array = array(
     'log_off'           => 'Logout',
     'admincenter'       => 'Dashboard'
 );
-

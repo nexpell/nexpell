@@ -78,5 +78,12 @@ $language_array = array(
     'user_roles_and_rights'         => 'Benutzerrollen & Rechte',
     'username'                      => 'Benutzername',
     'view_assigned_rights'          => 'Zugewiesene Rechte anzeigen',
+
+    'not_authorized_to_assign_roles' => 'Du bist nicht berechtigt, Rollen zu vergeben.',
+    'remember_device_trust_column'       => '2FA Gerät merken',
+    'remember_device_trust_column_title' => 'Ob für dieses Konto in der Datenbank ein Schlüssel für „Gerät merken“ gespeichert ist. Ob der Nutzer gerade ohne E-Mail-Code einloggt, hängt vom Browser auf seinem Rechner ab und ist hier nicht direkt sichtbar.',
+    'remember_device_clear_title'        => '„Gerät merken“ für diesen Nutzer zurücksetzen',
+    'alert_remember_device_cleared'      => '„Gerät merken“ wurde entfernt. 2FA Codes werden wieder generiert.',
+
 );
 ?>

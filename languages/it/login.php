@@ -15,6 +15,11 @@ $language_array = array(
     'reg_text'              => 'Non hai ancora un account? Registrati ora gratuitamente.',
     'login_text'            => 'Inserisci le tue credenziali per accedere.',
 
+    'already_logged_in_headline' => 'Sei già connesso',
+    'already_logged_in_text'     => 'Connesso come',
+    'goto_home'                  => 'Vai alla home',
+    'goto_logout'                => 'Esci',
+
     // Messaggi di errore e successo
     'error_invalid_email'       => '❌ Indirizzo e-mail non valido.',
     'error_not_found'           => 'Utente non trovato o indirizzo e-mail errato.',
@@ -26,4 +31,35 @@ $language_array = array(
     'error_login_locked'        => 'Troppi tentativi falliti – il tuo IP è stato bloccato.',
     'error_email_or_ip_banned'  => 'Questo indirizzo e-mail o IP è stato bloccato. Contatta il supporto.',
     'success_login'             => 'Accesso effettuato con successo!',
+
+    'twofa_missing'             => 'Accesso a due fattori incompleto. Accedi di nuovo.',
+    'error_no_code'             => 'Nessun codice di sicurezza valido. Accedi di nuovo.',
+    'error_code_invalid'        => 'Inserisci un codice valido a 6 cifre.',
+    'error_twofa_locked'        => 'Troppi tentativi errati. L’inserimento del codice è temporaneamente bloccato. Attendi qualche minuto.',
+    'unexpected_error'          => 'Si è verificato un errore imprevisto. Riprova.',
+    'lang_code_html'            => 'it',
+
+    'title2fa'                  => 'Autenticazione a due fattori',
+    'twofa_prompt'              => 'Inserisci il codice a 6 cifre inviato al tuo indirizzo e-mail.',
+    'enter_code'                => 'Inserisci il codice',
+    'resend_code'               => 'Invia di nuovo il codice',
+    'remember_device'           => 'Non chiedere di nuovo il codice su questo dispositivo.',
+    'confirm'                   => 'Conferma',
+    'error_invalid_2fa'         => 'Codice non valido o scaduto.',
+    'error_send_2fa'            => 'Impossibile inviare il codice di sicurezza.',
+    'twofa_code_resent'         => 'È stato inviato un nuovo codice di sicurezza.',
+    'twofa_code_resent_unclear' => 'È stato creato un nuovo codice. Se non ricevi l’e-mail, riprova tra 60 secondi.',
+    'error_code_expired'        => 'Il codice è scaduto. Richiedine uno nuovo.',
+
+    'mail_2fa_subject_prefix'   => 'Il tuo codice di accesso per',
+    'mail_2fa_subject_mid'      => '– valido fino alle',
+    'mail_2fa_subject_suffix'   => '',
+    'mail_2fa_minutes'          => 'minuti',
+    'mail_2fa_until'            => 'fino alle',
+    'mail_2fa_clock'            => '',
+    'mail_2fa_lead_intro'       => 'Ecco il tuo codice di accesso.',
+    'mail_2fa_lead_valid_for'   => 'È valido per',
+    'mail_2fa_lead_valid_suffix' => '',
+    'mail_2fa_tip'              => 'Copia il codice e incollalo nella finestra di login. Per sicurezza puoi usarlo una sola volta.',
+    'mail_2fa_footer_intro'     => 'Non hai avviato tu l’accesso? Ignora questa e-mail o contattaci a',
 );

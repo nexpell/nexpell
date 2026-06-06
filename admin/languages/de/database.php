@@ -6,12 +6,11 @@ $language_array = array(
   'backup_file'                 => 'Backup-Datei',
   'created_by'                  => 'Erstellt von',
   'database'                    => 'Datenbank',
-  'export'                      => 'Backup erstellen',
+  'export'                      => 'Export',
   'file'                        => 'Datei',
   'optimize'                    => 'Optimieren',
   'sql_query'                   => 'SQL-Abfragen / Backups',
   'upload'                      => 'Upload',
-  'restore'                     => 'Wiederherstellen',
   'export_info'             => '<div class="alert alert-info" role="alert">
   <h5 class="alert-heading"><i class="bi bi-hdd-network"></i> Datenbank-Backup</h5>
   <p>

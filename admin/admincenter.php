@@ -25,7 +25,6 @@ define('SYSTEM_PATH', BASE_PATH . 'system/');
 require SYSTEM_PATH . 'config.inc.php';
 require SYSTEM_PATH . 'settings.php';
 require SYSTEM_PATH . 'functions.php';
-//require SYSTEM_PATH . 'multi_language.php';
 require SYSTEM_PATH . 'classes/Template.php';
 require SYSTEM_PATH . 'classes/TextFormatter.php';
 require SYSTEM_PATH . 'classes/AdminAudit.php';
@@ -776,8 +775,24 @@ if (file_exists($local)) {
 $pageHtml = ob_get_clean();
 $subTitle = null;
 
+$actionLanguageKeys = [
+    'addcategory'  => 'add_category',
+    'editcategory' => 'edit_category',
+    'categories'   => 'categories',
+];
+
+if ($subParamVal !== '') {
+    $subTitleKey = $actionLanguageKeys[strtolower($subParamVal)] ?? '';
+    if ($subTitleKey !== '') {
+        $translatedSubTitle = trim((string)$languageService->get($subTitleKey));
+        if ($translatedSubTitle !== '' && $translatedSubTitle !== '[' . $subTitleKey . ']') {
+            $subTitle = $translatedSubTitle;
+        }
+    }
+}
+
 // dynamische Titelausgabe
-if ($subParamName !== '' && $subParamVal !== '') {
+if (empty($subTitle) && $subParamName !== '' && $subParamVal !== '') {
     $patternLinks = '~<a\b([^>]*?)href="[^\"]*' . preg_quote($subParamName, '~') . '=' . preg_quote($subParamVal, '~') . '[^\"]*"([^>]*)>(.*?)</a>~is';
     if (preg_match_all($patternLinks, $pageHtml, $matches, PREG_SET_ORDER)) {
         foreach ($matches as $match) {

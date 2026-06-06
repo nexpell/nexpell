@@ -57,9 +57,9 @@ $language_array = array(
             Weitere Informationen und Dokumentation findest du im <a href="https://www.nexpell.de/de/wiki" target="_blank" rel="noopener">nexpell Wiki</a>.<br>
             Quellcode und Download: <a href="https://www.nexpell.de/de/forum" target="_blank" rel="noopener">nexpell Forum</a> / <a href="https://www.nexpell.de/de/downloads" target="_blank" rel="noopener">nexpell Download</a><br>
             nexpell wird unter der GNU General Public License (GPL) veröffentlicht.<br>
-            © 2025 by <a href="https://www.nexpell.de" target="_blank" rel="noopener">https://www.nexpell.de</a>
+            © 2025–2026 by <a href="https://www.nexpell.de" target="_blank" rel="noopener">https://www.nexpell.de</a>
             <br>
-            Verwendete Drittanbieter-Bibliotheken: <strong>jQuery</strong>, <strong>Bootstrap</strong>, <strong>Bootswatch</strong> (alle unter MIT-Lizenz).
+            Verwendete Drittanbieter-Bibliotheken: <strong>jQuery</strong>, <strong>Bootstrap</strong> (alle unter MIT-Lizenz).
         </small>',
 
 

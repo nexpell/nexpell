@@ -37,18 +37,18 @@ window.NxEditor = {
         const messages = {
             de: {
                 title: 'Bildeinstellungen',
-                intro: 'Größe, optionalen Link und Alternativtext an einer Stelle festlegen.',
+                intro: 'Groesse, optionalen Link und Alternativtext an einer Stelle festlegen.',
                 width: 'Breite',
                 widthPlaceholder: '300 oder 100%',
-                height: 'Höhe',
+                height: 'Hoehe',
                 heightPlaceholder: '200 oder auto',
                 link: 'Link',
                 linkPlaceholder: 'https://example.com',
                 alt: 'Alt-Text',
                 altPlaceholder: 'Beschreibung',
                 cancel: 'Abbrechen',
-                apply: 'Übernehmen',
-                linkTitle: 'Link einfügen',
+                apply: 'Uebernehmen',
+                linkTitle: 'Link einfuegen',
                 linkIntro: 'URL und Linktext gemeinsam festlegen.',
                 linkUrl: 'Link',
                 linkUrlPlaceholder: 'https://example.com',
@@ -266,8 +266,6 @@ window.NxEditor = {
         const trackedManagedImages = new Set(this.extractManagedImageUrls(textarea.value));
 
         let sourceMode = false;
-        let savedEditorRange = null;
-        let savedSourceSelection = null;
 
         const syncFromEditor = () => {
             source.value = editor.innerHTML;
@@ -288,105 +286,6 @@ window.NxEditor = {
                 syncFromSource();
                 editor.focus();
             }
-        };
-
-        const selectionBelongsToEditor = range => {
-            if (!range) return false;
-            return editor.contains(range.commonAncestorContainer)
-                || editor === range.commonAncestorContainer;
-        };
-
-        const saveEditorSelection = () => {
-            if (sourceMode) return;
-
-            const selection = window.getSelection ? window.getSelection() : null;
-            if (!selection || selection.rangeCount === 0) return;
-
-            const range = selection.getRangeAt(0);
-            if (!selectionBelongsToEditor(range)) return;
-
-            savedEditorRange = range.cloneRange();
-        };
-
-        const saveSourceSelection = () => {
-            savedSourceSelection = {
-                start: source.selectionStart ?? source.value.length,
-                end: source.selectionEnd ?? source.value.length
-            };
-        };
-
-        const placeCaretAtEditorEnd = () => {
-            const range = document.createRange();
-            range.selectNodeContents(editor);
-            range.collapse(false);
-            savedEditorRange = range.cloneRange();
-            return range;
-        };
-
-        const restoreEditorSelection = () => {
-            const selection = window.getSelection ? window.getSelection() : null;
-            if (!selection) return null;
-
-            let range = savedEditorRange && selectionBelongsToEditor(savedEditorRange)
-                ? savedEditorRange.cloneRange()
-                : placeCaretAtEditorEnd();
-
-            editor.focus();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            return range;
-        };
-
-        const collapseEditorSelectionToEnd = fallbackRange => {
-            const selection = window.getSelection ? window.getSelection() : null;
-            if (!selection) return;
-
-            let range = null;
-            if (selection.rangeCount > 0 && selectionBelongsToEditor(selection.getRangeAt(0))) {
-                range = selection.getRangeAt(0).cloneRange();
-            } else if (fallbackRange && selectionBelongsToEditor(fallbackRange)) {
-                range = fallbackRange.cloneRange();
-            }
-
-            if (!range) return;
-
-            range.collapse(false);
-            selection.removeAllRanges();
-            selection.addRange(range);
-            savedEditorRange = range.cloneRange();
-        };
-
-        const insertHtmlIntoEditor = html => {
-            if (!html) return;
-
-            const range = restoreEditorSelection();
-            if (!range) return;
-
-            range.deleteContents();
-
-            const fragmentWrapper = document.createElement('template');
-            fragmentWrapper.innerHTML = html;
-            const fragment = fragmentWrapper.content;
-            const lastNode = fragment.lastChild;
-            range.insertNode(fragment);
-
-            if (lastNode && lastNode.parentNode) {
-                const caretNode = document.createTextNode('');
-                lastNode.parentNode.insertBefore(caretNode, lastNode.nextSibling);
-
-                const nextRange = document.createRange();
-                nextRange.setStart(caretNode, 0);
-                nextRange.collapse(true);
-
-                const selection = window.getSelection ? window.getSelection() : null;
-                if (selection) {
-                    selection.removeAllRanges();
-                    selection.addRange(nextRange);
-                }
-                savedEditorRange = nextRange.cloneRange();
-            }
-
-            syncFromEditor();
         };
 
         const getCsrfToken = () => {
@@ -415,12 +314,11 @@ window.NxEditor = {
         };
 
         const insertHtmlIntoSource = html => {
-            const start = savedSourceSelection?.start ?? source.selectionStart ?? source.value.length;
-            const end = savedSourceSelection?.end ?? source.selectionEnd ?? source.value.length;
+            const start = source.selectionStart ?? source.value.length;
+            const end = source.selectionEnd ?? source.value.length;
             source.value = source.value.slice(0, start) + html + source.value.slice(end);
             source.focus();
             source.selectionStart = source.selectionEnd = start + html.length;
-            saveSourceSelection();
         };
 
         const escapeHtml = value => String(value || '')
@@ -429,8 +327,6 @@ window.NxEditor = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-
-        const escapeAttribute = value => escapeHtml(value).replace(/`/g, '&#96;');
 
         const wrapSelectionWithTag = tagName => {
             if (sourceMode) {
@@ -497,7 +393,7 @@ window.NxEditor = {
             const link = (options.link || '').trim();
             const alt = (options.alt || '').trim();
 
-            const attrs = [`src="${escapeAttribute(url)}"`, `alt="${escapeAttribute(alt)}"`];
+            const attrs = [`src="${url}"`, `alt="${alt.replace(/"/g, '&quot;')}"`];
             const styleParts = [];
 
             if (width) {
@@ -514,7 +410,7 @@ window.NxEditor = {
 
             let html = `<img ${attrs.join(' ')}>`;
             if (link) {
-                html = `<a href="${escapeAttribute(link)}">${html}</a>`;
+                html = `<a href="${link}">${html}</a>`;
             }
 
             return html;
@@ -664,7 +560,9 @@ window.NxEditor = {
                 return;
             }
 
-            insertHtmlIntoEditor(html);
+            editor.focus();
+            document.execCommand('insertHTML', false, html);
+            syncFromEditor();
         };
 
         const uploadImage = async file => {
@@ -718,11 +616,6 @@ window.NxEditor = {
         };
 
         wrapper.querySelectorAll('[data-cmd]').forEach(btn => {
-            btn.addEventListener('mousedown', () => {
-                saveEditorSelection();
-                saveSourceSelection();
-            });
-
             btn.addEventListener('click', async e => {
                 e.preventDefault();
                 const cmd = btn.dataset.cmd;
@@ -734,24 +627,22 @@ window.NxEditor = {
                 }
 
                 if (cmd === 'createLink') {
-                    saveEditorSelection();
-                    saveSourceSelection();
                     const selectedText = sourceMode
-                        ? (source.value.slice(
-                            savedSourceSelection?.start ?? source.selectionStart ?? 0,
-                            savedSourceSelection?.end ?? source.selectionEnd ?? 0
-                        ) || '')
-                        : (savedEditorRange && selectionBelongsToEditor(savedEditorRange) ? savedEditorRange.toString() : '');
+                        ? (source.value.slice(source.selectionStart ?? 0, source.selectionEnd ?? 0) || '')
+                        : (window.getSelection ? String(window.getSelection()) : '');
                     const options = await askLinkOptions({ url: 'https://', text: selectedText });
                     if (!options || !options.url || !options.text) return;
 
                     if (sourceMode) {
-                        insertHtmlIntoSource(`<a href="${escapeAttribute(options.url)}">${escapeHtml(options.text)}</a>`);
+                        insertHtmlIntoSource(`<a href="${options.url}">${options.text}</a>`);
                         syncFromSource();
                         return;
                     }
 
-                    insertHtmlIntoEditor(`<a href="${escapeAttribute(options.url)}">${escapeHtml(options.text)}</a>`);
+                    editor.focus();
+                    document.execCommand('styleWithCSS', false, true);
+                    document.execCommand('insertHTML', false, `<a href="${options.url}">${options.text}</a>`);
+                    syncFromEditor();
                     return;
                 }
 
@@ -766,25 +657,15 @@ window.NxEditor = {
                 }
 
                 if (cmd === 'insertImage') {
-                    saveEditorSelection();
-                    saveSourceSelection();
                     imageInput.click();
                     return;
                 }
 
                 if (sourceMode) return;
 
-                const commandRange = restoreEditorSelection();
-                const shouldMoveCaretToEnd = commandRange ? !commandRange.collapsed : false;
-                const commandValue = 'value' in btn ? btn.value : null;
-
+                editor.focus();
                 document.execCommand('styleWithCSS', false, true);
-                document.execCommand(cmd, false, commandValue);
-                if (shouldMoveCaretToEnd) {
-                    collapseEditorSelectionToEnd(commandRange);
-                } else {
-                    saveEditorSelection();
-                }
+                document.execCommand(cmd, false, null);
                 syncFromEditor();
             });
         });
@@ -802,13 +683,6 @@ window.NxEditor = {
             } catch (error) {
                 alert('Image upload failed.');
             }
-        });
-
-        ['keyup', 'mouseup', 'focus', 'input'].forEach(eventName => {
-            editor.addEventListener(eventName, saveEditorSelection);
-        });
-        ['keyup', 'mouseup', 'focus', 'input', 'select'].forEach(eventName => {
-            source.addEventListener(eventName, saveSourceSelection);
         });
 
         editor.addEventListener('dblclick', async event => {

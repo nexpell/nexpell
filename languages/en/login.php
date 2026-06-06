@@ -15,6 +15,11 @@ $language_array = array(
     'reg_text'              => 'Don’t have an account yet? Register now for free.',
     'login_text'            => 'Please enter your credentials to log in.',
 
+    'already_logged_in_headline' => 'You are already signed in',
+    'already_logged_in_text'     => 'Signed in as',
+    'goto_home'                  => 'Go to homepage',
+    'goto_logout'                => 'Log out',
+
     // Error and success messages
     'error_invalid_email'       => '❌ Invalid e-mail address.',
     'error_not_found'           => 'User not found or incorrect e-mail address.',
@@ -26,4 +31,35 @@ $language_array = array(
     'error_login_locked'        => 'Too many failed attempts – your IP has been blocked.',
     'error_email_or_ip_banned'  => 'This e-mail address or IP has been banned. Please contact support.',
     'success_login'             => 'Login successful!',
+
+    'twofa_missing'             => 'Two-factor login incomplete. Please sign in again.',
+    'error_no_code'             => 'No valid security code. Please sign in again.',
+    'error_code_invalid'        => 'Please enter a valid 6-digit code.',
+    'error_twofa_locked'        => 'Too many wrong attempts. Code entry is temporarily locked. Please wait a few minutes.',
+    'unexpected_error'          => 'An unexpected error occurred. Please try again.',
+    'lang_code_html'            => 'en',
+
+    'title2fa'                  => 'Two-factor authentication',
+    'twofa_prompt'              => 'Enter the 6-digit code sent to your e-mail address.',
+    'enter_code'                => 'Enter code',
+    'resend_code'               => 'Resend code',
+    'remember_device'           => 'Do not ask for a security code again on this device.',
+    'confirm'                   => 'Confirm',
+    'error_invalid_2fa'         => 'Invalid or expired code.',
+    'error_send_2fa'            => 'The security code could not be sent.',
+    'twofa_code_resent'         => 'A new security code has been sent.',
+    'twofa_code_resent_unclear' => 'A new code was created. If no e-mail arrives, try again in 60 seconds.',
+    'error_code_expired'        => 'The code has expired. Please request a new code.',
+
+    'mail_2fa_subject_prefix'   => 'Your login code for',
+    'mail_2fa_subject_mid'      => '– valid until',
+    'mail_2fa_subject_suffix'   => '',
+    'mail_2fa_minutes'          => 'minutes',
+    'mail_2fa_until'            => 'until',
+    'mail_2fa_clock'            => '',
+    'mail_2fa_lead_intro'       => 'Here is your login code.',
+    'mail_2fa_lead_valid_for'   => 'It is valid for',
+    'mail_2fa_lead_valid_suffix' => '',
+    'mail_2fa_tip'              => 'Copy the code and paste it in the login window. For security, you can only use this code once.',
+    'mail_2fa_footer_intro'     => 'Did not start this login? Ignore this e-mail or contact us at',
 );

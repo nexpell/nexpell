@@ -26,6 +26,7 @@ $language_array = array(
     'guestbook'         => 'Guestbook',
     'history'           => 'Career',
     'imprint'           => 'Imprint',
+    'cookie_policy'     => 'Cookie Policy',
     'joinus'            => 'Become a member',
     'left'              => 'Left',
     'linkus'            => 'link us',
@@ -62,4 +63,3 @@ $language_array = array(
     'planning'          => 'Planning',
     'whoisonline'       => 'Who`s online' 
 );
-

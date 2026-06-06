@@ -15,6 +15,11 @@ $language_array = array(
     'reg_text'              => 'Du hast noch keinen Account? Registriere dich jetzt kostenlos.',
     'login_text'            => 'Bitte gib deine Zugangsdaten ein, um dich einzuloggen.',
 
+    'already_logged_in_headline' => 'Du bist bereits angemeldet',
+    'already_logged_in_text'     => 'Angemeldet als',
+    'goto_home'                  => 'Zur Startseite',
+    'goto_logout'                => 'Abmelden',
+
     // Fehler- und Erfolgsmeldungen
     'error_invalid_email'       => '❌ Ungültige E-Mail-Adresse.',
     'error_not_found'           => 'Benutzer nicht gefunden oder falsche E-Mail-Adresse.',
@@ -26,5 +31,36 @@ $language_array = array(
     'error_login_locked'        => 'Zu viele Fehlversuche – Deine IP wurde gesperrt.',
     'error_email_or_ip_banned'  => 'Diese E-Mail-Adresse oder IP wurde gesperrt. Bitte kontaktiere den Support.',
     'success_login'             => 'Login erfolgreich!',
-    
+
+    'twofa_missing'             => 'Zwei-Faktor-Anmeldung unvollständig. Bitte erneut einloggen.',
+    'error_no_code'             => 'Kein gültiger Sicherheitscode vorhanden. Bitte erneut einloggen.',
+    'error_code_invalid'        => 'Bitte gib einen gültigen 6-stelligen Code ein.',
+    'error_twofa_locked'        => 'Zu viele falsche Versuche. Die Code-Eingabe ist vorübergehend gesperrt. Bitte warte einige Minuten.',
+    'unexpected_error'          => 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.',
+    'lang_code_html'            => 'de',
+
+    // Zwei-Faktor-Authentifizierung
+    'title2fa'                  => 'Zwei-Faktor-Authentifizierung',
+    'twofa_prompt'              => 'Bitte gib den 6-stelligen Code ein, der an deine E-Mail-Adresse gesendet wurde.',
+    'enter_code'                => 'Code eingeben',
+    'resend_code'               => 'Code erneut senden',
+    'remember_device'           => 'Auf diesem Gerät nicht erneut nach dem Sicherheitscode fragen.',
+    'confirm'                   => 'Bestätigen',
+    'error_invalid_2fa'         => 'Code ungültig oder abgelaufen.',
+    'error_send_2fa'            => 'Der Sicherheitscode konnte nicht gesendet werden.',
+    'twofa_code_resent'         => 'Neuer Sicherheitscode wurde gesendet.',
+    'twofa_code_resent_unclear' => 'Code neu erstellt. Falls keine E-Mail ankommt, bitte in 60 Sekunden erneut versuchen.',
+    'error_code_expired'        => 'Der Code ist abgelaufen. Bitte fordere einen neuen Code an.',
+
+    'mail_2fa_subject_prefix'   => 'Dein Anmeldecode für',
+    'mail_2fa_subject_mid'      => '– gültig bis',
+    'mail_2fa_subject_suffix'   => 'Uhr',
+    'mail_2fa_minutes'          => 'Minuten',
+    'mail_2fa_until'            => 'bis',
+    'mail_2fa_clock'            => 'Uhr',
+    'mail_2fa_lead_intro'       => 'Hier ist dein Anmeldecode.',
+    'mail_2fa_lead_valid_for'   => 'Er ist',
+    'mail_2fa_lead_valid_suffix' => 'gültig',
+    'mail_2fa_tip'              => 'Kopiere den Code und füge ihn im Loginfenster ein. Aus Sicherheitsgründen kannst du dich mit diesem Code nur einmal einloggen.',
+    'mail_2fa_footer_intro'     => 'Du hast den Login nicht gestartet? Ignoriere diese E-Mail oder melde dich bei uns:',
 );

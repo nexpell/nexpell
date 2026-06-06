@@ -56,10 +56,17 @@ use nexpell\CMSUpdater;
 use nexpell\CMSDatabaseMigration;
 use nexpell\AccessControl;
 
-global $_language, $_database;
+global $_language, $_database, $languageService;
 
 $tpl = new Template();
 $data_array = [];
+$data_array['update_history'] = '';
+
+if (isset($languageService) && method_exists($languageService, 'readModule')) {
+    // Prefer route/module name used by admincenter.php, keep fallback for legacy file naming.
+    $languageService->readModule('update_core', true);
+    $languageService->readModule('update_core_real', true);
+}
 
 if (!function_exists('nx_t')) {
     function nx_t(string $key, string $fallback = ''): string
@@ -74,6 +81,51 @@ if (!function_exists('nx_t')) {
         }
 
         return $fallback;
+    }
+}
+
+if (!function_exists('nx_normalize_update_channel')) {
+    function nx_normalize_update_channel(?string $channel): string
+    {
+        $channel = strtolower(trim((string)$channel));
+        return in_array($channel, ['stable', 'beta', 'dev'], true) ? $channel : 'stable';
+    }
+}
+
+if (!function_exists('nx_get_update_channel')) {
+    function nx_get_update_channel(): string
+    {
+        global $_database;
+
+        if (!$_database instanceof mysqli) {
+            return 'stable';
+        }
+
+        $res = $_database->query("SELECT update_channel FROM settings LIMIT 1");
+        if ($res && ($row = mysqli_fetch_assoc($res))) {
+            return nx_normalize_update_channel($row['update_channel'] ?? 'stable');
+        }
+
+        return 'stable';
+    }
+}
+
+if (!function_exists('nx_set_update_channel')) {
+    function nx_set_update_channel(string $channel): string
+    {
+        global $_database;
+
+        $channel = nx_normalize_update_channel($channel);
+        if (!$_database instanceof mysqli) {
+            return $channel;
+        }
+
+        $_database->query("
+            UPDATE settings
+            SET update_channel = '" . $_database->real_escape_string($channel) . "'
+        ");
+
+        return $channel;
     }
 }
 
@@ -123,6 +175,234 @@ if (!function_exists('nx_append_download_site')) {
         $separator = str_contains($url, '?') ? '&' : '?';
 
         return $url . $separator . 'site=' . rawurlencode($site);
+    }
+}
+
+if (!function_exists('nx_fetch_url')) {
+    function nx_fetch_url(string $url): string|false
+    {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => implode("\r\n", [
+                    'User-Agent: Nexpell Core Updater',
+                    'Accept: application/vnd.github+json, application/json',
+                ]),
+                'timeout' => 20,
+            ],
+        ]);
+
+        return @file_get_contents($url, false, $context);
+    }
+}
+
+if (!function_exists('nx_normalize_github_tag_version')) {
+    function nx_normalize_github_tag_version(string $tag): string
+    {
+        $tag = trim($tag);
+        $tag = preg_replace('/^nexpell[-_]/i', '', $tag) ?? $tag;
+        $tag = preg_replace('/^core[-_]/i', '', $tag) ?? $tag;
+        $tag = preg_replace('/^v/i', '', $tag) ?? $tag;
+
+        return trim($tag);
+    }
+}
+
+if (!function_exists('nx_build_github_update_info')) {
+    function nx_build_github_update_info(array $tags): array
+    {
+        $updates = [];
+
+        foreach ($tags as $tag) {
+            if (!is_array($tag)) {
+                continue;
+            }
+
+            $tagName = (string)($tag['name'] ?? '');
+            $version = nx_normalize_github_tag_version($tagName);
+            if ($tagName === '' || !preg_match('/^\d+\.\d+\.\d+(?:[.\-+][A-Za-z0-9._-]+)?$/', $version)) {
+                continue;
+            }
+
+            $zipUrl = 'https://github.com/nexpell/nexpell/archive/refs/tags/' . rawurlencode($tagName) . '.zip';
+            $channel = preg_match('/[a-z]/i', $version) ? 'beta' : 'stable';
+
+            $updates[] = [
+                'version' => $version,
+                'channel' => $channel,
+                'build' => 1,
+                'zip_url' => $zipUrl,
+                'source' => 'github',
+                'source_type' => 'github',
+                'tag' => $tagName,
+                'visible_for' => ['all'],
+                'notes' => 'GitHub tag ' . $tagName,
+                'changelog' => 'Core-Update aus GitHub-Tag ' . $tagName,
+            ];
+        }
+
+        usort($updates, static function (array $a, array $b): int {
+            return version_compare((string)$a['version'], (string)$b['version']);
+        });
+
+        return [
+            'source' => 'github',
+            'repository' => 'nexpell/nexpell',
+            'updates' => $updates,
+        ];
+    }
+}
+
+if (!function_exists('nx_load_update_info')) {
+    function nx_load_update_info(string $url, string &$rawJson): array
+    {
+        $rawJson = nx_fetch_url($url);
+        if ($rawJson === false || $rawJson === '') {
+            return [];
+        }
+
+        $decoded = json_decode($rawJson, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        if (isset($decoded['updates']) && is_array($decoded['updates'])) {
+            return $decoded;
+        }
+
+        return nx_build_github_update_info($decoded);
+    }
+}
+
+if (!function_exists('nx_update_is_github_package')) {
+    function nx_update_is_github_package(array $update): bool
+    {
+        $source = strtolower((string)($update['source'] ?? $update['source_type'] ?? ''));
+        $zipUrl = strtolower((string)($update['zip_url'] ?? ''));
+
+        return $source === 'github' || str_contains($zipUrl, 'api.github.com/repos/nexpell/nexpell/zipball');
+    }
+}
+
+if (!function_exists('nx_update_zip_root_prefix')) {
+    function nx_update_zip_root_prefix(ZipArchive $zip): string
+    {
+        $root = '';
+
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = str_replace('\\', '/', (string)$zip->getNameIndex($i));
+            $name = ltrim($name, '/');
+            if ($name === '') {
+                continue;
+            }
+
+            $first = explode('/', $name, 2)[0] ?? '';
+            if ($first === '') {
+                continue;
+            }
+
+            if ($root === '') {
+                $root = $first;
+                continue;
+            }
+
+            if ($root !== $first) {
+                return '';
+            }
+        }
+
+        return $root !== '' ? $root . '/' : '';
+    }
+}
+
+if (!function_exists('nx_update_zip_relative_file')) {
+    function nx_update_zip_relative_file(string $file, ZipArchive $zip, array $update): string
+    {
+        $file = ltrim(str_replace('\\', '/', $file), '/');
+        if (!nx_update_is_github_package($update)) {
+            return $file;
+        }
+
+        $rootPrefix = nx_update_zip_root_prefix($zip);
+        if ($rootPrefix !== '' && str_starts_with($file, $rootPrefix)) {
+            return substr($file, strlen($rootPrefix));
+        }
+
+        return $file;
+    }
+}
+
+if (!function_exists('nx_update_copy_directory_contents')) {
+    function nx_update_copy_directory_contents(string $source, string $target): void
+    {
+        $source = rtrim($source, '/\\');
+        $target = rtrim($target, '/\\');
+
+        if (!is_dir($source)) {
+            return;
+        }
+
+        if (!is_dir($target)) {
+            mkdir($target, 0755, true);
+        }
+
+        $items = scandir($source);
+        if ($items === false) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $src = $source . DIRECTORY_SEPARATOR . $item;
+            $dst = $target . DIRECTORY_SEPARATOR . $item;
+
+            if (is_dir($src)) {
+                nx_update_copy_directory_contents($src, $dst);
+                continue;
+            }
+
+            if (!is_dir(dirname($dst))) {
+                mkdir(dirname($dst), 0755, true);
+            }
+            copy($src, $dst);
+        }
+    }
+}
+
+if (!function_exists('nx_update_extract_package')) {
+    function nx_update_extract_package(ZipArchive $zip, string $extractPath, array $update, string $tmpDir): bool
+    {
+        if (!nx_update_is_github_package($update)) {
+            return $zip->extractTo($extractPath);
+        }
+
+        $stageDir = rtrim($tmpDir, '/\\') . '/github_extract_' . preg_replace('/[^a-z0-9._-]/i', '_', (string)($update['version'] ?? 'update'));
+        if (is_dir($stageDir) && function_exists('recursiveRemoveDirectory')) {
+            recursiveRemoveDirectory($stageDir);
+        }
+        if (!is_dir($stageDir)) {
+            mkdir($stageDir, 0755, true);
+        }
+
+        if (!$zip->extractTo($stageDir)) {
+            return false;
+        }
+
+        $rootPrefix = rtrim(nx_update_zip_root_prefix($zip), '/');
+        $sourceRoot = $rootPrefix !== '' && is_dir($stageDir . '/' . $rootPrefix)
+            ? $stageDir . '/' . $rootPrefix
+            : $stageDir;
+
+        nx_update_copy_directory_contents($sourceRoot, $extractPath);
+
+        if (function_exists('recursiveRemoveDirectory')) {
+            recursiveRemoveDirectory($stageDir);
+        }
+
+        return true;
     }
 }
 
@@ -209,9 +489,6 @@ function nx_update_normalize_initial_history(mysqli $_database, string $currentV
 nx_update_normalize_initial_history($_database, CURRENT_VERSION, (int)($userID ?? 1));
 
 
-
-
-
 /*$installedBuilds = [];
 
 $res = safe_query("
@@ -235,6 +512,13 @@ $res = safe_query("
 
 while ($row = mysqli_fetch_assoc($res)) {
     $installedBuilds[$row['version']] = (int)$row['build'];
+}
+
+// Update-Kanal vor der ersten Ausgabe speichern, damit der Redirect zuverlässig funktioniert.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_channel'])) {
+    nx_set_update_channel((string)$_POST['update_channel']);
+    header("Location: admincenter.php?site=update_core");
+    exit;
 }
 
 
@@ -275,13 +559,7 @@ while ($row = mysqli_fetch_assoc($res)) {
 
 // Settings sicher laden
 $settings = [];
-
-$res = safe_query("SELECT update_channel FROM settings LIMIT 1");
-if ($row = mysqli_fetch_assoc($res)) {
-    $settings['update_channel'] = $row['update_channel'] ?? 'stable';
-} else {
-    $settings['update_channel'] = 'stable';
-}
+$settings['update_channel'] = nx_get_update_channel();
 
 
 
@@ -294,8 +572,10 @@ $action = $_GET['action'] ?? 'start';
 // ============================================================
 // 🧩 Update-Info-Datei abrufen und prüfen
 // ============================================================
-$local_update_info = realpath(__DIR__ . '/../update_info_v2.json') ?: (__DIR__ . '/../update_info_v2.json');
-$update_info_url = "https://update.nexpell.de/updates/update_info_v2.json";
+$update_info_url = "https://api.github.com/repos/nexpell/nexpell/tags?per_page=100";
+$update_source_host = 'github.com';
+$update_source_label = 'GitHub Tags';
+$update_source_resource = 'nexpell/nexpell';
 $http_status = "unbekannt";
 $error_reason = "";
 
@@ -337,18 +617,7 @@ function nx_checkUpdateSource(string $url, &$http_status): string {
 
 // --- Datei abrufen ---
 $update_info_json = '';
-$update_info_source = $update_info_url;
-
-if (is_file($local_update_info)) {
-    $update_info_json = (string)@file_get_contents($local_update_info);
-    if ($update_info_json !== '') {
-        $update_info_source = $local_update_info;
-    }
-}
-
-if ($update_info_json === '') {
-    $update_info_json = (string)@file_get_contents($update_info_url);
-}
+$update_info = nx_load_update_info($update_info_url, $update_info_json);
 
 // --- Fehler: Datei nicht erreichbar ---
 if (!$update_info_json) {
@@ -362,8 +631,8 @@ if (!$update_info_json) {
         </h5>
 
         <div class='small'>
-            <b>Server:</b> <code>update.nexpell.de</code><br>
-            <b>Ressource:</b> <code>/updates/update_info_v2.json</code><br>
+            <b>Server:</b> <code>{$update_source_host}</code><br>
+            <b>Ressource:</b> <code>{$update_source_resource}</code><br>
             <b>HTTP-Status:</b> {$http_status}<br>
             <b>Ursache:</b> {$error_reason}
         </div>
@@ -380,14 +649,14 @@ if (!$update_info_json) {
             • Offizieller Server-Status: 
               <!--<a href='https://status.nexpell.de' target='_blank'>status.nexpell.de</a>.<br><br>-->
             <span class='text-secondary small'>
-                <i class='bi bi-clock me-1'></i> Prüfe Verbindung zu <code>update.nexpell.de</code> ...
+                <i class='bi bi-clock me-1'></i> Pruefe Verbindung zu <code>{$update_source_host}</code> ...
             </span>
         </div>
     </div>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        fetch('https://update.nexpell.de/', { method: 'HEAD', mode: 'no-cors' })
+        fetch('https://github.com/', { method: 'HEAD', mode: 'no-cors' })
             .then(() => {
                 document.getElementById('nx-server-check').insertAdjacentHTML(
                     'beforeend',
@@ -408,7 +677,6 @@ if (!$update_info_json) {
 
 
 // --- Fehler: JSON fehlerhaft ---
-$update_info = json_decode($update_info_json, true);
 if (json_last_error() !== JSON_ERROR_NONE || !isset($update_info['updates']) || !is_array($update_info['updates'])) {
     echo "
     <div class='alert alert-danger m-3'>
@@ -417,7 +685,7 @@ if (json_last_error() !== JSON_ERROR_NONE || !isset($update_info['updates']) || 
             Update-Informationen konnten nicht korrekt verarbeitet werden
         </h5>
         <div class='small'>
-            <b>Datei:</b> <code>update_info_v2.json</code><br>
+            <b>Datei:</b> <code>{$update_source_label}</code><br>
             <b>JSON-Fehler:</b> " . htmlspecialchars(json_last_error_msg()) . "<br>
             <b>Hinweis:</b> Möglicherweise ist die Datei beschädigt oder leer.
         </div>
@@ -431,26 +699,10 @@ if (json_last_error() !== JSON_ERROR_NONE || !isset($update_info['updates']) || 
 #    fn($entry) => version_compare($entry['version'], CURRENT_VERSION, '>')
 #));
 
-if (!empty($update_info['updates']) && is_array($update_info['updates'])) {
-    usort($update_info['updates'], static function (array $a, array $b): int {
-        $verCompare = version_compare((string)($a['version'] ?? '0'), (string)($b['version'] ?? '0'));
-        if ($verCompare !== 0) {
-            return $verCompare;
-        }
-
-        return ((int)($a['build'] ?? 0)) <=> ((int)($b['build'] ?? 0));
-    });
-}
-
 // -------------------------------------------------------
 // 🔧 Update-Kanal
 // -------------------------------------------------------
-$res = safe_query("SELECT update_channel FROM settings LIMIT 1");
-$channel = 'stable';
-
-if ($row = mysqli_fetch_assoc($res)) {
-    $channel = $row['update_channel'] ?? 'stable';
-}
+$channel = nx_get_update_channel();
 
 // -------------------------------------------------------
 // 👤 Benutzer-Mail
@@ -547,7 +799,6 @@ $updates = array_values(array_filter(
             return true;
         }
 
-
         return false;
     }
 ));
@@ -565,37 +816,62 @@ $steps_nav = [
 ];
 
 $current_index = array_search($action, array_keys($steps_nav));
+$current_index = is_int($current_index) ? $current_index : 0;
 $total_steps = count($steps_nav);
-$progress_percent = (($current_index + 1) / $total_steps) * 100;
+$progress_percent = (int)round((($current_index + 1) / max(1, $total_steps)) * 100);
+$current_step = $steps_nav[$action] ?? reset($steps_nav);
+$current_title = htmlspecialchars((string)($current_step['title'] ?? 'Update'), ENT_QUOTES, 'UTF-8');
 
-$progress_html = "
-<div class='progress my-3' style='height: 6px;'>
-  <div class='progress-bar bg-success' role='progressbar' 
-       style='width: {$progress_percent}%;' 
-       aria-valuenow='{$progress_percent}' aria-valuemin='0' aria-valuemax='100'></div>
-</div>";
+$wizard_nav_html = "
+<div class='p-3' aria-label='Update-Fortschritt'>
+    <div class='d-flex align-items-center justify-content-between gap-3 mb-2'>
+        <div>
+            <div class='small text-uppercase fw-bold text-muted'>Update-Fortschritt</div>
+            <div class='fw-semibold'>{$current_title}</div>
+        </div>
+        <span class='badge bg-warning text-dark'>{$progress_percent}%</span>
+    </div>
+    <div class='progress mb-3' role='progressbar' aria-valuenow='{$progress_percent}' aria-valuemin='0' aria-valuemax='100' style='height: 8px;'>
+        <div class='progress-bar bg-warning' style='width: {$progress_percent}%'></div>
+    </div>
+    <div class='row g-2'>";
 
-$wizard_nav_html = "<ul class='nav nav-pills justify-content-center mb-4'>";
 $i = 0;
-
 foreach ($steps_nav as $key => $step) {
-    $i++;
-    $active = ($key === $action) ? 'active' : '';
-    $disabled = 'disabled'; // alle sind deaktiviert (nicht klickbar)
-    
+    $step_index = $i;
+    $number = $i + 1;
+    $state = 'pending';
+    if ($step_index < $current_index) {
+        $state = 'done';
+    } elseif ($step_index === $current_index) {
+        $state = 'active';
+    }
+
+    $title = htmlspecialchars((string)$step['title'], ENT_QUOTES, 'UTF-8');
+    $icon = htmlspecialchars((string)$step['icon'], ENT_QUOTES, 'UTF-8');
+
+    $stepClass = $state === 'active' ? 'border-warning bg-warning bg-opacity-10' : ($state === 'done' ? 'border-success bg-success bg-opacity-10' : 'border-light bg-light');
+    $iconClass = $state === 'active' ? 'text-warning' : ($state === 'done' ? 'text-success' : 'text-muted');
+
     $wizard_nav_html .= "
-    <li class='nav-item mx-1'>
-        <a class='nx-wizard-nav nav-link $active $disabled' tabindex='-1' aria-disabled='true'>
-            <i class='bi {$step['icon']} me-1'></i>{$step['title']}
-        </a>
-    </li>";
+        <div class='col-12 col-md-4'>
+            <div class='border rounded p-2 h-100 {$stepClass}'>
+                <div class='small text-muted'>Schritt {$number}</div>
+                <div class='fw-semibold'>
+                    <i class='bi {$icon} {$iconClass} me-1'></i>{$title}
+                </div>
+            </div>
+        </div>";
+    $i++;
 }
 
-$wizard_nav_html .= "</ul>";
+$wizard_nav_html .= "
+    </div>
+</div>";
 
 
 $data_array['wizard_nav'] = $wizard_nav_html;
-$data_array['progress_bar'] = $progress_html;
+$data_array['progress_bar'] = $wizard_nav_html;
 $data_array['current_version'] = CURRENT_VERSION;
 
 
@@ -628,12 +904,7 @@ if (empty($user_email) && isset($_SESSION['userID'])) {
 // -------------------------------------------------------
 
 $settings = [];
-$res = safe_query("SELECT update_channel FROM settings LIMIT 1");
-if ($row = mysqli_fetch_assoc($res)) {
-    $settings['update_channel'] = $row['update_channel'] ?? 'stable';
-} else {
-    $settings['update_channel'] = 'stable';
-}
+$settings['update_channel'] = nx_get_update_channel();
 
 $channel = $settings['update_channel'] ?? 'stable';
 
@@ -666,6 +937,10 @@ $updates = array_filter(
             empty($entry['version']) ||
             empty($entry['channel'])
         ) {
+            return false;
+        }
+
+        if (version_compare((string)$entry['version'], CURRENT_VERSION, '<=')) {
             return false;
         }
 
@@ -715,10 +990,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_channel'])) {
         ? $_POST['update_channel']
         : 'stable';
 
-    safe_query("
-        UPDATE settings
-        SET update_channel = '" . escape($newChannel) . "'
-    ");
+    nx_set_update_channel($newChannel);
 
     header("Location: admincenter.php?site=update_core");
     exit;
@@ -729,7 +1001,7 @@ $sel_beta   = ($channel === 'beta')   ? 'selected' : '';
 $sel_dev    = ($channel === 'dev')    ? 'selected' : '';
 
 $data_array['channel_form'] = '
-<form method="post">
+<form method="post" action="admincenter.php?site=update_core">
     <label class="form-label fw-bold">Update-Kanal</label>
     <select name="update_channel" class="form-select" onchange="this.form.submit()">
         <option value="stable" ' . $sel_stable . '>Stable (empfohlen)</option>
@@ -754,8 +1026,9 @@ $data_array['beta_badge'] = match ($channel) {
 // Updates filtern
 // -------------------------------------------------------
 
-// Kanal setzen (JETZT existiert er!)
-$channel = $settings['update_channel'] ?? 'stable';
+// Kanal immer frisch aus der Datenbank lesen, damit kein alter Fallback greift.
+$channel = nx_get_update_channel();
+$settings['update_channel'] = $channel;
 $user_email = strtolower(trim($user_email ?? ''));
 
 $updates = array_filter(
@@ -763,6 +1036,10 @@ $updates = array_filter(
     function ($entry) use ($channel, $user_email, $client_ip) {
 
         if (!is_array($entry) || empty($entry['version']) || empty($entry['channel'])) {
+            return false;
+        }
+
+        if (version_compare((string)$entry['version'], CURRENT_VERSION, '<=')) {
             return false;
         }
 
@@ -806,20 +1083,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_channel'])) {
         ? $_POST['update_channel']
         : 'stable';
 
-    safe_query("
-        UPDATE settings
-        SET update_channel = '" . escape($newChannel) . "'
-    ");
+    nx_set_update_channel($newChannel);
 
     // 🔁 PRG: Redirect, damit der neue Zustand sauber geladen wird
     header("Location: admincenter.php?site=update_core");
     exit;
 }
 
-$res = safe_query("SELECT update_channel FROM settings LIMIT 1");
-$row = mysqli_fetch_assoc($res);
-
-$settings['update_channel'] = $row['update_channel'] ?? 'stable';
+$settings['update_channel'] = nx_get_update_channel();
 $channel = $settings['update_channel'];
 
 $channel = $settings['update_channel'] ?? 'stable';
@@ -829,7 +1100,7 @@ $sel_beta   = ($channel === 'beta')   ? 'selected' : '';
 $sel_dev    = ($channel === 'dev')    ? 'selected' : '';
 
 $channel_form = '
-<form method="post" action="">
+<form method="post" action="admincenter.php?site=update_core">
     <label class="form-label fw-bold">
         Update-Kanal
     </label>
@@ -876,6 +1147,23 @@ switch ($channel) {
 
 
 
+$channelBadgeClass = match ($channel) {
+    'dev' => 'nx-update-badge--danger',
+    'beta' => 'nx-update-badge--warning',
+    default => 'nx-update-badge--success',
+};
+$channelBadgeText = match ($channel) {
+    'dev' => 'Dev',
+    'beta' => 'Beta',
+    default => 'Stable',
+};
+$channelBadgeHint = match ($channel) {
+    'dev' => 'Entwickler-Builds',
+    'beta' => 'Vorab-Updates',
+    default => 'Gepruefte Updates',
+};
+$beta_badge = '<div class="nx-channel-status"><span class="nx-update-badge ' . $channelBadgeClass . '">' . $channelBadgeText . '</span><span>' . $channelBadgeHint . '</span></div>';
+
 $data_array['channel_form'] = $channel_form;
 $data_array['beta_badge'] = $beta_badge;
 
@@ -891,12 +1179,7 @@ $data_array['beta_badge'] = $beta_badge;
 // -------------------------------------------------------
 // 🔧 Update-Kanal
 // -------------------------------------------------------
-$res = safe_query("SELECT update_channel FROM settings LIMIT 1");
-$channel = 'stable';
-
-if ($row = mysqli_fetch_assoc($res)) {
-    $channel = $row['update_channel'] ?? 'stable';
-}
+$channel = nx_get_update_channel();
 
 // -------------------------------------------------------
 // 👤 Benutzer-Mail
@@ -991,7 +1274,6 @@ $updates = array_values(array_filter(
         if (version_compare($version, CURRENT_VERSION, '>')) {
             return true;
         }
-
 
         return false;
     }
@@ -1135,6 +1417,8 @@ $history_html .= "
 
 }
 
+    $data_array['update_history'] = $history_html;
+
 
     /* ============================================================
        🌐 UPDATE-SERVER PRÜFEN
@@ -1144,8 +1428,7 @@ $history_html .= "
         return $headers && str_contains($headers[0], '200');
     }
 
-    $update_info_url = "https://update.nexpell.de/updates/update_info_v2.json";
-    $server_ok = nx_isUpdateServerReachable($update_info_url);
+    $server_ok = is_array($update_info['updates'] ?? null);
 
     $server_status = $server_ok
         ? "<span class='text-success'><i class='bi bi-check-circle-fill me-1'></i> Verbindung erfolgreich</span>"
@@ -1192,9 +1475,54 @@ $history_html .= "
             wurden erfolgreich installiert.
         </div>
 
-
-        {$history_html}
         ";
+
+        $data_array['content'] = "
+<div class='nx-update-overview'>
+    <div class='nx-update-hero nx-update-hero--stable'>
+        <div class='nx-update-hero__main'>
+            <div class='nx-update-hero__eyebrow'>
+                <i class='bi bi-shield-check me-1'></i>
+                Core Status
+            </div>
+            <h3>Dein System ist aktuell.</h3>
+            <p>Alle bekannten Stabilitaets- und Sicherheitsupdates wurden erfolgreich installiert.</p>
+        </div>
+        <div class='nx-update-hero__badge'>
+            <span class='nx-update-badge nx-update-badge--success'>Aktuell</span>
+        </div>
+    </div>
+
+    <div class='nx-update-summary-grid'>
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-cpu'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Installierte Version</div>
+                <div class='nx-update-summary-value'>nexpell Core " . htmlspecialchars(CURRENT_VERSION, ENT_QUOTES, 'UTF-8') . "</div>
+                <div class='nx-update-summary-note'>Installiert am " . htmlspecialchars($last_update_date, ENT_QUOTES, 'UTF-8') . "</div>
+            </div>
+        </div>
+
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-hdd-network'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Update-Quelle</div>
+                <div class='nx-update-summary-value'><code>" . htmlspecialchars($update_source_label, ENT_QUOTES, 'UTF-8') . "</code></div>
+                <div class='nx-update-summary-note'>Status: {$server_status}</div>
+            </div>
+        </div>
+
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-check2-circle'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Update-Lage</div>
+                <div class='nx-update-summary-value'>Keine Updates verfuegbar</div>
+                <div class='nx-update-summary-note'>Dein System ist auf dem neuesten Stand.</div>
+            </div>
+        </div>
+    </div>
+</div>
+";
     }
 
     /* ============================================================
@@ -1202,13 +1530,27 @@ $history_html .= "
        ============================================================ */
     else {
 
-        $versions = array_column($updates, 'version');
+        $versions = array_map('strval', array_column($updates, 'version'));
+        $versionsHtml = '';
         $log = '';
 
         foreach ($updates as $update) {
             $ver  = htmlspecialchars($update['version']);
             $desc = nl2br(htmlspecialchars($update['changelog'] ?? 'Keine Beschreibung.'));
             $log .= "🟢 <b>{$ver}</b>: {$desc}<br>";
+        }
+
+        $log = '';
+        $versionsHtml = '';
+        foreach ($updates as $update) {
+            $ver = htmlspecialchars((string)($update['version'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $desc = nl2br(htmlspecialchars((string)($update['changelog'] ?? 'Keine Beschreibung.'), ENT_QUOTES, 'UTF-8'));
+            $versionsHtml .= "<span class='nx-update-pill'>{$ver}</span>";
+            $log .= "
+            <div class='nx-update-changelog-item'>
+                <div class='nx-update-changelog-version'>Version {$ver}</div>
+                <div class='nx-update-changelog-text'>{$desc}</div>
+            </div>";
         }
 
         $update_count_text = ($updateCount === 1)
@@ -1241,13 +1583,13 @@ if ($channel === 'dev') {
    Badge bestimmen
 ========================= */
 if ($channel === 'dev') {
-    $statusBadge = "<span class='badge bg-danger fs-6 px-3 py-2'>DEV</span>";
+    $statusBadge = "<span class='nx-update-badge nx-update-badge--danger'>DEV</span>";
 } elseif ($channel === 'beta') {
-    $statusBadge = "<span class='badge bg-warning fs-6 px-3 py-2'>BETA</span>";
+    $statusBadge = "<span class='nx-update-badge nx-update-badge--warning'>BETA</span>";
 } elseif ($isUpToDate) {
-    $statusBadge = "<span class='badge bg-success fs-6 px-3 py-2'>Aktuell</span>";
+    $statusBadge = "<span class='nx-update-badge nx-update-badge--success'>Aktuell</span>";
 } else {
-    $statusBadge = "<span class='badge bg-warning fs-6 px-3 py-2'>Update verfügbar</span>";
+    $statusBadge = "<span class='nx-update-badge nx-update-badge--warning'>Update verfuegbar</span>";
 }
 
 /* =========================
@@ -1307,11 +1649,11 @@ if ($channel === 'dev') {
 
     <div class='fw-semibold mb-1'>
         <i class='bi bi-hdd-network me-2 text-primary'></i>
-        Update-Server
+        Update-Quelle
     </div>
 
     <div>
-        <code>update.nexpell.de</code>
+        <code>" . htmlspecialchars($update_source_label, ENT_QUOTES, 'UTF-8') . "</code>
     </div>
 
     <div class='small text-muted mt-1'>
@@ -1355,9 +1697,6 @@ if ($channel === 'dev') {
         {$log}
     </div>
 </div>
-
-{$history_html}
-
 <!-- 🔹 Update starten -->
 <form method='post' action='admincenter.php?site=update_core&action=progress'>
     <button class='btn btn-success btn-lg shadow-sm mt-3'>
@@ -1366,7 +1705,71 @@ if ($channel === 'dev') {
 </form>
 ";
 
+        $data_array['content'] = "
+<div class='nx-update-overview'>
+    <div class='nx-update-hero nx-update-hero--" . htmlspecialchars($channel, ENT_QUOTES, 'UTF-8') . "'>
+        <div class='nx-update-hero__main'>
+            <div class='nx-update-hero__eyebrow'>
+                <i class='bi bi-rocket-takeoff me-1'></i>
+                Core Update
+            </div>
+            <h3>{$update_count_text}</h3>
+            <p>{$statusText}</p>
+        </div>
+        <div class='nx-update-hero__badge'>
+            {$statusBadge}
+        </div>
+    </div>
 
+    <div class='nx-update-summary-grid'>
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-cpu'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Installierte Version</div>
+                <div class='nx-update-summary-value'>nexpell Core " . htmlspecialchars(CURRENT_VERSION, ENT_QUOTES, 'UTF-8') . "</div>
+                <div class='nx-update-summary-note'>Installiert am " . htmlspecialchars($last_update_date, ENT_QUOTES, 'UTF-8') . "</div>
+            </div>
+        </div>
+
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-hdd-network'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Update-Quelle</div>
+                <div class='nx-update-summary-value'><code>" . htmlspecialchars($update_source_label, ENT_QUOTES, 'UTF-8') . "</code></div>
+                <div class='nx-update-summary-note'>Status: {$server_status}</div>
+            </div>
+        </div>
+
+        <div class='nx-update-summary-card'>
+            <span class='nx-update-summary-icon'><i class='bi bi-box-arrow-down'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Verfuegbare Versionen</div>
+                <div class='nx-update-version-list'>{$versionsHtml}</div>
+                <div class='nx-update-summary-note'>Core-, Sicherheits- und Funktionsupdates</div>
+            </div>
+        </div>
+    </div>
+
+    <div class='nx-update-changelog'>
+        <div class='nx-update-section-title'>
+            <span><i class='bi bi-journal-text'></i></span>
+            <div>
+                <div class='nx-update-summary-label'>Aenderungsprotokoll</div>
+                <strong>Was ist neu?</strong>
+            </div>
+        </div>
+        <div class='nx-update-changelog-list'>
+            {$log}
+        </div>
+    </div>
+
+    <form method='post' action='admincenter.php?site=update_core&action=progress' class='nx-update-actions'>
+        <button class='btn btn-success btn-lg shadow-sm'>
+            <i class='bi bi-arrow-clockwise me-1'></i> Update jetzt starten
+        </button>
+    </form>
+</div>
+";
 
     }
 
@@ -1396,7 +1799,7 @@ if ($action === 'progress') {
     $requiresVersion    = null;
 
     // 🕒 Zeitpunkt für Update-History
-    $installedAt = 0;
+    $installedAt = time();
 
     // 🔒 Feste Ausgangsversion für DIESEN Update-Lauf
     $baseVersion = null;
@@ -1706,7 +2109,26 @@ foreach ($updates as $update) {
 }
 
 if (!$all_updates_succeeded) {
-    return;
+    $steps_log[] = "
+    <div class='alert alert-danger mb-2'>
+        <i class='bi bi-x-circle-fill me-2'></i>
+        Update wurde abgebrochen. Bitte pruefe die Meldungen oben und starte den Schritt danach erneut.
+    </div>";
+
+    $data_array['content'] = "
+    <div class='nx-update-overview nx-update-progress-log'>
+        <div class='nx-steps'>
+            " . implode("\n", $steps_log) . "
+        </div>
+        <div class='nx-update-actions'>
+            <a href='admincenter.php?site=update_core&action=start' class='btn btn-secondary'>
+                <i class='bi bi-arrow-left-circle'></i> Zurueck zur Uebersicht
+            </a>
+        </div>
+    </div>";
+
+    echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
+    exit;
 }
 
 $steps_log[] = "
@@ -1925,7 +2347,26 @@ $steps_log[] = "</div></div>";
    ============================================================ */
 
 if (!$all_updates_succeeded) {
-    return;
+    $steps_log[] = "
+    <div class='alert alert-danger mb-2'>
+        <i class='bi bi-x-circle-fill me-2'></i>
+        Update wurde abgebrochen. Die Dateien wurden nicht entpackt, damit der Datenbankstand konsistent bleibt.
+    </div>";
+
+    $data_array['content'] = "
+    <div class='nx-update-overview nx-update-progress-log'>
+        <div class='nx-steps'>
+            " . implode("\n", $steps_log) . "
+        </div>
+        <div class='nx-update-actions'>
+            <a href='admincenter.php?site=update_core&action=start' class='btn btn-secondary'>
+                <i class='bi bi-arrow-left-circle'></i> Zurueck zur Uebersicht
+            </a>
+        </div>
+    </div>";
+
+    echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
+    exit;
 }
 
 $steps_log[] = "
@@ -1993,19 +2434,28 @@ foreach ($updatesToRun as $update) {
         $file = $zip->getNameIndex($i);
         if (str_ends_with($file, '/')) continue;
 
-        $target = $extract_path . '/' . $file;
+        $relativeFile = nx_update_zip_relative_file((string)$file, $zip, $update);
+        if ($relativeFile === '') {
+            continue;
+        }
+
+        $target = $extract_path . '/' . $relativeFile;
 
         if (file_exists($target)) {
-            $files_overwritten[] = $file;
+            $files_overwritten[] = $relativeFile;
         } else {
-            $files_created[] = $file;
+            $files_created[] = $relativeFile;
         }
     }
 
     /* ===============================
        📂 Dateien entpacken
     ================================ */
-    $zip->extractTo($extract_path);
+    if (!nx_update_extract_package($zip, $extract_path, $update, $tmp_dir)) {
+        $zip->close();
+        $all_updates_succeeded = false;
+        break;
+    }
     $zip->close();
 
     $steps_log[] = "
@@ -2025,6 +2475,24 @@ foreach ($updatesToRun as $update) {
             if (is_file($full)) {
                 unlink($full);
                 $files_deleted[] = $rel;
+            }
+        }
+    }
+
+    /* ===============================
+       📁 delete_dirs
+    ================================ */
+    if (!empty($update['delete_dirs']) && is_array($update['delete_dirs'])) {
+
+        foreach ($update['delete_dirs'] as $rel) {
+
+            $full = $extract_path . '/' . ltrim((string)$rel, '/');
+            if (is_dir($full)) {
+                recursiveRemoveDirectory($full);
+
+                if (!file_exists($full)) {
+                    $files_deleted[] = rtrim((string)$rel, '/');
+                }
             }
         }
     }
@@ -2058,7 +2526,7 @@ foreach ($updatesToRun as $update) {
     ===================================================== */
     if (!empty($update['requires_new_updater'])) {
 
-        $lockDir = __DIR__ . '/../update_core';
+        $lockDir = __DIR__;
         if (!is_dir($lockDir)) {
             mkdir($lockDir, 0755, true);
         }
@@ -2205,17 +2673,33 @@ if ($all_updates_succeeded) {
     // 🧩 Abschlussanzeige
     // ============================================================
     $data_array['content'] = "
-        <div class='nx-steps'>
-            " . implode("\n", $steps_log) . "
-        </div>
-        <form method='get' action='admincenter.php'>
-            <input type='hidden' name='site' value='update_core'>
-            <input type='hidden' name='action' value='finish'>
-            <button class='btn btn-success mt-3'>
-                <i class='bi bi-check2'></i> Abschluss anzeigen
-            </button>
-        </form>";
+        <div class='nx-update-overview nx-update-progress-log'>
+            <div class='nx-update-hero nx-update-hero--progress'>
+                <div class='nx-update-hero__main'>
+                    <div class='nx-update-hero__eyebrow'>
+                        <i class='bi bi-activity me-1'></i>
+                        Update-Protokoll
+                    </div>
+                    <h3>Update wird verarbeitet</h3>
+                    <p>Download, Migration, Dateiabgleich und System-Synchronisation werden Schritt fuer Schritt protokolliert.</p>
+                </div>
+                <div class='nx-update-hero__badge'>
+                    <span class='nx-update-badge nx-update-badge--warning'>Live</span>
+                </div>
+            </div>
 
+            <div class='nx-steps'>
+                " . implode("\n", $steps_log) . "
+            </div>
+
+            <form method='get' action='admincenter.php' class='nx-update-actions'>
+                <input type='hidden' name='site' value='update_core'>
+                <input type='hidden' name='action' value='finish'>
+                <button class='btn btn-success btn-lg shadow-sm'>
+                    <i class='bi bi-check2'></i> Abschluss anzeigen
+                </button>
+            </form>
+        </div>";
     echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
     exit;
 }
@@ -2253,6 +2737,49 @@ if ($action === 'finish') {
         <i class='bi bi-arrow-left-circle'></i> Zurück zur Übersicht
     </a>";
     
+    $data_array['content'] = "
+    <div class='nx-update-overview'>
+        <div class='nx-update-hero nx-update-hero--stable'>
+            <div class='nx-update-hero__main'>
+                <div class='nx-update-hero__eyebrow'>
+                    <i class='bi bi-check2-circle me-1'></i>
+                    Update abgeschlossen
+                </div>
+                <h3>System erfolgreich aktualisiert</h3>
+                <p>nexpell Core laeuft jetzt auf Version <strong>" . htmlspecialchars($core_version, ENT_QUOTES, 'UTF-8') . "</strong>.</p>
+            </div>
+            <div class='nx-update-hero__badge'>
+                <span class='nx-update-badge nx-update-badge--success'>Fertig</span>
+            </div>
+        </div>
+
+        <div class='nx-update-summary-grid'>
+            <div class='nx-update-summary-card'>
+                <span class='nx-update-summary-icon'><i class='bi bi-cpu'></i></span>
+                <div>
+                    <div class='nx-update-summary-label'>Aktuelle Version</div>
+                    <div class='nx-update-summary-value'>" . htmlspecialchars($core_version, ENT_QUOTES, 'UTF-8') . "</div>
+                    <div class='nx-update-summary-note'>Core wurde erfolgreich aktualisiert.</div>
+                </div>
+            </div>
+
+            <div class='nx-update-summary-card'>
+                <span class='nx-update-summary-icon'><i class='bi bi-clock-history'></i></span>
+                <div>
+                    <div class='nx-update-summary-label'>Aktualisiert am</div>
+                    <div class='nx-update-summary-value'>" . htmlspecialchars($last_update_date, ENT_QUOTES, 'UTF-8') . "</div>
+                    <div class='nx-update-summary-note'>Zeitpunkt des letzten Core-Updates.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class='nx-update-actions'>
+            <a href='admincenter.php?site=update_core&action=start' class='btn btn-primary btn-lg shadow-sm'>
+                <i class='bi bi-arrow-left-circle'></i> Zurueck zur Uebersicht
+            </a>
+        </div>
+    </div>";
+
     echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
     
 }

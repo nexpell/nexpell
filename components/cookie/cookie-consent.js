@@ -108,7 +108,6 @@ function renderYoutubeVideos(config) {
         });
 }
 
-
 document.addEventListener("DOMContentLoaded", function () {
     const banner = document.getElementById('cookie-consent-banner');
     const twitchSwitch = document.getElementById('twitch-switch');
@@ -228,17 +227,29 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function showBanner() {
-        banner.classList.remove('d-none');
-        const overlay = document.getElementById('cookie-overlay');
-        if (overlay) overlay.style.display = 'block';
-        document.body.style.overflow = 'hidden'; // Scroll sperren
+    const overlay = document.getElementById('cookie-overlay');
+    if (!banner) return;
+
+    if (overlay) overlay.classList.remove('d-none');
+
+    requestAnimationFrame(() => {
+        banner.classList.add('is-open');
+        if (overlay) overlay.classList.add('is-open');
+    });
+
+    document.body.style.overflow = 'hidden';
     }
 
     function hideBanner() {
-        banner.classList.add('d-none');
-        const overlay = document.getElementById('cookie-overlay');
-        if (overlay) overlay.style.display = 'none';
-        document.body.style.overflow = ''; // Scroll erlauben
+    const overlay = document.getElementById('cookie-overlay');
+
+    banner.classList.remove('is-open');
+    if (overlay) overlay.classList.remove('is-open');
+
+    window.setTimeout(() => {
+        if (overlay) overlay.classList.add('d-none');
+        document.body.style.overflow = '';
+    }, 320);
     }
 
     // Zustimmen

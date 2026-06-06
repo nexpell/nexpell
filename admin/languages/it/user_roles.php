@@ -78,5 +78,9 @@ $language_array = array(
     'user_roles_and_rights'         => 'Ruoli & diritti utente',
     'username'                      => 'Nome utente',
     'view_assigned_rights'          => 'Visualizza diritti assegnati',
+    'remember_device_trust_column'       => 'Ricorda dispositivo 2FA',
+    'remember_device_trust_column_title' => 'Indica se per questo account è memorizzata nel database una chiave per “ricordare il dispositivo”. La possibilità per l’utente di accedere senza codice e-mail dipende dal browser sul suo dispositivo e non è direttamente visibile qui.',
+    'remember_device_clear_title'        => 'Reimposta «ricorda dispositivo» per questo utente',
+    'alert_remember_device_cleared'      => '“Ricorda dispositivo” è stato rimosso. I codici 2FA verranno generati di nuovo.',
 );
 ?>

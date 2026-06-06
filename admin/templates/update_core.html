@@ -2,87 +2,38 @@
 <div id="nx-updater">
 
 <!-- Header Card -->
-<div class="card shadow-sm mb-3 mt-4">
-  <div class="card-header p-3 d-flex align-items-center gap-3">
+<div class="card shadow-sm mb-3 mt-4 nx-updater-head">
+  <div class="card-body p-3 p-lg-4">
+    <div class="nx-updater-head__grid">
+      <div class="nx-updater-head__title">
+        <span class="nx-updater-head__icon">
+          <i class="bi bi-gear-fill"></i>
+        </span>
+        <div>
+          <div class="nx-updater-head__eyebrow">Core Management</div>
+          <h2>{update_title}</h2>
+          <p>{update_subtitle}</p>
+        </div>
+      </div>
 
-    <div class="card-title">
-      <i class="bi bi-gear-fill"></i>
-      <span>{update_title}</span>
-      <small class="text-muted">
-        {update_subtitle}
-      </small>
+      <div class="nx-updater-head__channel">
+        <div class="nx-updater-head__channel-top">
+          <span><i class="bi bi-broadcast-pin me-1"></i>{update_channel_title}</span>
+          {beta_badge}
+        </div>
+        {channel_form}
+        <div class="nx-updater-head__hint">
+          {update_channel_hint}
+        </div>
+      </div>
     </div>
-
-    <!-- Badge / Alert rechts -->
-    <div class="ms-auto d-flex align-items-center">
-      {beta_badge}
-    </div>
-
   </div>
 </div>
 
 <!-- 2-Spalten Layout -->
 <div class="row g-3 align-items-start">
 
-  <!-- LEFT -->
-  <div class="col-12 col-xl-12">
-
-    <!-- Settings Card -->
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="card-title">
-          <i class="bi bi-list"></i> {update_channel_title}
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="d-flex align-items-start justify-content-between gap-3">
-          <div class="flex-grow-1">
-            {channel_form}
-            <div class="text-muted small mt-2">
-              {update_channel_hint}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Progress Card -->
-    <div class="card shadow-sm mt-4">
-      <div class="card-header">
-        <div class="card-title">
-          <i class="bi bi-arrow-repeat"></i> {update_progress_title}
-        </div>
-      </div>
-      <div id="nx-progress-wrapper" class="nx-progress">
-        <div class="nx-progress-inner">
-          {progress_bar}
-        </div>
-      </div>
-    </div>
-
-    <!-- Wizard Nav Card -->
-    <div class="card shadow-sm mt-4">
-      <div class="card-header">
-        <div class="card-title">
-          <i class="bi bi-123"></i> {update_steps_title}
-        </div>
-      </div>
-      <div class="card-body">
-        <div class="mb-0">
-          {wizard_nav}
-        </div>
-      </div>
-    </div>
-
-    <!-- Mini Footer Hint -->
-    <div class="text-muted text-center small mt-3 gap-2">
-      <i class="bi bi-shield-check"></i>
-      <span>{update_footer_hint}</span>
-    </div>
-
-  </div>
-
-  <!-- RIGHT -->
+  <!-- Updates -->
   <div class="col-12 col-xl-12">
 
     <!-- Log Card -->
@@ -102,11 +53,131 @@
     </div>
 
   </div>
+
+  <!-- LEFT -->
+  <div class="col-12 col-xl-12">
+
+    <!-- Progress + Steps Card -->
+    <div class="card shadow-sm mt-4 mt-lg-3">
+      <div class="card-header">
+        <div class="card-title">
+          <i class="bi bi-arrow-repeat"></i> {update_progress_title} &amp; {update_steps_title}
+        </div>
+      </div>
+      <div id="nx-progress-wrapper" class="nx-progress">
+        <div class="nx-progress-inner">
+          {progress_bar}
+        </div>
+      </div>
+    </div>
+
+    {update_history}
+
+    <!-- Mini Footer Hint -->
+    <div class="text-muted text-center small mt-3 gap-2">
+      <i class="bi bi-shield-check"></i>
+      <span>{update_footer_hint}</span>
+    </div>
+
+  </div>
 </div>
 </div>
 
 
 <style>
+.nx-updater-head {
+  overflow: hidden;
+  border: 1px solid rgba(254, 130, 29, .18);
+  border-radius: 1.15rem;
+  background:
+    radial-gradient(circle at top left, rgba(254, 130, 29, .18), transparent 32%),
+    linear-gradient(135deg, #ffffff, #fff7ef);
+}
+
+.nx-updater-head__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, .75fr);
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.nx-updater-head__title {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nx-updater-head__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: 0 0 auto;
+  border-radius: 1rem;
+  color: #ffffff;
+  background: linear-gradient(135deg, #fe821d, #d85d00);
+  box-shadow: 0 14px 28px rgba(254, 130, 29, .24);
+  font-size: 1.35rem;
+}
+
+.nx-updater-head__eyebrow {
+  color: #8a5a2b;
+  font-size: .72rem;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.nx-updater-head h2 {
+  margin: .1rem 0;
+  color: #212529;
+  font-size: clamp(1.35rem, 2vw, 1.9rem);
+  font-weight: 850;
+}
+
+.nx-updater-head p {
+  margin: 0;
+  color: #6c757d;
+}
+
+.nx-updater-head__channel {
+  padding: .9rem;
+  border: 1px solid rgba(108, 117, 125, .14);
+  border-radius: 1rem;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 10px 24px rgba(33, 37, 41, .055);
+}
+
+.nx-updater-head__channel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: .75rem;
+  color: #212529;
+  font-weight: 800;
+}
+
+.nx-updater-head__channel form {
+  margin: 0;
+}
+
+.nx-updater-head__channel .form-label {
+  display: none;
+}
+
+.nx-updater-head__channel .form-select {
+  border-radius: .85rem;
+  border-color: rgba(254, 130, 29, .28);
+  font-weight: 700;
+}
+
+.nx-updater-head__hint {
+  margin-top: .55rem;
+  color: #6c757d;
+  font-size: .82rem;
+}
+
 /* Progress */
 .nx-progress {
   position: relative;
@@ -120,66 +191,469 @@
 }
 
 .nx-progress-inner {
-  background: rgba(255,255,255,0.9);
+  background:
+    radial-gradient(circle at top left, rgba(254, 130, 29, 0.16), transparent 34%),
+    linear-gradient(135deg, #ffffff 0%, #fff7ef 100%);
   backdrop-filter: blur(6px);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  border-radius: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(254, 130, 29, 0.18);
+  box-shadow: 0 14px 35px rgba(33, 37, 41, 0.08);
 }
 
-.nx-progress-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #6c757d;
-  margin-bottom: 0.35rem;
+.nx-update-flow {
+  display: grid;
+  gap: 1rem;
 }
 
-.nx-progress .progress {
-  height: 6px;
+.nx-update-flow__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.nx-update-flow__eyebrow {
+  color: #8a5a2b;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.nx-update-flow__title {
+  color: #212529;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.nx-update-flow__percent {
+  min-width: 4.25rem;
   border-radius: 999px;
+  padding: .45rem .75rem;
+  color: #ffffff;
+  background: linear-gradient(135deg, #fe821d, #d85d00);
+  box-shadow: 0 10px 20px rgba(254, 130, 29, .28);
+  font-weight: 800;
+  text-align: center;
+}
+
+.nx-update-flow__track {
+  height: .55rem;
   overflow: hidden;
+  border-radius: 999px;
+  background: rgba(254, 130, 29, .16);
 }
 
-.nx-progress .progress-bar {
-  background: linear-gradient(90deg, #fe821d, #ff9c3f);
-  transition: width 0.4s ease;
+.nx-update-flow__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fe821d, #ffc15a);
+  box-shadow: 0 0 18px rgba(254, 130, 29, .35);
+  transition: width .35s ease;
 }
 
-.nx-wizard-nav {
+.nx-update-flow__steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.nx-update-flow__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-height: 4.25rem;
+  padding: .85rem;
+  border: 1px solid rgba(108, 117, 125, .16);
+  border-radius: .95rem;
+  background: rgba(255, 255, 255, .72);
+}
+
+.nx-update-flow__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  border-radius: .8rem;
+  color: #6c757d;
+  background: #f1f3f5;
+}
+
+.nx-update-flow__meta {
+  display: grid;
+  gap: .1rem;
+}
+
+.nx-update-flow__count {
+  color: #8a5a2b;
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.nx-update-flow__name {
+  color: #212529;
+  font-weight: 700;
+}
+
+.nx-update-flow__step.is-active {
+  border-color: rgba(254, 130, 29, .45);
+  background: #ffffff;
+  box-shadow: 0 12px 26px rgba(254, 130, 29, .14);
+}
+
+.nx-update-flow__step.is-active .nx-update-flow__dot {
+  color: #ffffff;
+  background: linear-gradient(135deg, #fe821d, #d85d00);
+}
+
+.nx-update-flow__step.is-done .nx-update-flow__dot {
+  color: #ffffff;
+  background: #198754;
+}
+
+.nx-update-overview {
+  display: grid;
+  gap: 1rem;
+}
+
+.nx-update-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: 1.1rem;
+  color: #212529;
+  background:
+    radial-gradient(circle at top right, rgba(254, 130, 29, .22), transparent 30%),
+    linear-gradient(135deg, #fff7ef, #ffffff);
+  border: 1px solid rgba(254, 130, 29, .2);
+  box-shadow: 0 16px 34px rgba(33, 37, 41, .08);
+}
+
+.nx-update-hero--dev {
+  background:
+    radial-gradient(circle at top right, rgba(220, 53, 69, .2), transparent 30%),
+    linear-gradient(135deg, #fff5f5, #ffffff);
+}
+
+.nx-update-hero--progress {
+  background:
+    radial-gradient(circle at top right, rgba(13, 110, 253, .18), transparent 30%),
+    linear-gradient(135deg, #eef6ff, #ffffff);
+  border-color: rgba(13, 110, 253, .18);
+}
+
+.nx-update-hero__eyebrow {
+  color: #8a5a2b;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.nx-update-hero h3 {
+  margin: .25rem 0;
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  font-weight: 850;
+}
+
+.nx-update-hero p {
+  max-width: 760px;
+  margin: 0;
+  color: #5d6670;
+}
+
+.nx-update-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5rem;
+  border-radius: 999px;
+  padding: .55rem .85rem;
+  color: #fff;
+  font-weight: 850;
+  letter-spacing: .04em;
+}
+
+.nx-update-badge--warning {
+  background: linear-gradient(135deg, #fe821d, #d85d00);
+}
+
+.nx-update-badge--danger {
+  background: linear-gradient(135deg, #dc3545, #9f1d2a);
+}
+
+.nx-update-badge--success {
+  background: linear-gradient(135deg, #198754, #0f6840);
+}
+
+.nx-channel-status {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .45rem .35rem .35rem;
+  border: 1px solid rgba(108, 117, 125, .14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 8px 18px rgba(33, 37, 41, .06);
+  color: #5d6670;
+  font-size: .82rem;
+  font-weight: 700;
+}
+
+.nx-update-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .85rem;
+}
+
+.nx-update-summary-card,
+.nx-update-changelog {
+  padding: 1rem;
+  border: 1px solid rgba(108, 117, 125, .14);
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(33, 37, 41, .06);
+}
+
+.nx-update-summary-card {
+  display: flex;
+  gap: .8rem;
+}
+
+.nx-update-summary-icon,
+.nx-update-section-title span {
+  display: inline-grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  flex: 0 0 auto;
+  border-radius: .8rem;
+  color: #fff;
+  background: linear-gradient(135deg, #fe821d, #d85d00);
+}
+
+.nx-update-summary-label {
+  color: #8a5a2b;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.nx-update-summary-value {
+  margin-top: .1rem;
+  font-weight: 800;
+}
+
+.nx-update-summary-note {
+  margin-top: .2rem;
+  color: #6c757d;
+  font-size: .85rem;
+}
+
+.nx-update-version-list {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 10px;
-  margin: 0;
+  gap: .35rem;
+  margin-top: .25rem;
 }
 
-.nx-wizard-nav.nav-link {
-  border-radius: 0.6rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid #fe821d;
-  color: #212529;
-  background-color: #fff;
-  font-weight: 500;
-  transition: all 0.2s ease-in-out;
+.nx-update-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: .25rem .65rem;
+  color: #8a3d00;
+  background: rgba(254, 130, 29, .14);
+  font-weight: 800;
 }
 
-.nx-wizard-nav.nav-link:hover {
-  background-color: #fe821d;
-  color: #ffffff;
-  border-color: #fe821d;
+.nx-update-section-title {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .85rem;
 }
 
-.nx-wizard-nav.nav-link.active {
-  background-color: #fe821d;
-  border-color: #fe821d;
-  color: #fff !important;
-  box-shadow: 0 0 6px rgba(254, 130, 29, 0.35);
+.nx-update-changelog-list {
+  display: grid;
+  gap: .65rem;
 }
 
-.nx-wizard-nav .nav-link.disabled {
-  pointer-events: none;
-  opacity: .45;
+.nx-update-changelog-item {
+  padding: .85rem;
+  border-radius: .85rem;
+  background: #f8f9fa;
+}
+
+.nx-update-changelog-version {
+  margin-bottom: .25rem;
+  color: #198754;
+  font-weight: 850;
+}
+
+.nx-update-changelog-text {
+  color: #495057;
+}
+
+.nx-update-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.nx-steps {
+  display: grid;
+  gap: .85rem;
+}
+
+.nx-steps .alert {
+  margin: 0 !important;
+  padding: 1rem;
+  border: 1px solid rgba(108, 117, 125, .14);
+  border-left: .35rem solid #fe821d;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(33, 37, 41, .055);
+}
+
+.nx-steps .alert-info {
+  border-left-color: #0d6efd;
+}
+
+.nx-steps .alert-success {
+  border-left-color: #198754;
+}
+
+.nx-steps .alert-warning {
+  border-left-color: #ffc107;
+}
+
+.nx-steps .alert-danger {
+  border-left-color: #dc3545;
+}
+
+.nx-steps .alert-secondary {
+  border-left-color: #6c757d;
+}
+
+.nx-steps .bg-light,
+.nx-steps .border {
+  border-color: rgba(108, 117, 125, .14) !important;
+  border-radius: .85rem !important;
+  background: #f8f9fa !important;
+}
+
+.nx-update-progress-log .nx-update-hero {
+  padding: 1rem;
+}
+
+.nx-update-progress-log .nx-update-hero h3 {
+  font-size: 1.15rem;
+}
+
+.nx-update-progress-log .nx-update-hero p {
+  font-size: .88rem;
+}
+
+.nx-update-progress-log .nx-steps {
+  gap: .55rem;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.nx-update-progress-log .nx-steps .alert {
+  padding: .7rem .85rem;
+  border-radius: .8rem;
+  font-size: .82rem;
+}
+
+.nx-update-progress-log .nx-steps .small {
+  font-size: .78rem !important;
+}
+
+.nx-update-progress-log .nx-steps .p-3 {
+  padding: .65rem !important;
+}
+
+.nx-update-progress-log .nx-steps code,
+.nx-update-progress-log .nx-steps pre {
+  font-size: .76rem;
+}
+
+.nx-update-overview + .card,
+.nx-update-overview + .card.mt-4 {
+  overflow: hidden;
+  border: 1px solid rgba(108, 117, 125, .14);
+  border-radius: 1rem;
+  box-shadow: 0 10px 24px rgba(33, 37, 41, .055);
+}
+
+.nx-update-overview + .card .card-header {
+  border-bottom: 1px solid rgba(108, 117, 125, .12);
+  background: linear-gradient(135deg, #fff7ef, #ffffff);
+  font-weight: 800;
+}
+
+.nx-update-overview + .card .table {
+  margin-bottom: 0;
+}
+
+.nx-update-overview + .card .table th {
+  color: #8a5a2b;
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 767.98px) {
+  .nx-update-flow__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .nx-update-flow__percent {
+    width: fit-content;
+  }
+
+  .nx-update-flow__steps {
+    grid-template-columns: 1fr;
+  }
+
+  .nx-update-hero {
+    flex-direction: column;
+  }
+
+  .nx-update-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nx-update-actions {
+    justify-content: stretch;
+  }
+
+  .nx-update-actions .btn {
+    width: 100%;
+  }
+
+  .nx-updater-head__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nx-updater-head__title {
+    align-items: flex-start;
+  }
+
+  .nx-updater-head__channel-top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .nx-log-surface {

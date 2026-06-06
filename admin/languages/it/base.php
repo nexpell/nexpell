@@ -202,7 +202,6 @@ $language_array = Array(
     'settings_social_media'  => 'Impostazioni social media',
     'site_lock'              => 'Blocco del sito',
     'sitemap'                => 'Sitemap',
-    'use_seo_urls'           => 'URL SEO',
     'user_roles'             => 'Ruoli utente',
     'visitor_statistic'      => 'Statistiche',
     'visitor_statistics'     => 'Statistiche visitatori',

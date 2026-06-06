@@ -10,7 +10,7 @@ $language_array = array(
   'disable_website_text'     => 'Wenn aktiviert, wird die Webseite deaktiviert und ein Hinweistext angezeigt.',
   'general_settings'         => 'Allgemeine Einstellungen',
   'meta_description'         => 'Meta-Beschreibung',
-  'meta_keywords'            => 'Meta-Keywords',
+
   'meta_manage_btn'          => 'SEO-Metadaten verwalten',
   'meta_manage_btn_desc'     => 'Öffnet die Verwaltung der SEO-Metadaten (Titel/Beschreibung pro Seite & Sprache).',
   'meta_managed_notice'      => 'Hinweis: Meta-Titel und Meta-Beschreibung werden über die SEO-Metadaten verwaltet.',
@@ -22,25 +22,24 @@ $language_array = array(
   'page_url'                 => 'Seiten-URL',
   'project_info_description' => 'Projektinformationen und grundlegende Einstellungen deiner Webseite.',
   'recaptcha'                => 'reCAPTCHA',
-  'recaptcha_description'    => '<p><strong>Bitte bestätigen Sie, dass Sie kein Roboter sind.</strong><br>
-  Bevor Sie diese Modifikation aktivieren, benötigen Sie die reCAPTCHA API-Schlüssel.<br>
-  Folgen Sie dazu bitte dieser Schritt-für-Schritt-Anleitung:</p>
+  'recaptcha_description' => '<p><strong>Bitte bestaetigen Sie, dass Sie kein Roboter sind.</strong><br>
+  Bevor Sie diese Modifikation aktivieren, benoetigen Sie die reCAPTCHA API-Schluessel.<br>
+  Folgen Sie dazu bitte dieser Schritt-fuer-Schritt-Anleitung:</p>
 
   <ol>
-    <li>Erstellen Sie einen reCAPTCHA-Account unter 
+    <li>Erstellen Sie einen reCAPTCHA-Account unter
       <a href="https://www.google.com/recaptcha" target="_blank" rel="noopener noreferrer">
         https://www.google.com/recaptcha
       </a>.
     </li>
     <li>Registrieren Sie Ihre Internetadresse (Domain), auf der das reCAPTCHA verwendet werden soll.</li>
-    <li>Wählen Sie den reCAPTCHA-Typ <strong>V2 - „Ich bin kein Roboter“ Checkbox</strong> aus.</li>
-    <li>Nach der Registrierung erhalten Sie zwei Schlüssel: den <strong>Site Key</strong> und den <strong>Secret Key</strong>.</li>
-    <li>Tragen Sie diese beiden Schlüssel hier in die vorgesehenen Felder ein, um die Funktion zu aktivieren.</li>
+    <li>Waehlen Sie den reCAPTCHA-Typ <strong>V2 - "Ich bin kein Roboter" Checkbox</strong> aus.</li>
+    <li>Nach der Registrierung erhalten Sie zwei Schluessel: den <strong>Site Key</strong> und den <strong>Secret Key</strong>.</li>
+    <li>Tragen Sie diese beiden Schluessel hier in die vorgesehenen Felder ein, um die Funktion zu aktivieren.</li>
   </ol>
 
   <p><em>Hinweis:</em><br>
-  Ohne diese Schlüssel kann der Schutz nicht funktionieren und die Modifikation bleibt deaktiviert.</p>
-  ',
+  Wenn keine reCAPTCHA-Schluessel hinterlegt sind, bleibt die Google-Pruefung deaktiviert. Die Formulare sind dann trotzdem nicht ungeschuetzt: Nexpell verwendet in diesem Fall automatische Schutzmechanismen wie Honeypot-Felder, eine Mindestzeit bis zum Absenden sowie Rate-Limits gegen zu viele Anfragen in kurzer Zeit. Mit eingetragenen Schluesseln wird zusaetzlich reCAPTCHA als weiterer Schutzlayer aktiviert.</p>',
   'secret_key'               => 'Secret-Key',
   'seo_url_setting'          => 'SEO-URLs',
   'seo_urls_desc_short'      => 'Aktiviere sprechende URLs für bessere Lesbarkeit und SEO.',
@@ -50,7 +49,7 @@ $language_array = array(
   'seo_urls_title'           => 'SEO-URL-Einstellungen',
   'since'                    => 'Gegründet',
   'site_settings'            => 'Webseiten-Einstellungen',
-  'sitemap_description'      => 'Hier kannst du die Sitemap prüfen und bei Bedarf neu generieren.',
+  'sitemap_description'      => 'Hier kannst du die Sitemap und Meta-Beschreibung prüfen und bei Bedarf neu generieren.',
   'sitemap_invalid_xml'      => 'Die Sitemap ist ungültig (XML-Fehler).',
   'sitemap_last_update'      => 'Letztes Update',
   'sitemap_log_error'        => 'Fehler beim Schreiben des Logs.',
@@ -75,97 +74,81 @@ $language_array = array(
   'web_key'                  => 'Web-Key',
   'website_disable'          => 'Webseite deaktivieren',
   'website_info_description' => 'Konfiguriere grundlegende Informationen und Verhalten deiner Webseite.',
+  'twofa_settings_title'     => '2-Faktor Authentikation',
+  'twofa_settings_subtitle'  => 'Nach dem Absenden des Loginformulars kommt ein Code per E-Mail – dieser Code muss im Formular bestätigt werden - erst dann ist man wirklich eingeloggt.',
+  'twofa_force_all'          => 'Diesen Schutz für alle Benutzer aktivieren',
+  'twofa_force_all_desc'     => 'Wenn du diese Option einschaltest, muss sich jeder Nutzer nach dem Passwort noch mit einem kurzen Code aus der E-Mail anmelden. So bleibt das Konto geschützt, falls jemand das Passwort errät oder es gestohlen wurde. Wenn du sie ausschaltest, entfällt diese zweite Bestätigung für alle.',
+  'twofa_remember_device_heading' => 'Hinweis zur Nutzer-Option auf der 2FA-Seite',
+  'twofa_remember_device_hint'    => 'Nach dem E-Mail-Code können Nutzer „Auf diesem Gerät nicht erneut nach dem Sicherheitscode fragen" aktivieren. Dann entfällt auf diesem Browser und Gerät für etwa 30 Tage die erneute Code-Abfrage – die Anmeldung reicht mit E-Mail und Passwort. Das sollten Nutzer nur auf eigenen, privaten Geräten nutzen, nicht auf geteilten oder öffentlichen Rechnern.',
 
+  // alt
+  'disable_seo_urls'        => 'SEO URLs deaktivieren',
+  'disable_website_text'    => 'Deaktiviere die öffentliche Erreichbarkeit deiner Website vorübergehend. Besucher sehen eine Wartungsseite, während Administratoren weiterhin Zugriff auf das Backend haben.',
+  'enable_seo_urls'         => 'SEO URLs aktivieren',
+  'faq'                     => 'Häufig gestellte Fragen',
+  'general_settings'        => 'Allgemeine Einstellungen',
+  'home'                    => 'Startseite',
+  'info'                    => 'Information',
+  'loading'                 => 'Lädt...',
+  'loading_data'            => 'Daten werden geladen',
+  'messages'                => 'Nachrichten',
+  'meta_description'        => 'Meta-Beschreibung',
+  'meta_managed_notice'     => 'Meta-Titel und Beschreibungen werden zentral verwaltet und können hier nicht direkt bearbeitet werden.',
+  'meta_manage_btn'         => 'SEO Meta Verwaltung',
+  'meta_manage_btn_desc'    => 'SEO Meta Einstellungen bearbeiten',
 
-// alt
-    'disable_seo_urls'        => 'SEO URLs deaktivieren',
-    'disable_website_text'    => 'Deaktiviere die öffentliche Erreichbarkeit deiner Website vorübergehend. Besucher sehen eine Wartungsseite, während Administratoren weiterhin Zugriff auf das Backend haben.',
-    'enable_seo_urls'         => 'SEO URLs aktivieren',
-    'faq'                     => 'Häufig gestellte Fragen',
-    'general_settings'        => 'Allgemeine Einstellungen',
-    'home'                    => 'Startseite',
-    'info'                    => 'Information',
-    'loading'                 => 'Lädt...',
-    'loading_data'            => 'Daten werden geladen',
-    'messages'                => 'Nachrichten',
-    'meta_description'        => 'Meta-Beschreibung',
-    'meta_managed_notice'     => 'Meta-Titel und Beschreibungen werden zentral verwaltet und können hier nicht direkt bearbeitet werden.',
-    'meta_manage_btn'         => 'SEO Meta Verwaltung',
-    'meta_manage_btn_desc'    => 'SEO Meta Einstellungen bearbeiten',
-    'meta_keywords'           => 'Meta-Schlüsselwörter',
-    'new_message'             => 'Neue Nachricht',
-    'no_startpage'            => 'Keine Startseite',
-    'no_sitemap'              => 'noch keine Sitemap generiert',
-    'notifications'           => 'Benachrichtigungen',
-    'off_pagelock'            => 'Seite entsperren',
-    'on_pagelock'             => 'Seite sperren',
-    'page_title'              => 'Seitentitel',
-    'page_url'                => 'Seiten-URL',
-    'privacy_policy'          => 'Datenschutzrichtlinie',
-    'profile'                 => 'Profil',
-    'reCaptcha'               => 'reCAPTCHA',
-    'recaptcha'               => 'reCaptcha',
-    'recaptcha_description'   => '<p><strong>Bitte bestätigen Sie, dass Sie kein Roboter sind.</strong><br>
-Bevor Sie diese Modifikation aktivieren, benötigen Sie die reCAPTCHA API-Schlüssel.<br>
-Folgen Sie dazu bitte dieser Schritt-für-Schritt-Anleitung:</p>
-
-<ol>
-  <li>Erstellen Sie einen reCAPTCHA-Account unter 
-    <a href="https://www.google.com/recaptcha" target="_blank" rel="noopener noreferrer">
-      https://www.google.com/recaptcha
-    </a>.
-  </li>
-  <li>Registrieren Sie Ihre Internetadresse (Domain), auf der das reCAPTCHA verwendet werden soll.</li>
-  <li>Wählen Sie den reCAPTCHA-Typ <strong>V2 - „Ich bin kein Roboter“ Checkbox</strong> aus.</li>
-  <li>Nach der Registrierung erhalten Sie zwei Schlüssel: den <strong>Site Key</strong> und den <strong>Secret Key</strong>.</li>
-  <li>Tragen Sie diese beiden Schlüssel hier in die vorgesehenen Felder ein, um die Funktion zu aktivieren.</li>
-</ol>
-
-<p><em>Hinweis:</em><br>
-Ohne diese Schlüssel kann der Schutz nicht funktionieren und die Modifikation bleibt deaktiviert.</p>
-',
-    'register'                => 'Registrieren',
-    'secret_key'              => 'Geheimschlüssel',
-    'select_language'         => 'Sprache auswählen',
-    'seo_url_setting'         => 'SEO URLs',
-    'seo_urls_activated'      => 'SEO URLs wurden aktiviert.',
-    'seo_urls_deactivated'    => 'SEO URLs wurden deaktiviert.',
-    'seo_urls_description'    => 'Wenn aktiviert, sehen die Webseiten-Adressen einfacher und verständlicher aus.
-Suchmaschinen und Besucher können Seiten dadurch besser lesen und finden
-(z. B. /de/about statt index.php?site=about&lang=de).',
-    'seo_urls_desc_short'     => 'Aktiviere oder deaktiviere die Verwendung von SEO-freundlichen URLs.',
-    'seo_urls_disabled'       => 'SEO URLs ist deaktiviert',
-    'seo_urls_enabled'        => 'SEO URLs ist aktiviert',
-    'seo_urls_title'          => 'SEO URLs verwenden',
-    'settings'                => 'Einstellungen',
-    'settings_saved'          => 'Einstellungen gespeichert',
-    'sitemap_description'     => 'Hier kannst du die Sitemap manuell neu generieren. Das hilft Suchmaschinen, deine Website aktuell zu indexieren.',
-    'sitemap_last_update'     => 'Letzte Aktualisierung',
-    'sitemap_title'           => 'Sitemap Verwaltung',
-    'sitemap_missing_dir'     => 'Sitemap-Verzeichnis fehlt:',
-    'sitemap_writeable'       => 'Sitemap-Verzeichnis nicht schreibbar:',
-    'sitemap_updatedir'       => 'Update-Verzeichnis nicht schreibbar:',
-    'sitemap_no_xml'          => '%s hat keinen XML-String zurückgegeben.',
-    'sitemap_invalid_xml'     => 'Sitemap-XML unvollständig (kein %s gefunden).',
-    'sitemap_tmp_failed'      => 'Temporäre Datei konnte nicht erstellt werden (%s).',
-    'sitemap_write_failed'    => 'Sitemap konnte nicht geschrieben werden (%s).',
-    'sitemap_rename_failed'   => 'Umbenennen von %s nach %s fehlgeschlagen.',
-    'sitemap_log_success'     => '[sitemap] erfolgreich generiert am %s',
-    'sitemap_log_error'       => 'Sitemap-Generate-Error: %s',
-    'site_settings'           => 'Seiteneinstellungen',
-    'social_settings'         => 'Social-Media Einstellungen',
-    'social_media_active'     => 'aktiv',
-    'social_media_empty'      => 'leer',
-    'social_media_desc'       => 'Social-Media Verwaltung',
-    'social_media_intro'      => 'Hier verwaltest du alle Social-Media-Links deiner Website an einer zentralen Stelle. Anhand der Icons erkennst du Plattformen wie Facebook, Twitter oder Discord sofort und kannst die URLs bequem aktualisieren.',
-    'startpage'               => 'Startseite',
-    'startpage_description'   => 'Wähle die Seite aus, die als Startseite deiner Website angezeigt werden soll.',
-    'terms_of_service'        => 'Nutzungsbedingungen',
-    'title_social_media'      => 'Social-Media',
-    'user_settings'           => 'Benutzereinstellungen',
-    'web_key'                 => 'Web-Schlüssel',
-    'website_disable'         => 'Website deaktivieren',
-    'welcome'                 => 'Willkommen',
-    'website_info_description' => 'Hier kannst du die grundlegenden Informationen zu deiner Website sowie wichtige SEO-Einstellungen eintragen. Diese helfen, deine Seite besser in Suchmaschinen zu positionieren.',
-    'project_info_description' => 'Allgemeine Informationen zu deinem Clan oder Projekt, die auf der gesamten Seite sichtbar sind. Diese Angaben können jederzeit geändert werden.',
+  'new_message'             => 'Neue Nachricht',
+  'no_startpage'            => 'Keine Startseite',
+  'no_sitemap'              => 'noch keine Sitemap generiert',
+  'notifications'           => 'Benachrichtigungen',
+  'off_pagelock'            => 'Seite entsperren',
+  'on_pagelock'             => 'Seite sperren',
+  'page_title'              => 'Seitentitel',
+  'page_url'                => 'Seiten-URL',
+  'privacy_policy'          => 'Datenschutzrichtlinie',
+  'profile'                 => 'Profil',
+  'register'                => 'Registrieren',
+  'secret_key'              => 'Geheimschlüssel',
+  'select_language'         => 'Sprache auswählen',
+  'seo_url_setting'         => 'SEO URLs',
+  'seo_urls_activated'      => 'SEO URLs wurden aktiviert.',
+  'seo_urls_deactivated'    => 'SEO URLs wurden deaktiviert.',
+  'seo_urls_description'    => 'Wenn aktiviert, sehen die Webseiten-Adressen einfacher und verständlicher aus.
+  Suchmaschinen und Besucher können Seiten dadurch besser lesen und finden
+  (z. B. /de/about statt index.php?site=about&lang=de).',
+  'seo_urls_desc_short'     => 'Aktiviere oder deaktiviere die Verwendung von SEO-freundlichen URLs.',
+  'seo_urls_disabled'       => 'SEO URLs ist deaktiviert',
+  'seo_urls_enabled'        => 'SEO URLs ist aktiviert',
+  'seo_urls_title'          => 'SEO URLs verwenden',
+  'settings'                => 'Einstellungen',
+  'settings_saved'          => 'Einstellungen gespeichert',
+  'sitemap_description'     => 'Hier kannst du die Sitemap und Meta-Beschreibung manuell neu generieren. Das hilft Suchmaschinen, deine Website aktuell zu indexieren.',
+  'sitemap_last_update'     => 'Letzte Aktualisierung',
+  'sitemap_title'           => 'Sitemap Verwaltung',
+  'sitemap_missing_dir'     => 'Sitemap-Verzeichnis fehlt:',
+  'sitemap_writeable'       => 'Sitemap-Verzeichnis nicht schreibbar:',
+  'sitemap_updatedir'       => 'Update-Verzeichnis nicht schreibbar:',
+  'sitemap_no_xml'          => '%s hat keinen XML-String zurückgegeben.',
+  'sitemap_invalid_xml'     => 'Sitemap-XML unvollständig (kein %s gefunden).',
+  'sitemap_tmp_failed'      => 'Temporäre Datei konnte nicht erstellt werden (%s).',
+  'sitemap_write_failed'    => 'Sitemap konnte nicht geschrieben werden (%s).',
+  'sitemap_rename_failed'   => 'Umbenennen von %s nach %s fehlgeschlagen.',
+  'sitemap_log_success'     => '[sitemap] erfolgreich generiert am %s',
+  'sitemap_log_error'       => 'Sitemap-Generate-Error: %s',
+  'site_settings'           => 'Seiteneinstellungen',
+  'social_settings'         => 'Social-Media Einstellungen',
+  'social_media_active'     => 'aktiv',
+  'social_media_empty'      => 'leer',
+  'social_media_desc'       => 'Social-Media Verwaltung',
+  'social_media_intro'      => 'Hier verwaltest du alle Social-Media-Links deiner Website an einer zentralen Stelle. Anhand der Icons erkennst du Plattformen wie Facebook, Twitter oder Discord sofort und kannst die URLs bequem aktualisieren.',
+  'startpage'               => 'Startseite',
+  'startpage_description'   => 'Wähle die Seite aus, die als Startseite deiner Website angezeigt werden soll.',
+  'terms_of_service'        => 'Nutzungsbedingungen',
+  'title_social_media'      => 'Social-Media',
+  'user_settings'           => 'Benutzereinstellungen',
+  'web_key'                 => 'Web-Schlüssel',
+  'website_disable'         => 'Website deaktivieren',
+  'welcome'                 => 'Willkommen',
+  'website_info_description' => 'Hier kannst du die grundlegenden Informationen zu deiner Website sowie wichtige SEO-Einstellungen eintragen. Diese helfen, deine Seite besser in Suchmaschinen zu positionieren.',
+  'project_info_description' => 'Allgemeine Informationen zu deinem Clan oder Projekt, die auf der gesamten Seite sichtbar sind. Diese Angaben können jederzeit geändert werden.',
 );
