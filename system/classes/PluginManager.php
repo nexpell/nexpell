@@ -184,6 +184,31 @@ class PluginManager
         }
     }
 
+    public static function isActive(string $pluginName): bool
+    {
+        global $_database;
+
+        if (!($_database instanceof \mysqli)) {
+            return false;
+        }
+
+        $pluginName = trim($pluginName);
+        if ($pluginName === '') {
+            return false;
+        }
+
+        $stmt = $_database->prepare("SELECT activate FROM settings_plugins WHERE modulname = ? LIMIT 1");
+        if (!$stmt) {
+            return false;
+        }
+
+        $stmt->bind_param("s", $pluginName);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+
+        return !empty($row['activate']);
+    }
     /* =========================
        NAVIGATION & FOOTER MODULE
        ========================= */

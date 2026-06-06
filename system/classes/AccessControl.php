@@ -341,4 +341,53 @@ private static function hasAnyRoleAccess(string $modulname, int $userID): bool
         }
         return $refs;
     }
+    public static function userHasRole($userID, $role): bool
+    {
+        global $_database;
+
+        if (!($_database instanceof \mysqli)) {
+            return false;
+        }
+
+        $userID = (int)$userID;
+        if ($userID <= 0) {
+            return false;
+        }
+
+        if (is_numeric($role)) {
+            $roleID = (int)$role;
+            $stmt = $_database->prepare("
+                SELECT 1
+                FROM user_role_assignments
+                WHERE userID = ? AND roleID = ?
+                LIMIT 1
+            ");
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param("ii", $userID, $roleID);
+        } else {
+            $roleName = trim((string)$role);
+            if ($roleName === '') {
+                return false;
+            }
+            $stmt = $_database->prepare("
+                SELECT 1
+                FROM user_role_assignments ura
+                JOIN user_roles r ON r.roleID = ura.roleID
+                WHERE ura.userID = ?
+                  AND (r.role_name = ? OR r.modulname = ?)
+                LIMIT 1
+            ");
+            if (!$stmt) {
+                return false;
+            }
+            $stmt->bind_param("iss", $userID, $roleName, $roleName);
+        }
+
+        $stmt->execute();
+        $stmt->store_result();
+
+        return $stmt->num_rows > 0;
+    }
 }

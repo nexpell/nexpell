@@ -394,14 +394,6 @@ $updates = array_values(array_filter(
             return true;
         }
 
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
-            return true;
-        }
-
         return false;
     }
 ));
@@ -847,14 +839,6 @@ $updates = array_values(array_filter(
         // ------------------------------
         // Neue Version → immer anzeigen
         if (version_compare($version, CURRENT_VERSION, '>')) {
-            return true;
-        }
-
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
             return true;
         }
 
