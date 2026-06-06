@@ -1,0 +1,91 @@
+<!-- navigation_main -->
+<nav id="mainNavbar" class="sticky-top navbar navbar-expand-lg {navbar_class} {navbar_shadow}" {navbar_theme} {dropdown_animation} {nav_height_style}>
+
+    <div class="container position-relative d-flex align-items-center">
+
+        <!-- LOGO (links ODER zentriert per CSS-Klasse) -->
+        <a href="index.php"
+           class="navbar-brand {logo_center}">
+            <img id="mainLogo"
+                 src="{logo_light}"
+                 data-light="{logo_light}"
+                 data-dark="{logo_dark}"
+                 class="nav-logo"
+                 {logo_height}
+                 {dynamic_logo_attr}>
+        </a>
+
+        <!-- BURGER -->
+        <button class="navbar-toggler ms-auto" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#nxNavBarContent">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <!-- RIGHT SIDE -->
+        <div class="collapse navbar-collapse justify-content-end" id="nxNavBarContent">           
+
+            <!-- Rechts -->
+            <ul class="navbar-nav d-flex align-items-center gap-2">
+                {mainnav}
+                {messenger_badge}
+                {forum_badge}
+                {usernav}
+
+                <!-- LANGUAGE -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link d-flex align-items-center gap-1"
+                       href="#" data-bs-toggle="dropdown">
+                        <img src="{current_flag}" style="width:22px;height:22px;border-radius:4px;">
+                    </a>
+
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        {language_list}
+                    </ul>
+                </li>
+
+                <!-- THEME -->
+                {theme_toggle}
+
+            </ul>
+        </div>
+
+    </div>
+</nav>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const animation = document.getElementById("mainNavbar").dataset.animation;
+
+    document.querySelectorAll(".dropdown-menu").forEach(menu => {
+        menu.classList.add(animation);
+    });
+});
+
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const logo = document.querySelector("#mainLogo[data-dynamic-logo='1']");
+    const navbar = document.getElementById("mainNavbar");
+
+    if (!logo || !navbar) return;
+
+    function updateLogoHeight() {
+        const navHeight = navbar.offsetHeight;
+        const newHeight = Math.max(30, navHeight - 12); // minimale Höhe 30px
+        logo.style.height = newHeight + "px";
+    }
+
+    // initial
+    updateLogoHeight();
+
+    // bei Resize oder Theme-Wechsel
+    window.addEventListener("resize", updateLogoHeight);
+
+    // falls Darkmode/Theme das Layout neu rendert
+    const observer = new MutationObserver(updateLogoHeight);
+    observer.observe(navbar, { attributes: true, childList: true, subtree: true });
+});
+</script>
+<!-- END -->

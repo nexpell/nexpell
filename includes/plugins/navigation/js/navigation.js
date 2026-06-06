@@ -1,149 +1,102 @@
-/*(function() {
-  "use strict";
+document.addEventListener("DOMContentLoaded", () => {
 
-  const badge = document.getElementById('total-unread-badge');
-  const icon = document.getElementById('mail-icon');
+    const html = document.documentElement;
 
-  if (!badge || !icon) return;
+    // DB-Wert (PHP setzt diesen in data-theme-db)
+    const dbTheme = html.dataset.themeDb; // light, dark, auto
 
-  // Helper: fetch mit Timeout
-  async function fetchWithTimeout(url, options = {}, timeout = 5000) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    options.signal = controller.signal;
+    // User-Wert aus localStorage
+    const saved = localStorage.getItem("theme");
 
-    try {
-      const res = await fetch(url, options);
-      clearTimeout(id);
-      return res;
-    } catch (err) {
-      clearTimeout(id);
-      throw err;
+    // --------------------------------------------
+    // THEME STEUERUNG
+    // --------------------------------------------
+
+    if (dbTheme === "light" || dbTheme === "dark") {
+        // DB hat FIXES Theme → localStorage ignorieren
+        html.dataset.bsTheme = dbTheme;
+        localStorage.removeItem("theme");
     }
-  }
 
-  let interval = 30000; // Startintervall (30s)
-  let timeoutMs = 5000; // Timeout für Fetch (5s)
-
-  async function updateMailBadge() {
-    try {
-      const res = await fetchWithTimeout('/includes/plugins/messenger/get_total_unread_count.php', {
-        credentials: 'same-origin'
-      }, timeoutMs);
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
-      const unread = data.total_unread ?? 0;
-
-      if (unread > 0) {
-        badge.textContent = unread > 99 ? '99+' : unread;
-        badge.style.display = 'inline-block';
-        icon.classList.remove('bi-envelope-dash');
-        icon.classList.add('bi-envelope-check');
-      } else {
-        badge.style.display = 'none';
-        icon.classList.remove('bi-envelope-check');
-        icon.classList.add('bi-envelope-dash');
-      }
-
-      // Wenn erfolgreich → Intervall zurücksetzen
-      interval = 30000;
-
-    } catch (err) {
-      console.debug("Mail-Badge konnte nicht geladen werden:", err);
-      // Wenn Fehler → Intervall verdoppeln (max. 5 Minuten)
-      interval = Math.min(interval * 2, 300000);
-    } finally {
-      // Nächsten Lauf planen
-      setTimeout(updateMailBadge, interval);
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', updateMailBadge);
-})();*/
-
-
-(function() {
-  "use strict";
-
-  // Prüfen, ob Badge-Elemente existieren
-  const badge = document.getElementById('total-unread-badge');
-  const icon = document.getElementById('mail-icon');
-
-  if (!badge || !icon) return; // keine Elemente → nichts tun
-
-  async function updateMailBadge() {
-    try {
-      const res = await fetch('/includes/plugins/messenger/get_total_unread_count.php', {
-        credentials: 'same-origin' // Session-Cookies mitsenden
-      });
-
-      if (!res.ok) return; // 403 oder andere Fehler leise abbrechen
-
-      const data = await res.json();
-      const unread = data.total_unread ?? 0;
-
-      if (unread > 0) {
-        badge.textContent = unread > 99 ? '99+' : unread;
-        badge.style.display = 'inline-block';
-        icon.classList.remove('bi-envelope-dash');
-        icon.classList.add('bi-envelope-check');
-      } else {
-        badge.style.display = 'none';
-        icon.classList.remove('bi-envelope-check');
-        icon.classList.add('bi-envelope-dash');
-      }
-
-    } catch (err) {
-      console.debug("Mail-Badge konnte nicht geladen werden:", err);
-    }
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    updateMailBadge();
-    setInterval(updateMailBadge, 30000); // alle 30s aktualisieren
-  });
-
-})();
-
-
-
-/*(function() {
-  "use strict";
-
-  //if (messengerActive) {
-    async function updateMailBadge() {
-      try {
-        const res = await fetch('/includes/plugins/messenger/get_total_unread_count.php');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-        const data = await res.json();
-
-        const badge = document.getElementById('total-unread-badge');
-        const icon = document.getElementById('mail-icon');
-
-        const unread = data.total_unread ?? 0;
-
-        if (unread > 0) {
-          badge.textContent = unread > 99 ? '99+' : unread;
-          badge.style.display = 'inline-block';
-          icon.classList.remove('bi-envelope-dash');
-          icon.classList.add('bi-envelope-check');
+    else if (dbTheme === "auto") {
+        // Auto → User darf umschalten
+        if (saved) {
+            html.dataset.bsTheme = saved;
         } else {
-          badge.style.display = 'none';
-          icon.classList.remove('bi-envelope-check');
-          icon.classList.add('bi-envelope-dash');
+            html.dataset.bsTheme = "light"; // dein Auto-Start
+            localStorage.setItem("theme", "light");
         }
-
-      } catch (err) {
-        console.error("Fehler beim Laden der Mail-Badge:", err);
-      }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      updateMailBadge();
-      setInterval(updateMailBadge, 30000);
+    const logo = document.getElementById("mainLogo");
+    const toggle = document.getElementById("themeToggle");
+    const icon = document.getElementById("themeIcon");
+
+    function updateTheme() {
+        if (!logo) return;
+
+        const isDark = html.dataset.bsTheme === "dark";
+        logo.src = isDark ? logo.dataset.dark : logo.dataset.light;
+
+        if (icon) {
+            icon.className = isDark
+                ? "bi bi-sun-fill fs-5"
+                : "bi bi-moon-stars fs-5";
+        }
+    }
+
+    // Icon nur aktiv, wenn DB = auto
+    if (dbTheme === "auto" && toggle) {
+        toggle.addEventListener("click", () => {
+            const newTheme =
+                html.dataset.bsTheme === "dark" ? "light" : "dark";
+
+            html.dataset.bsTheme = newTheme;
+            localStorage.setItem("theme", newTheme);
+            updateTheme();
+        });
+    }
+
+    updateTheme();
+
+
+
+
+
+    // --------------------------------------------
+    // Dropdown Animation Control
+    // --------------------------------------------
+    const nav = document.getElementById("mainNavbar");
+    let animation = "fade";
+
+    if (nav) {
+        const classes = nav.classList.value;
+        // Find class like: fade, slide, slidefade, zoom
+        animation = classes.match(/(fade|slide|slidefade|zoom)/)
+            ? RegExp.$1
+            : "fade";
+    }
+
+    // --------------------------------------------
+    // Dropdown Hover (Desktop)
+    // --------------------------------------------
+    document.querySelectorAll("#mainNavbar .dropdown").forEach(drop => {
+
+        // Desktop HOVER
+        drop.addEventListener("mouseenter", () => {
+            if (window.innerWidth < 992) return;
+            drop.classList.add("show");
+            const menu = drop.querySelector(".dropdown-menu");
+            if (menu) menu.classList.add("show", "" + animation);
+        });
+
+        drop.addEventListener("mouseleave", () => {
+            if (window.innerWidth < 992) return;
+            drop.classList.remove("show");
+            const menu = drop.querySelector(".dropdown-menu");
+            if (menu) menu.classList.remove("show", "" + animation);
+        });
+
+        // Mobile CLICK – Bootstrap regelt das
     });
-  //}
-})();*/
+});

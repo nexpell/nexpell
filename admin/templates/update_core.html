@@ -1,20 +1,177 @@
 <!-- update_core_wizard -->
-<div class="card shadow-sm">
-    <div class="card-header bg-light border-bottom">
-        <i class="bi bi-gear-fill text-success me-2"></i> Nexpell Core Updater
+<div class="card shadow-sm mb-4" id="nx-updater-card">
+
+    <!-- Header -->
+    <div class="card-header bg-light border-bottom d-flex align-items-center justify-content-between">
+        <div>
+            <i class="bi bi-gear-fill text-success me-2"></i>
+            <strong>Nexpell Core Updater</strong>
+        </div>
+
+        
     </div>
 
     <div class="card-body">
-        <!-- Fortschrittsbalken -->
-        {progress_bar}
 
-        <!-- Wizard Tabs -->
-        {wizard_nav}
+        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                {channel_form}
+                <small class="text-muted">
+                    Wähle aus, welche Art von Updates angezeigt und installiert werden sollen.
+                </small>
+            </div>
 
-        <!-- Aktueller Schritt -->
-        <div class="p-3 border rounded bg-white shadow-sm">
-            {content}
+            <div class="text-end" style="max-width: 520px;">
+                {beta_badge}
+            </div>
         </div>
+
+
+        <!-- 🟢 Sticky Fortschrittsbalken -->
+        <div id="nx-progress-wrapper" class="nx-progress sticky-top mb-4">
+            <div class="nx-progress-inner">
+                <div class="nx-progress-label">
+                    <i class="bi bi-arrow-repeat me-2"></i>
+                    Update-Fortschritt
+                </div>
+                {progress_bar}
+            </div>
+        </div>
+
+
+        <!-- 🧭 Wizard Navigation -->
+        <div class="mb-4">
+            {wizard_nav}
+        </div>
+
+        <!-- 📜 Aktueller Schritt / Log -->
+        <div class="p-3 border rounded bg-white shadow-sm">
+
+            <!-- Scrollbarer Log-Container -->
+            <div class="nx-log-container">
+                {content}
+            </div>
+
+        </div>
+
     </div>
+
+    <!-- Footer -->
+    <div class="card-footer bg-light small text-muted text-center">
+        <i class="bi bi-shield-check me-1"></i>
+        Sicherer Core-Updater &nbsp;|&nbsp; Nexpell CMS
+    </div>
+
 </div>
+<style>
+/* =========================================================
+   NEXPELL UPDATER – WIZARD UI (wie Screenshot)
+========================================================= */
+
+/* 🔵 Progressbar ganz oben */
+/* 🔹 Wrapper */
+.nx-progress {
+    position: static;   /* oder komplett weglassen */
+    top: auto;
+    left: auto;
+    transform: none;
+
+    z-index: auto;
+    margin-bottom: 1.5rem;
+}
+
+/* 🔹 Card-Feeling */
+.nx-progress-inner {
+    background: rgba(255,255,255,0.9);
+    backdrop-filter: blur(6px);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+/* 🔹 Label */
+.nx-progress-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6c757d;
+    margin-bottom: 0.35rem;
+}
+
+/* 🔹 Progressbar */
+.nx-progress .progress {
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.nx-progress .progress-bar {
+    background: linear-gradient(
+        90deg,
+        #fe821d,
+        #ff9c3f
+    );
+    transition: width 0.4s ease;
+}
+
+
+/* 🧭 Wizard Navigation */
+.nx-wizard-nav {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin: 20px 0;
+}
+
+/* Wizard Buttons */
+.nx-wizard-nav.nav-link {
+    border-radius: 0.375rem;
+    padding: 0.5rem 1.25rem;
+    border: 1px solid #fe821d;
+    color: #212529;
+    background-color: #fff;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Hover-Zustand */
+.nx-wizard-nav.nav-link:hover {
+    background-color: #fe821d;
+    color: #ffffff;
+    border-color: #fe821d;
+}
+
+/* Aktiver Tab */
+.nx-wizard-nav.nav-link.active {
+    background-color: #fe821d;
+    border-color: #fe821d;
+    color: #fff !important;
+    box-shadow: 0 0 6px rgba(25, 135, 84, 0.35);
+}
+
+/* Deaktiviert */
+.nx-wizard-nav .nav-link.disabled {
+    pointer-events: none;
+    opacity: .45;
+}
+
+/* 📜 Scrollbarer Log */
+.nx-log-container {
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+/* ⚠️ Beta Badge */
+.nx-beta-badge {
+    font-size: .75rem;
+}
+
+
+
+
+
+
+
+</style>
+
 <!-- end -->

@@ -1,102 +1,454 @@
-@media (min-width: 992px) { /* ab Bootstrap lg breakpoint = Desktop */
-.navbar {
-  min-height: 80px;
-  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+/* ============================================
+   ROOT / LIGHT MODE
+============================================ */
+
+:root {
+    --nav-height: 82px;
+}
+/* ============================================
+   NAVBAR BASE
+============================================ */
+
+
+.dropdown-menu {
+    z-index: 2000;
 }
 
-.navbar .container {
-  height: 100%;
-  display: flex;
-  align-items: center;
+.navbar-nav .nav-link {
+    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
+    padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
+    padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
+    transition: background .25s ease, color .25s ease;
 }
 
-.logo-link img {
-  max-height: clamp(50px, 8vw, 65px);
+.nav-link:hover,
+.nav-link.active {
+    /*background: var(--bs-nav-hover-bg) !important;*/
+}
+
+/* ============================================
+   LOGO
+============================================ */
+.navbar-logo {
+    /*max-height: calc(var(--nav-height, 82px) - 20px);
+    width: auto;
+    transition: opacity .25s ease, transform .25s ease;*/
+
+
+max-height: clamp(50px, 8vw, 65px);
   height: auto;
   display: block;
   transition: transform 0.3s ease;
 }
-
-.logo-link:hover img {
-  transform: scale(1.05);
+.navbar-logo:hover {
+    transform: scale(1.06);
 }
 
-.navbar .nav-link {
-  font-weight: 500;
-  text-transform: uppercase;
-  transition: color 0.3s ease;
-}
-
-.navbar-colored {
-  background-color: var(--bs-primary) !important;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-}
-
-.navbar-colored .nav-link {
-  color: #fff;
-}
-
-/* Messenger Link */
-.messenger-link {
+/* LOGO STEUERUNG */
+.navbar-brand {
     position: relative;
-    padding-right: 2rem; /* Platz rechts für Icon & Badge */
+    margin-right: auto;
 }
 
-/* Icon */
-/* Icon läuft inline mit dem Text der Nav */
-#mail-icon {
-    font-size: 1.5em;        /* 1.0em = gleiche Größe wie Text, 1.5em ≈ 2 Stufen größer */
-    vertical-align: middle;  /* bleibt auf Zeilenhöhe */
-    line-height: 1;          /* verhindert Verrutschen */
+.navbar-brand.logo-center {
+    position: absolute !important;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0 !important;
+    z-index: 10;
 }
 
-/* Badge */
-#total-unread-badge {
-    position: absolute;
-    top: 6px;             /* leicht nach oben über das Icon */
-    right: -6px;           /* leicht nach rechts über das Icon */
+/* Left menu */
+.navbar-left {
+    position: relative;
+}
 
-    display: flex;         /* damit Text mittig */
+.navbar-left.left-fixed {
+    margin-right: auto;
+    margin-left: 0 !important;
+}
+
+.navbar-left.right-of-logo {
+    margin-left: auto;
+    margin-right: 0 !important;
+}
+
+.navbar-collapse {
+    flex-grow: 0 !important;
+}
+
+/* NAVBAR HEIGHT FIX */
+#mainNavbar.navbar {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* NAV-LINK genau höhengleich */
+.navbar-nav .nav-link {
+    position: relative;
+    display: flex;
     align-items: center;
     justify-content: center;
 
-    min-width: 1.5rem;     /* Mindestbreite für runden Kreis */
-    height: 1.5rem;        /* Höhe = Breite für Kreis */
-    padding: 0 0.4rem;     /* bei 2–3 Zeichen breiter */
+    height: var(--nav-height);
+    line-height: var(--nav-height);
 
-    background-color: #dc3545; /* Bootstrap Danger */
-    color: #fff;
-    border-radius: 50%;    /* rund */
+    padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
+    padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
 
-    
-    line-height: 1.5rem;   /* Text vertikal ausbalanciert */
-    white-space: nowrap;
+    margin: 0 !important;
+
+    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
+    z-index: 1;
 }
 
-.navbar
-{
-    height: 80px;
-    transition: all 0.5s;
-    z-index: 997;
-    transition: all 0.5s;
-    background: rgba(var(--bs-nav-bg-rgb), 1);
-    box-shadow: 0px 2px 15px rgba(255, 255, 255, 0.5);
-    
-    border-top: var(--bs-nav-border-top-size) solid rgba(var(--bs-nav-border-top-color-rgb), 1) !important;
-    border-bottom: var(--bs-nav-border-bottom-size) solid rgba(var(--bs-nav-border-bottom-color-rgb), 1) !important;
-    box-shadow:0 .46875rem 2.1875rem rgba(90,97,105,0.1),0 .9375rem 1.40625rem rgba(90,97,105,.1),0 .25rem .53125rem rgba(90,97,105,.12),0 .125rem .1875rem rgba(90,97,105,.1);
-    
+.navbar-nav .nav-link::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    width: 100%;
+    height: 100%;
+
+    /*background: var(--bs-nav-hover-bg);*/
+    opacity: 0;
+    border-radius: 6px;
+
+    transition: opacity .25s ease;
+    z-index: -1;
 }
 
+.navbar-nav .nav-link:hover::before,
+.navbar-nav .nav-link.active::before {
+    opacity: 1;
 }
 
-/* Logo */
-.logo-link img {
-    max-height: clamp(50px, 8vw, 65px);
-    height: auto;
-    transition: transform 0.3s ease;
+/* ============================================
+   DROPDOWN BASE (FIXED VERSION)
+============================================ */
+.dropdown-menu {
+    /*background: var(--bs-dd-bg) !important;
+    border-color: var(--bs-dd-border) !important;*/
+    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
+    padding: 0;
+    overflow: hidden;
+
+    top: var(--nav-height) !important;
+    margin-top: 0 !important;
+
+    /* Fix: KEIN display:block !important */
+    display: none;
+    visibility: hidden;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all .25s ease;
 }
 
-.logo-link:hover img {
-    transform: scale(1.05);
+.dropdown-menu.show {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    padding: 10px 16px;
+    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;/*
+}
+
+.dropdown-item:hover,
+.dropdown-item.active {
+    background: var(--bs-nav-hover-bg) !important;
+}
+
+
+
+
+/* Dein Icon */
+.chevron {
+    font-size: 0.75rem;
+    transition: transform .25s ease;
+}
+
+.dropdown.show .chevron {
+    transform: rotate(180deg);
+}
+
+    /* Grundzustand */
+.chevron {
+    margin-left: 4px;
+    transition: transform .25s ease;
+    font-size: 0.85rem;
+}
+
+/* Wenn Dropdown offen → Pfeil dreht sich */
+.dropdown.show .chevron {
+    transform: rotate(180deg);
+}
+
+#mainNavbar .dropdown:hover .chevron {
+    transform: rotate(180deg);
+}
+
+
+
+
+
+/* LOGO (FINAL FIX) */
+/* Dynamisches Logo abhängig von Navigation */
+/* Haupt-Logo */
+.nav-logo {
+    height: calc(var(--nav-height) - 30px);
+    object-fit: contain;
+
+    /* Animation */
+    transition: transform 0.25s ease, height 0.25s ease;
+    will-change: transform, height;
+
+    display: inline-block; /* WICHTIG für Scale! */
+    transform-origin: center center; /* WICHTIG! */
+}
+
+/* Hover Effekt */
+.navbar-brand:hover .nav-logo {
+    transform: scale(1.06);
+}
+
+
+/* ============================================
+   ANIMATIONS
+============================================ */
+/* Basis-Animation für alle Dropdowns */
+.dropdown-menu {
+    transition: 
+        transform 0.25s ease,
+        opacity 0.25s ease !important;
+    will-change: transform, opacity;
+}
+
+/* ================================
+   FADE
+================================ */
+.fade .dropdown-menu {
+    opacity: 0;
+    transform: none;
+}
+.fade .dropdown-menu.show {
+    opacity: 1;
+    transform: none;
+}
+
+/* ================================
+   SLIDE
+================================ */
+.slide .dropdown-menu {
+    opacity: 0;
+    transform: translateY(12px);
+}
+.slide .dropdown-menu.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* ================================
+   ZOOM
+================================ */
+.zoom .dropdown-menu {
+    opacity: 0;
+    transform: scale(0.92);
+    transform-origin: top;
+}
+.zoom .dropdown-menu.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+/* ================================
+   SLIDE + FADE
+================================ */
+.slidefade .dropdown-menu {
+    opacity: 0;
+    transform: translateY(12px);
+}
+.slidefade .dropdown-menu.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+
+
+.dropdown-menu {
+    transition:
+        opacity .25s ease,
+        transform .25s ease !important;
+    will-change: opacity, transform;
+}
+
+
+.fade.dropdown-menu {
+    opacity: 0;
+    transform: none !important;
+}
+.fade.show {
+    opacity: 1;
+}
+
+.slide.dropdown-menu {
+    opacity: 0;
+    transform: translateY(15px);
+}
+.slide.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.zoom.dropdown-menu {
+    opacity: 0;
+    transform: scale(.9);
+    transform-origin: top;
+}
+.zoom.show {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.slidefade.dropdown-menu {
+    opacity: 0;
+    transform: translateY(12px);
+}
+.slidefade.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* MOBILE */
+@media (max-width: 576px) {
+    .navbar-logo {
+        max-height: 40px;
+    }
+}
+
+/* ICON BADGE */
+.nav-icon-badge .icon-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 24px;
+    height: 24px;
+}
+
+.nav-icon-badge .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+
+    padding: 3px 6px;
+    font-size: 0.6rem;
+    line-height: 1;
+    border-radius: 50%;
+    z-index: 5;
+}
+
+/* AVATAR */
+.navbar-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    object-fit: cover;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ICON – Grundzustand */
+.nav-item.dropdown .dropdown-toggle i {
+    transition: transform .35s cubic-bezier(.25, .46, .45, 1); /* weich */
+    display: inline-block;
+}
+
+/* ICON – Animation beim Öffnen */
+.nav-item.dropdown.show .dropdown-toggle i {
+    transform: rotate(180deg) scale(1.1);
+}
+
+/* ICON – Rebound-Effekt */
+.nav-item.dropdown.show .dropdown-toggle i {
+    animation: dropdownBounce 0.35s ease-out;
+}
+
+@keyframes dropdownBounce {
+    0%   { transform: rotate(0deg) scale(1); }
+    35%  { transform: rotate(180deg) scale(1.15); }
+    100% { transform: rotate(180deg) scale(1); }
+}
+
+
+
+
+/* GLOBAL */
+body {
+    background: var(--bs-bg) !important;
+    color: var(--bs-text) !important;
+    transition: background .3s ease, color .3s ease;
+}
+
+.card {
+    background: var(--bs-secondary-bg, var(--bs-bg)) !important;
+    border-color: var(--bs-border) !important;
+    box-shadow: 0 2px 4px var(--bs-shadow);
+}
+
+.card p, .card h1, .card h2, .card h3, .card h4 {
+    color: var(--bs-text) !important;
+}
+
+#themeToggle {
+    transition: opacity .25s ease;
+    color: var(--bs-nav-text, var(--bs-body-color)) !important;
+}
+
+#themeToggle:hover {
+    opacity: .7;
 }
