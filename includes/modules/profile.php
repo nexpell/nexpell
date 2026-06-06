@@ -3,8 +3,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+
+require_once BASE_PATH . '/system/classes/UserPoints.php';
+
 use nexpell\LanguageService;
 use nexpell\SeoUrlHandler;
+use nexpell\user\UserPoints;
 
 // Prüfen, ob das Plugin Achievements existiert und einbinden
 // Pfad zum Plugin definieren
@@ -161,12 +165,17 @@ $instagram_url = !empty($user_socials['instagram']) ? htmlspecialchars($user_soc
 $website_url   = !empty($user_socials['website'])   ? htmlspecialchars($user_socials['website'])   : '';
 $github_url    = !empty($user_socials['github'])    ? htmlspecialchars($user_socials['github'])    : '';
 
-$is_own_profile = ($_SESSION['userID'] ?? 0) === $userID;
+$is_own_profile = (int)($_SESSION['userID'] ?? 0) === (int)$userID;
+
 $edit_button = $is_own_profile
-    ? '<a href="' . htmlspecialchars(SeoUrlHandler::convertToSeoUrl('index.php?site=edit_profile')) . '" class="btn btn-outline-primary mt-3">
+    ? '<a href="' . htmlspecialchars(
+            SeoUrlHandler::convertToSeoUrl('index.php?site=edit_profile'),
+            ENT_QUOTES
+        ) . '" class="btn btn-outline-primary mt-3">
         <i class="fas fa-user-edit"></i> ' . $languageService->get('edit_profile_button') . '
       </a>'
     : '';
+
 
 $isLocked = isset($user_users['is_locked']) && (int)$user_users['is_locked'] === 1;
 
@@ -281,16 +290,16 @@ $stmt->bind_result($logins_count);
 $stmt->fetch();
 $stmt->close();
 $logins = $logins_count > 0 ? $logins_count : 0;
-
+/*
 $counts = [];
 
-function table_Exists($table) {
+/*function table_Exists($table) {
     global $_database;
     $result = $_database->query("SHOW TABLES LIKE '" . $_database->real_escape_string($table) . "'");
     return $result && $result->num_rows > 0;
 }
 
-function getUserCount($table, $col, $userID) {
+/*function getUserCount($table, $col, $userID) {
     global $_database;
     if (!table_Exists($table)) return false;
     $stmt = $_database->prepare("SELECT COUNT(*) FROM `$table` WHERE `$col` = ?");
@@ -352,9 +361,51 @@ foreach ($counts as $type => $count) {
     $total_points += $single_points;
 }
 
+
+
+
+$total_points = UserPoints::get($userID);
 // Level-Berechnung
 $level = floor($total_points / 100); 
 $level_percent = $total_points % 100;
+
+// Plugins: nur wenn Tabelle existiert
+foreach ($tables as $table) {
+    $count = getUserCount($table['table'], $table['user_col'], $userID);
+    if ($count !== false) {
+        $counts[$table['type']] = $count;
+    }
+}
+
+$post_type = '';
+foreach ($counts as $type => $count) {
+    $weight = $weights[$type] ?? 0;
+    $single_points = $count;
+    $total_points += $single_points;
+    $post_type .= '<tr><td>' . htmlspecialchars($type) . '</td><td>' . $single_points . '</td></tr>';
+}*/
+
+
+$data = UserPoints::getFull($userID);
+
+$total_points  = $data['total_points'];
+$level         = $data['level'];
+$level_percent = $data['level_percent'];
+$details       = $data['details'];
+
+$post_type = '';
+
+foreach ($details as $row) {
+    $post_type .= '
+        <tr>
+            <td>'.htmlspecialchars($row['type']).'</td>
+            <td>'.$row['count'].'</td>
+        </tr>';
+}
+
+
+
+
 
 if ($isLocked == 1 ) {
     $isrowLocked = '<div class="alert alert-danger d-flex align-items-center" role="alert">

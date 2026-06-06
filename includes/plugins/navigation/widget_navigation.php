@@ -158,26 +158,42 @@ function nav_messenger_badge(): string
     if (!PluginManager::isActive('messenger')) return "";
     if (empty($_SESSION['userID'])) return "";
 
+    global $_database;
+
+    // 🔒 Tabelle existiert?
+    $check = $_database->query("
+        SHOW TABLES LIKE 'plugins_messages'
+    ");
+
+    if (!$check || $check->num_rows === 0) {
+        return ""; // Messenger nicht vollständig installiert
+    }
+
     $uid = (int)$_SESSION['userID'];
+
     $row = mysqli_fetch_assoc(safe_query("
-        SELECT COUNT(*) AS unread FROM plugins_messages
-        WHERE receiver_id = {$uid} AND is_read = 0
+        SELECT COUNT(*) AS unread
+        FROM plugins_messages
+        WHERE receiver_id = {$uid}
+          AND is_read = 0
     "));
-    $unread = (int)$row['unread'];
+
+    $unread = (int)($row['unread'] ?? 0);
     if ($unread === 0) return "";
 
     $badge = ($unread > 99) ? "99+" : $unread;
 
     return "
-<li class='nav-item'>
-    <a class='nav-link nav-icon-badge' href='index.php?site=messenger'>
-        <span class='icon-wrapper'>
-            <i class='bi bi-envelope fs-5'></i>
-            <span class='badge rounded-pill bg-danger'>{$badge}</span>
-        </span>
-    </a>
-</li>";
+    <li class='nav-item'>
+        <a class='nav-link nav-icon-badge' href='index.php?site=messenger'>
+            <span class='icon-wrapper'>
+                <i class='bi bi-envelope fs-5'></i>
+                <span class='badge rounded-pill bg-danger'>{$badge}</span>
+            </span>
+        </a>
+    </li>";
 }
+
 
 /* ----------------------------------------------
  * FORUM BADGE
@@ -187,31 +203,44 @@ function nav_forum_badge(): string
     if (!PluginManager::isActive('forum')) return "";
     if (empty($_SESSION['userID'])) return "";
 
+    global $_database;
+
+    // 🔒 Tabellen prüfen
+    $check = $_database->query("SHOW TABLES LIKE 'plugins_forum_read'");
+    if (!$check || $check->num_rows === 0) return "";
+
     $uid = (int)$_SESSION['userID'];
 
     $row = mysqli_fetch_assoc(safe_query("
         SELECT COUNT(*) AS new_posts
         FROM plugins_forum_posts p
+        INNER JOIN plugins_forum_threads t
+            ON t.threadID = p.threadID
+           AND t.is_deleted = 0
         LEFT JOIN plugins_forum_read r
-        ON r.userID = {$uid} AND r.threadID = p.threadID
-        WHERE p.created_at > IFNULL(r.last_read_at, '1970-01-01')
+            ON r.userID = {$uid}
+           AND r.threadID = p.threadID
+        WHERE p.is_deleted = 0
+          AND p.created_at > IFNULL(r.last_read_at, '1970-01-01')
     "));
 
-    $count = (int)$row['new_posts'];
+    $count = (int)($row['new_posts'] ?? 0);
     if ($count === 0) return "";
 
     $badge = ($count > 99) ? "99+" : $count;
 
     return "
-<li class='nav-item'>
-    <a class='nav-link nav-icon-badge' href='index.php?site=forum'>
-        <span class='icon-wrapper'>
-            <i class='bi bi-chat-dots fs-5'></i>
-            <span class='badge rounded-pill bg-danger'>{$badge}</span>
-        </span>
-    </a>
-</li>";
+    <li class='nav-item'>
+        <a class='nav-link nav-icon-badge' href='index.php?site=forum'>
+            <span class='icon-wrapper'>
+                <i class='bi bi-chat-dots fs-5'></i>
+                <span class='badge rounded-pill bg-danger'>{$badge}</span>
+            </span>
+        </a>
+    </li>";
 }
+
+
 
 /* ------------------------------------------------------------
  * DROPDOWN ANIMATION (nur wenn Engine aktiv = 1)

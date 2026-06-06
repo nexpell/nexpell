@@ -1097,6 +1097,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $userID = $_database->insert_id;
 
         if ($userID > 0) {
+
+            // Standardrolle 12 vergeben
+            $roleID = 12;
+
+            $queryRole = "INSERT INTO user_role_assignments (userID, roleID) VALUES (?, ?)";
+            if ($stmtRole = $_database->prepare($queryRole)) {
+                $stmtRole->bind_param('ii', $userID, $roleID);
+                $stmtRole->execute();
+            }
             // Pepper erzeugen und verschlüsseln
             $pepper_plain = LoginSecurity::generatePepper();
             $pepper_encrypted = LoginSecurity::encryptPepper($pepper_plain);

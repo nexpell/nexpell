@@ -19,6 +19,8 @@
     padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
     padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
     transition: background .25s ease, color .25s ease;
+
+    border-inline-end: 0px solid var(--bs-border-color-translucent);
 }
 
 .nav-link:hover,
@@ -48,6 +50,7 @@ max-height: clamp(50px, 8vw, 65px);
 .navbar-brand {
     position: relative;
     margin-right: auto;
+    border-inline-end: 0px solid #000;
 }
 
 .navbar-brand.logo-center {
@@ -97,7 +100,8 @@ max-height: clamp(50px, 8vw, 65px);
     padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
     padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
 
-    margin: 0 !important;
+    margin-inline-start: -7px;
+    
 
     /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
     z-index: 1;
@@ -154,7 +158,7 @@ max-height: clamp(50px, 8vw, 65px);
 }
 
 .dropdown-item {
-    padding: 10px 16px;
+    
     /*color: var(--bs-nav-text, var(--bs-body-color)) !important;/*
 }
 
@@ -167,28 +171,28 @@ max-height: clamp(50px, 8vw, 65px);
 
 
 /* Dein Icon */
-.chevron {
+.nx-chevron {
     font-size: 0.75rem;
     transition: transform .25s ease;
 }
 
-.dropdown.show .chevron {
+.dropdown.show .nx-chevron {
     transform: rotate(180deg);
 }
 
     /* Grundzustand */
-.chevron {
-    margin-left: 4px;
+.nx-chevron {
+   
     transition: transform .25s ease;
     font-size: 0.85rem;
 }
 
 /* Wenn Dropdown offen → Pfeil dreht sich */
-.dropdown.show .chevron {
+.dropdown.show .nx-chevron {
     transform: rotate(180deg);
 }
 
-#mainNavbar .dropdown:hover .chevron {
+#mainNavbar .dropdown:hover .nx-chevron {
     transform: rotate(180deg);
 }
 
@@ -199,7 +203,7 @@ max-height: clamp(50px, 8vw, 65px);
 /* LOGO (FINAL FIX) */
 /* Dynamisches Logo abhängig von Navigation */
 /* Haupt-Logo */
-.nav-logo {
+.nx-nav-logo {
     height: calc(var(--nav-height) - 30px);
     object-fit: contain;
 
@@ -212,7 +216,7 @@ max-height: clamp(50px, 8vw, 65px);
 }
 
 /* Hover Effekt */
-.navbar-brand:hover .nav-logo {
+.navbar-brand:hover .nx-nav-logo {
     transform: scale(1.06);
 }
 
@@ -231,11 +235,11 @@ max-height: clamp(50px, 8vw, 65px);
 /* ================================
    FADE
 ================================ */
-.fade .dropdown-menu {
+.nx-fade .dropdown-menu {
     opacity: 0;
     transform: none;
 }
-.fade .dropdown-menu.show {
+.nx-fade .dropdown-menu.show {
     opacity: 1;
     transform: none;
 }
@@ -243,11 +247,11 @@ max-height: clamp(50px, 8vw, 65px);
 /* ================================
    SLIDE
 ================================ */
-.slide .dropdown-menu {
+.nx-slide .dropdown-menu {
     opacity: 0;
     transform: translateY(12px);
 }
-.slide .dropdown-menu.show {
+.nx-slide .dropdown-menu.show {
     opacity: 1;
     transform: translateY(0);
 }
@@ -255,12 +259,12 @@ max-height: clamp(50px, 8vw, 65px);
 /* ================================
    ZOOM
 ================================ */
-.zoom .dropdown-menu {
+.nx-zoom .dropdown-menu {
     opacity: 0;
     transform: scale(0.92);
     transform-origin: top;
 }
-.zoom .dropdown-menu.show {
+.nx-zoom .dropdown-menu.show {
     opacity: 1;
     transform: scale(1);
 }
@@ -268,11 +272,11 @@ max-height: clamp(50px, 8vw, 65px);
 /* ================================
    SLIDE + FADE
 ================================ */
-.slidefade .dropdown-menu {
+.nx-slidefade .dropdown-menu {
     opacity: 0;
     transform: translateY(12px);
 }
-.slidefade .dropdown-menu.show {
+.nx-slidefade .dropdown-menu.show {
     opacity: 1;
     transform: translateY(0);
 }
@@ -288,38 +292,38 @@ max-height: clamp(50px, 8vw, 65px);
 }
 
 
-.fade.dropdown-menu {
+.nx-fade.dropdown-menu {
     opacity: 0;
     transform: none !important;
 }
-.fade.show {
+.nx-fade.show {
     opacity: 1;
 }
 
-.slide.dropdown-menu {
+.nx-slide.dropdown-menu {
     opacity: 0;
     transform: translateY(15px);
 }
-.slide.show {
+.nx-slide.show {
     opacity: 1;
     transform: translateY(0);
 }
 
-.zoom.dropdown-menu {
+.nx-zoom.dropdown-menu {
     opacity: 0;
     transform: scale(.9);
     transform-origin: top;
 }
-.zoom.show {
+.nx-zoom.show {
     opacity: 1;
     transform: scale(1);
 }
 
-.slidefade.dropdown-menu {
+.nx-slidefade.dropdown-menu {
     opacity: 0;
     transform: translateY(12px);
 }
-.slidefade.show {
+.nx-slidefade.show {
     opacity: 1;
     transform: translateY(0);
 }

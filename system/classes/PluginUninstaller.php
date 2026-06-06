@@ -38,47 +38,79 @@ class PluginUninstaller
         }
     }
 
-    private function removeDatabaseEntries($plugin_folder)
-    {
-        global $_database; // Deine DB-Verbindung
+private function removeDatabaseEntries(string $plugin_folder): void
+{
+    global $_database;
 
-        $folder_escaped = $_database->real_escape_string($plugin_folder);
+    $plugin = $_database->real_escape_string($plugin_folder);
 
-        // Tabelle plugins_installed löschen (deine bisherige Löschung)
-        $sql1 = "DELETE FROM settings_plugins_installed WHERE modulname = '" . $folder_escaped . "'";
-        $result1 = $_database->query($sql1);
+    /* =====================================================
+       1️⃣ Plugin-Registrierungen entfernen
+    ===================================================== */
+    $_database->query("DELETE FROM settings_plugins_installed WHERE modulname = '$plugin'");
+    $_database->query("DELETE FROM settings_widgets WHERE modulname = '$plugin'");
+    $_database->query("DELETE FROM settings_widgets_positions WHERE modulname = '$plugin'");
 
-        $sql2 = "DELETE FROM settings_widgets WHERE modulname = '" . $folder_escaped . "'";
-        $result1 = $_database->query($sql2);
-
-        $sql3 = "DELETE FROM settings_widgets_positions WHERE modulname = '" . $folder_escaped . "'";
-        $result1 = $_database->query($sql3);
-
-        // Tabelle plugins_news (oder entsprechend) löschen
-        // Achtung: Das löscht die gesamte Tabelle! Sicherstellen, dass das erwünscht ist.
-        $table_name = 'plugins_' . $folder_escaped;
-        $sql2 = "DROP TABLE IF EXISTS `" . $table_name . "`";
-        $result2 = $_database->query($sql2);
-
-        if ($result1) {
-            $this->addLog('success', 'Datenbankeinträge für "' . $plugin_folder . '" wurden gelöscht.');
-        } else {
-            $this->addLog('error', 'Fehler beim Löschen der Einträge in plugins_installed.');
-        }
-
-        if ($result2) {
-            $this->addLog('success', 'Datenbanktabelle "' . $table_name . '" wurde gelöscht.');
-            echo '<script type="text/javascript">
-                setTimeout(function() {
-                    window.location.href = "admincenter.php?site=plugin_installer";
-                }, 3000); // 3 Sekunden warten
-            </script>';
-        } else {
-            $this->addLog('error', 'Fehler beim Löschen der Tabelle "' . $table_name . '".');
-        }
-        $this->removeEntriesByModuleColumn($plugin_folder);
-        $this->removeAllPluginTables($plugin_folder);
+    /* =====================================================
+       2️⃣ Plugin-Tabellen ermitteln
+    ===================================================== */
+    $tables = [];
+    $res = $_database->query("SHOW TABLES LIKE 'plugins_{$plugin}%'");
+    while ($row = $res->fetch_row()) {
+        $tables[] = $row[0];
     }
+
+    if (!$tables) {
+        $this->addLog('info', 'Keine Plugin-Tabellen gefunden.');
+        return;
+    }
+
+    /* =====================================================
+       3️⃣ EXTERNE FOREIGN KEYS ENTFERNEN
+       (Core / andere Plugins → Plugin-Tabellen)
+    ===================================================== */
+    $inList = "'" . implode("','", array_map('escape', $tables)) . "'";
+
+    $sql = "
+        SELECT CONSTRAINT_NAME, TABLE_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND REFERENCED_TABLE_NAME IN ($inList)
+    ";
+
+    $res = $_database->query($sql);
+    while ($row = $res->fetch_assoc()) {
+        $fkTable = $row['TABLE_NAME'];
+        $fkName  = $row['CONSTRAINT_NAME'];
+
+        if ($_database->query("ALTER TABLE `$fkTable` DROP FOREIGN KEY `$fkName`")) {
+            $this->addLog('info', "Foreign Key entfernt: {$fkTable}.{$fkName}");
+        } else {
+            $this->addLog('error', "FK konnte nicht entfernt werden: {$fkTable}.{$fkName}");
+        }
+    }
+
+    /* =====================================================
+       4️⃣ Plugin-Tabellen löschen
+       (Reihenfolge jetzt egal)
+    ===================================================== */
+    foreach ($tables as $table) {
+        if ($_database->query("DROP TABLE `$table`")) {
+            $this->addLog('success', "Tabelle gelöscht: {$table}");
+        } else {
+            $this->addLog('error', "Tabelle konnte nicht gelöscht werden: {$table}");
+        }
+    }
+
+    /* =====================================================
+       5️⃣ modulname-Aufräumen (global)
+    ===================================================== */
+    $this->removeEntriesByModuleColumn($plugin_folder);
+}
+
+
+
+
 
     private function addLog($type, $message)
     {
@@ -115,7 +147,7 @@ class PluginUninstaller
         }
     }
 
-    private function removeAllPluginTables($plugin_folder)
+/*    private function removeAllPluginTables($plugin_folder)
     {
         global $_database;
 
@@ -142,5 +174,5 @@ class PluginUninstaller
 
         $_database->query("SET FOREIGN_KEY_CHECKS = 1"); // <- HINZUGEFÜGT
     }
-
+*/
 }

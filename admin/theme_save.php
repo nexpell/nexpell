@@ -1,9 +1,5 @@
 <?php
 
-#use nexpell\AccessControl;
-// Den Admin-Zugriff für das Modul überprüfen
-#AccessControl::checkAdminAccess('ac_theme_save');
-
 require_once __DIR__ . '/../system/config.inc.php';
 
 // DB-Verbindung
@@ -14,7 +10,7 @@ if ($_database->connect_error) {
 }
 
 // POST-Werte holen
-$theme = $_POST['theme'] ?? '';
+$theme  = $_POST['theme']  ?? '';
 $navbar = $_POST['navbar'] ?? '';
 
 if ($theme === '') {
@@ -24,15 +20,15 @@ if ($theme === '') {
 }
 
 // Standardwerte
-$navbar_class = null;
-$navbar_theme = null;
+$navbar_shadow = "";
+$navbar_modus  = "light";
 
-// Navbar-String verarbeiten
+// Navbar-String (shadow|modus)
 if ($navbar !== '') {
     $parts = explode('|', $navbar);
     if (count($parts) === 2) {
-        $navbar_class = $parts[0];
-        $navbar_theme = $parts[1];
+        $navbar_shadow = $parts[0];   // z.B. shadow-sm
+        $navbar_modus  = $parts[1];   // z.B. light / dark / auto
     } else {
         http_response_code(400);
         echo "Ungültiges Format für 'navbar'.";
@@ -40,27 +36,52 @@ if ($navbar !== '') {
     }
 }
 
-// Sonderregel: Lux + bg-primary → dark Theme
-if ($theme === 'lux' && $navbar_class === 'bg-primary') {
-    $navbar_theme = 'dark';
-}
-if ($theme === 'flatly' && $navbar_class === 'bg-primary') {
-    $navbar_theme = 'light';
-}
+/* ============================================================
+   1) settings_themes aktualisieren → nur Theme, kein Navbar!
+============================================================ */
 
-// Theme + Navbar speichern
 $stmt = $_database->prepare("
     UPDATE settings_themes 
-    SET themename = ?, navbar_class = ?, navbar_theme = ? 
+    SET themename = ?
     WHERE modulname = 'default'
 ");
 
 if ($stmt) {
-    $stmt->bind_param("sss", $theme, $navbar_class, $navbar_theme);
+    $stmt->bind_param("s", $theme);
     $stmt->execute();
     $stmt->close();
-    echo "OK";
 } else {
     http_response_code(500);
-    echo "Datenbankfehler beim Speichern.";
+    echo "DB-Fehler beim Speichern des Themes.";
+    exit;
 }
+
+/* ============================================================
+   2) ⭐ NEU: navigation_website_settings updaten
+============================================================ */
+
+$settings = [
+    'navbar_shadow' => $navbar_shadow,
+    'navbar_modus'  => $navbar_modus,
+];
+
+foreach ($settings as $key => $value) {
+
+    $stmt2 = $_database->prepare("
+        INSERT INTO navigation_website_settings (setting_key, setting_value)
+        VALUES (?, ?)
+        ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
+    ");
+
+    if ($stmt2) {
+        $stmt2->bind_param("ss", $key, $value);
+        $stmt2->execute();
+        $stmt2->close();
+    } else {
+        http_response_code(500);
+        echo "DB-Fehler beim Speichern von $key.";
+        exit;
+    }
+}
+
+echo "OK";

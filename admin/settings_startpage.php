@@ -125,7 +125,6 @@ $hash = $CAPCLASS->getHash();
     </div>
 </div>
 
-<script src="https://cdn.ckeditor.com/4.22.1/standard/ckeditor.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const toggle = document.getElementById('toggle-editor');

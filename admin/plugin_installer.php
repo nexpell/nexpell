@@ -1,363 +1,638 @@
 <?php
+declare(strict_types=1);
+
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 
 use nexpell\LanguageService;
 use nexpell\AccessControl;
 use nexpell\PluginUninstaller;
-use nexpell\Plugininstaller;
 
-// Session absichern
+/* ======================================================
+   BOOTSTRAP
+====================================================== */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard-Sprache setzen, falls nicht gesetzt
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
+$installerDebug = [];
 
-// Initialisieren
-global $_database, $languageService;
-$languageService = new LanguageService($_database);
-$lang = $languageService->detectLanguage();
 
-// Admin-Modul laden
-$languageService->readModule('plugin_installer', true);
 
-// Admin-Rechte prüfen
-AccessControl::checkAdminAccess('ac_plugin_installer');
 
-// Konfiguration
-$plugin_dir = '../includes/plugins/';
-$plugin_path = 'https://www.update.nexpell.de/plugins';
-$plugin_json_url = $plugin_path . '/plugins.json';
 
-// Plugin installieren, updaten oder deinstallieren
-if (isset($_GET['install']) || isset($_GET['update']) || isset($_GET['uninstall'])) {
-    $plugin_action = isset($_GET['install']) ? 'install' : (isset($_GET['update']) ? 'update' : 'uninstall');
-    $plugin_folder = basename($_GET[$plugin_action]);
+$_SESSION['language'] ??= 'de';
 
-    // Plugins-Info von externer JSON laden
-    $plugin_info_array = @json_decode(@file_get_contents($plugin_json_url), true);
-    $plugin_info = null;
+global $_database;
 
-    if (is_array($plugin_info_array)) {
-        foreach ($plugin_info_array as $plugin) {
-            if (isset($plugin['modulname']) && $plugin['modulname'] === $plugin_folder) {
-                $plugin_info = $plugin;
-                break;
-            }
-        }
-    }
 
-    // Plugin deinstallieren
-    if ($plugin_action === 'uninstall') {
-        if (empty($plugin_folder) || !preg_match('/^[a-z0-9_\-]+$/i', $plugin_folder)) {
-            echo '<div class="alert alert-danger">Ungültiger Plugin-Ordner.</div>';
-            exit;
-        }
+$action = null;
 
-        $uninstaller = new PluginUninstaller();
-        $uninstaller->uninstall($plugin_folder);
-
-        $log = $uninstaller->getLog();
-        $html_log = '';
-        $valid_types = ['success', 'danger', 'warning', 'info'];
-
-        foreach ($log as $entry) {
-            $type = in_array($entry['type'], $valid_types) ? $entry['type'] : 'info';
-            $html_log .= '<div class="alert alert-' . htmlspecialchars($type) . '">' . htmlspecialchars($entry['message']) . '</div>';
-        }
-
-        echo $html_log;
-        exit;
-    }
-
-    // Plugin installieren oder updaten
-    if (!$plugin_info) {
-        echo '<div class="alert alert-danger">Plugin nicht gefunden: ' . htmlspecialchars($plugin_folder) . '</div>';
-        exit;
-    }
-
-    $local_plugin_folder = $plugin_dir . $plugin_folder;
-
-    if (!download_plugin_files($plugin_folder, $local_plugin_folder, $plugin_path)) {
-        exit;
-    }
-
-    $script_file = $plugin_action === 'install' ? 'install.php' : 'update.php';
-    $script_path = $local_plugin_folder . '/' . $script_file;
-
-    if (file_exists($script_path)) {
-        include $script_path;
-    }
-
-    // Plugin-Daten in DB speichern
-    $name = htmlspecialchars($plugin_info['name']);
-    $modulname = htmlspecialchars($plugin_info['modulname']);
-    $description = htmlspecialchars($plugin_info['description']);
-    $version = htmlspecialchars($plugin_info['version']);
-    $author = htmlspecialchars($plugin_info['author']);
-    $url = htmlspecialchars($plugin_info['url']);
-    $folder = htmlspecialchars($plugin_folder);
-
-    if ($plugin_action === 'install') {
-        safe_query("
-            INSERT INTO settings_plugins_installed (name, modulname, description, version, author, url, folder, installed_date)
-            VALUES ('$name','$modulname','$description','$version','$author','$url','$folder',NOW())
-        ");
-        echo '<div class="alert alert-success">Plugin <strong>' . $name . '</strong> wurde installiert.</div>';
-        echo '<script type="text/javascript">
-                setTimeout(function() {
-                    window.location.href = "admincenter.php?site=plugin_installer";
-                }, 3000);
-            </script>';
-    } else {
-        safe_query("
-            UPDATE settings_plugins_installed 
-            SET version = '$version', installed_date = NOW()
-            WHERE modulname = '$modulname'
-        ");
-        echo '<div class="alert alert-success">Plugin <strong>' . $name . '</strong> wurde aktualisiert.</div>';
-        echo '<script type="text/javascript">
-                setTimeout(function() {
-                    window.location.href = "admincenter.php?site=plugin_installer";
-                }, 3000);
-            </script>';
+foreach (['install','update','reinstall','uninstall'] as $a) {
+    if (isset($_GET[$a])) {
+        $action = $a;
+        break;
     }
 }
 
-// Lokale Plugins erfassen
-$local_plugins = [];
-foreach (scandir($plugin_dir) as $folder) {
-    if ($folder == '.' || $folder == '..') continue;
-    $path = $plugin_dir . $folder;
-    if (is_dir($path) && file_exists("$path/plugin.json")) {
-        $json = json_decode(file_get_contents("$path/plugin.json"), true);
-        if ($json) {
-            $json['dir'] = $folder;
-            $local_plugins[$json['name']] = $json;
-        }
-    }
-}
-
-// Externe Plugins abrufen
-$external_plugins = [];
-if (filter_var($plugin_json_url, FILTER_VALIDATE_URL)) {
-    $plugin_data = @file_get_contents($plugin_json_url);
-    if ($plugin_data) {
-        $decoded = json_decode($plugin_data, true);
-        if (is_array($decoded)) {
-            foreach ($decoded as $plugin) {
-                if (isset($plugin['name'])) {
-                    $external_plugins[$plugin['name']] = $plugin;
-                }
-            }
-        }
-    }
-}
-
-// Installierte Plugins laden
-$installed_plugins = [];
-$res = safe_query("SELECT * FROM settings_plugins_installed");
-while ($row = mysqli_fetch_assoc($res)) {
-    $installed_plugins[$row['name']] = $row;
-}
-
-// Alle Plugins zusammenführen
-$all_plugin_names = array_unique(array_merge(
-    array_keys($local_plugins),
-    array_keys($external_plugins),
-    array_keys($installed_plugins)
-));
-
-$plugins_for_template = [];
-
-foreach ($all_plugin_names as $name) {
-    $local = $local_plugins[$name] ?? null;
-    $external = $external_plugins[$name] ?? null;
-    $installed_entry = $installed_plugins[$name] ?? null;
-
-    $plugin = $local ?? $external;
-    if (!$plugin) continue;
-
-    $plugin_folder = $plugin['dir'] ?? $plugin['name'];
-    $installed = $installed_entry !== null;
-    $installed_version = $installed_entry['version'] ?? '—';
-
-    $update = false;
-    if ($installed && isset($plugin['version'])) {
-        $update = version_compare($installed_version, $plugin['version'], '<');
-    }
-
-    $plugins_for_template[] = [
-        'name' => $name,
-        'modulname' => $plugin['modulname'] ?? '',
-        'description' => $plugin['description'] ?? '',
-        'version' => $plugin['version'] ?? '',
-        'author' => $plugin['author'] ?? '',
-        'url' => $plugin['url'] ?? '',
-        'download' => $plugin['download'] ?? '',
-        'folder' => $plugin_folder,
-        'installed_version' => $installed_version,
-        'installed' => $installed,
-        'update' => $update,
-        'lang' => $plugin['lang'] ?? 'de'
+/* ======================================================
+   FLASH MESSAGES
+====================================================== */
+function flash(string $type, string $message): void
+{
+    $_SESSION['flash'][] = [
+        'type'    => $type,
+        'message' => $message
     ];
 }
 
-// HTML-Ausgabe
-echo '
-<div class="card">
-    <div class="card-header">' . $languageService->get('plugin_installer') . '</div>
-    <div class="card-body">
-        <div class="container py-5">
-        <h3>' . $languageService->get('plugin_installer_headline') . '</h3>
+/* ======================================================
+   LANGUAGE / ACCESS
+====================================================== */
+$languageService = new LanguageService($_database);
+$lang = $languageService->detectLanguage();
+$languageService->readModule('plugin_installer', true);
 
-        <table class="table table-bordered table-striped bg-white shadow-sm">
-            <thead class="table-light">
-                <tr>
-                    <th width="14%">' . $languageService->get('plugin_name') . '</th>
-                    <th>' . $languageService->get('plugin_description') . '</th>
-                    <th width="6%">' . $languageService->get('language') . '</th>
-                    <th width="6%">' . $languageService->get('plugin_version') . '</th>
-                    <th width="14%">' . $languageService->get('plugin_action') . '</th>
-                </tr>
-            </thead>
-            <tbody>';
+AccessControl::checkAdminAccess('ac_plugin_installer');
 
-foreach ($plugins_for_template as $plugin) {
+/* ======================================================
+   CONFIG
+====================================================== */
+$coreVersion   = include __DIR__ . '/../system/version.php';
+$pluginDir     = '../includes/plugins/';
+$pluginJsonUrl = 'https://www.update.nexpell.de/plugins/plugins_v2.json';
 
-    $translate = new multiLanguage($lang);
-    $languages = $translate->detectLanguages($plugin['description']);
-    $description = $translate->getTextByLanguage($plugin['description']);
-
-    // Flaggen-HTML generieren
-    $flags_html = '';
-    $lang_codes = explode(',', $plugin['lang'] ?? '');
-    foreach ($lang_codes as $lang_code) {
-        $lang_code = trim($lang_code);
-        if ($lang_code !== '') {
-            $flags_html .= '<img src="images/flags/' . $lang_code . '.svg" alt="' . strtoupper($lang_code) . '" title="' . strtoupper($lang_code) . '" class="me-1" style="height:16px;">';
-        }
+/* ======================================================
+   ADMIN EMAIL
+====================================================== */
+$adminEmail = '';
+if (!empty($_SESSION['userID'])) {
+    $r = safe_query("SELECT email FROM users WHERE userID=".(int)$_SESSION['userID']." LIMIT 1");
+    if ($u = mysqli_fetch_assoc($r)) {
+        $adminEmail = strtolower(trim($u['email']));
     }
-
-    echo '<tr>
-        <td>' . htmlspecialchars($plugin['name']) . '</td>
-        <td>' . $description . '</td>
-        <td>' . $flags_html . '</td>
-        <td>' . htmlspecialchars($plugin['version']);
-
-    if ($plugin['installed']) {
-        echo '<br><small class="text-muted">(' . htmlspecialchars($plugin['installed_version']) . ')</small>';
-    }
-
-    echo '</td><td>';
-
-    if (isset($plugin['download']) && $plugin['download'] === 'DISABLED') {
-        echo '<span class="text-muted fst-italic">Download deaktiviert</span>';
-    } else {
-        if ($plugin['installed']) {
-            echo '<button class="btn btn-success" disabled>' . $languageService->get('installed') . '</button> ';
-            if ($plugin['update']) {
-                echo '<a href="admincenter.php?site=plugin_installer&update=' . urlencode($plugin['modulname']) . '" class="btn btn-warning">'
-                    . $languageService->get('update') . '</a> ';
-            }
-            echo '<a href="admincenter.php?site=plugin_installer&uninstall=' . urlencode($plugin['modulname']) . '" class="btn btn-danger" onclick="return confirm(\'Willst du dieses Plugin wirklich löschen?\')">'
-                . $languageService->get('delete') . '</a>';
-        } else {
-            echo '<a href="admincenter.php?site=plugin_installer&install=' . urlencode($plugin['modulname']) . '" class="btn btn-primary">'
-                . $languageService->get('install') . '</a>';
-        }
-    }
-
-    echo '</td></tr>';
 }
 
-echo '
-            </tbody>
-        </table>
-        </div>
-    </div>
-</div>';
-
-// Hilfsfunktionen
-
-function download_plugin_files(string $plugin_folder, string $local_plugin_folder, string $plugin_path): bool
+/* ======================================================
+   HELPER: CORE / VISIBILITY
+====================================================== */
+function pluginMatchesCore(array $plugin, string $coreVersion): bool
 {
-    // NEUE UNIVERSAL-DOWNLOAD-API — KORREKTER LINK
-    $download_url =
-        "https://www.update.nexpell.de/system/download.php"
-        . "?type=plugin"
-        . "&file=" . rawurlencode($plugin_folder . ".zip")
-        . "&site=" . rawurlencode($_SERVER['SERVER_NAME']);
+    $min = $plugin['core']['min'] ?? null;
+    $max = $plugin['core']['max'] ?? null;
 
-    // Temporäre Datei
-    $local_zip = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $plugin_folder . ".zip";
+    if ($min && version_compare($coreVersion, $min, '<')) return false;
+    if ($max && version_compare($coreVersion, $max, '>')) return false;
 
-    // Plugin-Ordner anlegen
-    if (!is_dir($local_plugin_folder)) {
-        mkdir($local_plugin_folder, 0755, true);
-    }
+    return true;
+}
 
-    // ZIP herunterladen
-    $zip_content = @file_get_contents($download_url);
-    if ($zip_content === false) {
-        echo '<div class="alert alert-danger">Download fehlgeschlagen: ' . htmlspecialchars($download_url) . '</div>';
+function pluginIsInstallable(array $p, string $adminEmail, string $coreVersion, array &$dbg = []): bool
+{
+    $adminEmail = strtolower(trim($adminEmail));
+    $version    = $p['version'] ?? 'unknown';
+
+    // Core min
+    if (!empty($p['core']['min']) &&
+        version_compare($coreVersion, $p['core']['min'], '<')) {
+
+        $dbg[] = "❌ {$p['modulname']} {$version}: core {$coreVersion} < min {$p['core']['min']}";
         return false;
     }
 
-    // Speichern
-    if (file_put_contents($local_zip, $zip_content) === false) {
-        echo '<div class="alert alert-danger">Konnte ZIP nicht speichern.</div>';
+    // Core max (NULL erlaubt!)
+    if (!empty($p['core']['max']) &&
+        version_compare($coreVersion, $p['core']['max'], '>')) {
+
+        $dbg[] = "❌ {$p['modulname']} {$version}: core {$coreVersion} > max {$p['core']['max']}";
         return false;
     }
 
-    // ZIP öffnen
+    $visibleFor = strtoupper($p['visible_for'] ?? 'ALL');
+
+    if ($visibleFor === 'ALL') {
+        $dbg[] = "✅ {$p['modulname']} {$version}: visible_for ALL";
+        return true;
+    }
+
+    if ($visibleFor === 'CUSTOM') {
+        $emails = array_map('strtolower', $p['visible_emails'] ?? []);
+        if (in_array($adminEmail, $emails, true)) {
+            $dbg[] = "✅ {$p['modulname']} {$version}: CUSTOM match {$adminEmail}";
+            return true;
+        }
+
+        $dbg[] = "❌ {$p['modulname']} {$version}: CUSTOM no match ({$adminEmail})";
+        return false;
+    }
+
+    $dbg[] = "❌ {$p['modulname']} {$version}: unknown visible_for";
+    return false;
+}
+
+
+
+/* ======================================================
+   LOAD PLUGIN REGISTRY (JSON v2)
+====================================================== */
+function loadPluginsRegistry(string $url): array
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_USERAGENT      => 'Nexpell Plugin Installer'
+    ]);
+
+    $json = curl_exec($ch);
+    if ($json === false) {
+        throw new RuntimeException(curl_error($ch));
+    }
+
+    if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) {
+        throw new RuntimeException('Registry HTTP error');
+    }
+    curl_close($ch);
+
+    $data = json_decode($json, true);
+    if (!isset($data['plugins']) || !is_array($data['plugins'])) {
+        throw new RuntimeException('Invalid plugins_v2.json');
+    }
+
+    return $data['plugins'];
+}
+
+try {
+    $rawPlugins = loadPluginsRegistry($pluginJsonUrl);
+} catch (Throwable $e) {
+    flash('danger', $e->getMessage());
+    $rawPlugins = [];
+}
+
+/* ======================================================
+   RESOLVE LATEST VERSION PER PLUGIN
+====================================================== */
+$grouped = [];
+foreach ($rawPlugins as $plugin) {
+    $grouped[$plugin['modulname']][] = $plugin;
+}
+
+$plugins = [];
+
+foreach ($grouped as $modulname => $versions) {
+
+    usort($versions, fn($a, $b) =>
+        version_compare($b['version'], $a['version'])
+    );
+
+    $installerDebug[] = "🔹 Modul: {$modulname}";
+    foreach ($versions as $p) {
+        $installerDebug[] = "   ├─ gefunden: Version {$p['version']}";
+    }
+
+    foreach ($versions as $plugin) {
+        if (pluginIsInstallable($plugin, $adminEmail, $coreVersion, $installerDebug)) {
+            $plugins[] = $plugin;
+            $installerDebug[] = "   ⭐ GEWÄHLT: {$plugin['modulname']} {$plugin['version']}";
+            break;
+        }
+    }
+}
+
+if (isset($_GET['debug_installer']) && $_GET['debug_installer'] === '1') {
+    echo "<pre style='background:#111;color:#0f0;padding:15px;font-size:13px'>";
+    echo implode("\n", $installerDebug);
+    echo "</pre>";
+    exit;
+}
+
+/* ======================================================
+   INSTALLED PLUGINS
+====================================================== */
+$installed = [];
+$r = safe_query("SELECT * FROM settings_plugins_installed");
+while ($row = mysqli_fetch_assoc($r)) {
+    $installed[$row['modulname']] = $row;
+}
+
+/* ======================================================
+   ACTION
+====================================================== */
+/* ======================================================
+   ACTION (FINAL – STABIL)
+====================================================== */
+
+
+if ($action !== null) {
+
+    $modul = basename($_GET[$action]);
+
+    /* ===============================
+       UNINSTALL
+    =============================== */
+    if ($action === 'uninstall') {
+
+        $uninstaller = new PluginUninstaller();
+        $uninstaller->uninstall($modul);
+
+        foreach ($uninstaller->getLog() as $entry) {
+            flash(
+                in_array($entry['type'], ['success','danger','warning','info'], true)
+                    ? $entry['type']
+                    : 'info',
+                $entry['message']
+            );
+        }
+$_SESSION['redirect_after'] = 3;
+        header('Location: admincenter.php?site=plugin_installer');
+        exit;
+    }
+
+    /* ===============================
+       INSTALL / UPDATE / REINSTALL
+    =============================== */
+    $plugin = null;
+    foreach ($plugins as $p) {
+        if ($p['modulname'] === $modul) {
+            $plugin = $p;
+            break;
+        }
+    }
+
+    if (!$plugin || !pluginIsInstallable($plugin, $adminEmail, $coreVersion)) {
+        flash('danger', 'Plugin nicht installierbar.');
+        $_SESSION['redirect_after'] = 3;
+        header('Location: admincenter.php?site=plugin_installer');
+        exit;
+    }
+
+    $pluginPath = $pluginDir . $modul;
+
+    /* 🔁 REINSTALL: alte Dateien entfernen */
+    if ($action === 'reinstall' && is_dir($pluginPath)) {
+        deleteFolder($pluginPath);
+        flash('info', 'Plugin-Dateien wurden für Reinstall entfernt.');
+        $_SESSION['redirect_after'] = 3;
+    }
+
+    if (!download_plugin_files($plugin, $pluginPath)) {
+        flash('danger', 'Plugin-Download fehlgeschlagen.');
+        $_SESSION['redirect_after'] = 3;
+        header('Location: admincenter.php?site=plugin_installer');
+        exit;
+    }
+
+    /* install.php bei install + reinstall */
+    $script = ($action === 'update') ? 'update.php' : 'install.php';
+    if (file_exists($pluginPath.'/'.$script)) {
+        include $pluginPath.'/'.$script;
+    }
+
+    /* ===============================
+       DB SPEICHERN
+    =============================== */
+    safe_query("
+        INSERT INTO settings_plugins_installed
+            (name, modulname, description, version, author, url, folder, installed_date)
+        VALUES (
+            '".escape($plugin['name'])."',
+            '".escape($plugin['modulname'])."',
+            '".escape($plugin['description'] ?? '')."',
+            '".escape($plugin['version'])."',
+            '".escape($plugin['author'] ?? '')."',
+            '".escape($plugin['url'] ?? '')."',
+            '".escape($modul)."',
+            NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            version = VALUES(version),
+            installed_date = NOW()
+    ");
+
+    flash(
+        'success',
+        'Plugin „'.$plugin['name'].'“ wurde erfolgreich '
+        .(
+            $action === 'install'   ? 'installiert' :
+            ($action === 'update'   ? 'aktualisiert' :
+                                      'neu installiert')
+        ).'.'
+    );
+    $_SESSION['redirect_after'] = 3;
+    header('Location: admincenter.php?site=plugin_installer');
+    exit;
+}
+
+
+
+/* ======================================================
+   HTML
+====================================================== */
+if (!empty($_SESSION['flash'])): ?>
+    <?php foreach ($_SESSION['flash'] as $msg): ?>
+        <div class="alert alert-<?= htmlspecialchars($msg['type']) ?>">
+            <?= htmlspecialchars($msg['message']) ?>
+        </div>
+    <?php endforeach; ?>
+    <?php unset($_SESSION['flash']); ?>
+<?php endif; ?>
+
+<?php if (!empty($_SESSION['redirect_after'])): ?>
+<script>
+    setTimeout(function () {
+        window.location.href = "admincenter.php?site=plugin_installer";
+    }, <?= (int)$_SESSION['redirect_after'] * 1000 ?>);
+</script>
+<?php unset($_SESSION['redirect_after']); ?>
+<?php endif;
+
+/* =========================================
+   1) GLOBAL SORTIEREN (VOR PAGINATION)
+========================================= */
+usort($plugins, fn($a, $b) =>
+    strcasecmp(
+        (string)($a['modulname'] ?? ''),
+        (string)($b['modulname'] ?? '')
+    )
+);
+
+/* ======================================================
+   HTML / PAGINATION
+====================================================== */
+$cardsPerPage = 12;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+
+/* 1) GLOBAL SORTIEREN */
+usort($plugins, fn($a, $b) =>
+    strcasecmp(
+        (string)($a['modulname'] ?? ''),
+        (string)($b['modulname'] ?? '')
+    )
+);
+
+/* 2) PAGINATION */
+$totalPlugins = count($plugins);
+$totalPages   = (int)ceil($totalPlugins / $cardsPerPage);
+
+$offset = ($page - 1) * $cardsPerPage;
+$pluginsPage = array_slice($plugins, $offset, $cardsPerPage);
+
+
+
+
+?>
+<div class="card">
+    <div class="card-header">
+        <i class="bi bi-journal-text"></i> Plugin Installer
+    </div>
+
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb t-5 p-2 bg-light">
+            <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_installer">Plugin verwalten</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Install / Deinstall</li>
+        </ol>
+    </nav> 
+    <div class="card-body p-0">
+        <div class="container py-4">
+            <div class="row g-4">
+                <?php
+                $ml = new multiLanguage($lang);
+
+                foreach ($pluginsPage as $p):
+
+                    $inst = $installed[$p['modulname']] ?? null;
+
+                    // Beschreibung übersetzen
+                    $desc = $ml->getTextByLanguage($p['description']);
+
+                    // Flaggen aus lang generieren
+                    $flags_html = '';
+                    if (!empty($p['lang'])) {
+                        foreach (explode(',', $p['lang']) as $lc) {
+                            $lc = trim($lc);
+                            if ($lc !== '') {
+                                $flags_html .=
+                                    '<img src="images/flags/'.$lc.'.svg"
+                                          alt="'.strtoupper($lc).'"
+                                          title="'.strtoupper($lc).'"
+                                          class="me-1"
+                                          style="height:14px;">';
+                            }
+                        }
+                    }
+                    ?>
+                    <div class="col-xl-3 col-lg-4 col-md-6">
+                        <div class="card h-100 shadow-sm">
+
+                            <img class="card-img-top"
+                                 src="https://www.update.nexpell.de/plugins/images/<?= htmlspecialchars($p['image'] ?? 'default.png') ?>"
+                                 alt="<?= htmlspecialchars($p['name']) ?>"
+                                 onerror="this.onerror=null;this.src='https://www.update.nexpell.de/plugins/images/default.png';">
+
+                            <div class="card-body d-flex flex-column">
+
+                                <h5 class="mb-1"><?= htmlspecialchars($p['name']) ?></h5>
+
+                                <div class="small text-muted mb-2">
+                                    Version <?= htmlspecialchars($p['version']) ?>
+                                </div>
+
+                                <div class="small mb-2">
+                                    <?= $flags_html ?>
+                                </div>
+
+                                <div class="small text-muted mb-3" style="line-height:1.4">
+                                    <?= $desc ?>
+                                </div>
+
+                                <div class="mt-auto">
+
+                                    <div class="mt-auto">
+
+                                    <?php if ($inst): ?>
+
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-secondary btn-sm" disabled>
+                                                Installiert (<?= htmlspecialchars($inst['version']) ?>)
+                                            </button>
+
+                                            <a class="btn btn-warning btn-sm"
+   onclick="return confirm('Plugin wirklich neu installieren? Alle Dateien werden ersetzt.')"
+   href="?site=plugin_installer&reinstall=<?= urlencode($p['modulname']) ?>">
+   Reinstall
+</a>
+
+
+                                            <a class="btn btn-danger btn-sm"
+                                               onclick="return confirm('Plugin wirklich deinstallieren?')"
+                                               href="?site=plugin_installer&uninstall=<?= urlencode($p['modulname']) ?>">
+                                                Deinstallieren
+                                            </a>
+                                        </div>
+
+                                    <?php elseif (pluginIsInstallable($p, $adminEmail, $coreVersion)): ?>
+
+                                        <a class="btn btn-success btn-sm w-100"
+                                           href="?site=plugin_installer&install=<?= urlencode($p['modulname']) ?>">
+                                            Installieren
+                                        </a>
+
+                                    <?php else: ?>
+
+                                        <button class="btn btn-secondary btn-sm w-100" disabled>
+                                            Nicht verfügbar
+                                        </button>
+
+                                    <?php endif; ?>
+
+                                    </div>
+
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+<?php if ($totalPages > 1): ?>
+<nav class="mt-5 mb-6">
+    <ul class="pagination justify-content-center">
+
+        <!-- Zurück -->
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+            <a class="page-link"
+               href="?site=plugin_installer&page=<?= $page - 1 ?>">
+               &laquo;
+            </a>
+        </li>
+
+        <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+            <li class="page-item <?= ($i === $page) ? 'active' : '' ?>">
+                <a class="page-link"
+                   href="?site=plugin_installer&page=<?= $i ?>">
+                    <?= $i ?>
+                </a>
+            </li>
+        <?php endfor; ?>
+
+        <!-- Weiter -->
+        <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+            <a class="page-link"
+               href="?site=plugin_installer&page=<?= $page + 1 ?>">
+               &raquo;
+            </a>
+        </li>
+
+    </ul>
+</nav>
+<?php endif; ?>
+
+        </div>    
+    </div>
+</div>
+
+<?php
+
+/* ======================================================
+   DOWNLOAD
+====================================================== */
+function download_plugin_files(array $plugin, string $target): bool
+{
+    // 🔐 Basisdaten
+    $modul = $plugin['modulname'] ?? null;
+    if (!$modul) {
+        error_log('download_plugin_files: modulname fehlt');
+        return false;
+    }
+
+    // 📦 ZIP-Dateiname
+    // Priorität: JSON -> download
+    // Fallback: modulname.zip (alte Plugins)
+    $zipFile = $plugin['download'] ?? ($modul . '.zip');
+
+    // 🌐 Download-URL (dein bestehendes API)
+    $url = "https://www.update.nexpell.de/system/download.php"
+         . "?type=plugin"
+         . "&file=" . rawurlencode($zipFile)
+         . "&site=" . rawurlencode($_SERVER['SERVER_NAME']);
+
+    // 📁 Temp-Datei
+    $tmp = sys_get_temp_dir() . '/' . uniqid($modul . '_', true) . '.zip';
+
+    // ⬇️ Download (file_get_contents bleibt – bewusst!)
+    $data = @file_get_contents($url);
+    if ($data === false || strlen($data) < 100) {
+        error_log("Plugin-Download fehlgeschlagen: {$url}");
+        return false;
+    }
+
+    file_put_contents($tmp, $data);
+
+    // 🧩 ZIP prüfen
     $zip = new ZipArchive();
-    if ($zip->open($local_zip) !== true) {
-        echo '<div class="alert alert-danger">ZIP konnte nicht geöffnet werden.</div>';
-        @unlink($local_zip);
+    if ($zip->open($tmp) !== true) {
+        error_log("ZIP konnte nicht geöffnet werden: {$tmp}");
+        @unlink($tmp);
         return false;
     }
 
-    // Vorher altes Plugin löschen
-    if (is_dir($local_plugin_folder)) {
-        deleteFolder($local_plugin_folder);
-        mkdir($local_plugin_folder, 0755, true);
+    // 🔁 Zielverzeichnis vorbereiten
+    if (is_dir($target)) {
+        deleteFolder($target);
     }
 
-    // Entpacken
-    if (!$zip->extractTo($local_plugin_folder)) {
-        echo '<div class="alert alert-danger">Entpacken fehlgeschlagen.</div>';
+    if (!mkdir($target, 0755, true) && !is_dir($target)) {
+        error_log("Plugin-Zielverzeichnis nicht erstellbar: {$target}");
         $zip->close();
-        @unlink($local_zip);
+        @unlink($tmp);
         return false;
     }
 
+    // 📂 Entpacken
+    $zip->extractTo($target);
     $zip->close();
-    @unlink($local_zip);
+    unlink($tmp);
+
+    // ✅ Minimal-Validierung
+    if (!file_exists($target . '/install.php') && !file_exists($target . '/update.php')) {
+        error_log("Plugin ungültig – install.php/update.php fehlt ({$modul})");
+        return false;
+    }
 
     return true;
 }
 
 
-/**
- * Löscht ein Verzeichnis rekursiv.
- */
-function deleteFolder(string $folder): void
+function deleteFolder(string $d): void
 {
-    if (!is_dir($folder)) {
-        return;
+    foreach (array_diff(scandir($d),['.','..']) as $f) {
+        $p="$d/$f";
+        is_dir($p)?deleteFolder($p):unlink($p);
     }
-    $files = array_diff(scandir($folder), ['.', '..']);
-    foreach ($files as $file) {
-        $path = $folder . DIRECTORY_SEPARATOR . $file;
-        if (is_dir($path)) {
-            deleteFolder($path);
-        } else {
-            @unlink($path);
-        }
-    }
-    @rmdir($folder);
+    rmdir($d);
 }
 
 
-?>
+
+
+/*| Wert                    | Bedeutung                | UI                       | Install     |
+| ----------------------- | ------------------------ | ------------------------ | ----------- |
+| *(nicht gesetzt)*       | öffentlich               | sichtbar                 | erlaubt     |
+| `"all"`                 | öffentlich               | sichtbar                 | erlaubt     |
+| `["all"]`               | öffentlich               | sichtbar                 | erlaubt     |
+| `["mail@x.de"]`         | eingeschränkt            | sichtbar (nur für diese) | erlaubt     |
+| `"DISABLED"`            | **komplett deaktiviert** | ❌ unsichtbar           | ❌ blockiert |
+| `"HIDDEN"` *(optional)* | sichtbar, aber gesperrt  | sichtbar (grau)          | ❌ blockiert |
+
+| visible_for | Sichtbar | Install | Update | Reinstall | Uninstall |
+| ----------- | -------- | ------- | ------ | --------- | --------- |
+| all         | ✅        | ✅       | ✅      | ✅         | ✅         |
+| ["mail@x"]  | ✅        | ✅       | ✅      | ✅         | ✅         |
+| HIDDEN      | ✅        | ❌       | ❌      | ❌         | ✅         |
+| DISABLED    | ❌        | ❌       | ❌      | ❌         | ❌         |
+
+*/
+

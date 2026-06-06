@@ -4,9 +4,14 @@ use nexpell\PluginManager;
 global $pluginManager;
 // Header-Kompatibilität
 header('X-UA-Compatible: IE=edge');
+
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($currentLang, ENT_QUOTES, 'UTF-8') ?>">
+<html lang="<?= htmlspecialchars($currentLang, ENT_QUOTES, 'UTF-8') ?>"
+      data-bs-theme="<?= $htmlTheme ?>"
+      data-theme-db="<?= $dbTheme ?>">
+
+
 
 <head>
 
@@ -68,7 +73,7 @@ header('X-UA-Compatible: IE=edge');
 
         echo $theme_css ?? '';
     ?>
-    
+    <link type="text/css" rel="stylesheet" href="/includes/themes/<?= htmlspecialchars($theme_name, ENT_QUOTES, 'UTF-8'); ?>/css/stylesheet.css" />
     
 
 </head>

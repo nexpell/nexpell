@@ -24,7 +24,11 @@ use nexpell\AccessControl;
 // Den Admin-Zugriff für das Modul überprüfen
 AccessControl::checkAdminAccess('ac_overview');
 
-$version = trim(require __DIR__ . '/../system/version.php');
+require_once __DIR__ . '/../system/version.php';
+
+$coreVersion = defined('NEXPELL_CORE_VERSION')
+    ? NEXPELL_CORE_VERSION
+    : '0.0.0';
 
 $phpversion = phpversion() < '4.3' ? '<font color="#FF0000">' . phpversion() . '</font>' :
     '<font color="#008000">' . phpversion() . '</font>';
@@ -165,7 +169,7 @@ $db = $ret[ 0 ];
                 </tr>
             </thead>
             <tbody>
-                <tr><td><?php echo $languageService->module['nexpell_version']; ?></td><td><em class="text-success"><?php echo $version; ?></em></td></tr>
+                <tr><td><?php echo $languageService->module['nexpell_version']; ?></td><td><em class="text-success"><?php echo $coreVersion; ?></em></td></tr>
                 <tr><td><?php echo $languageService->module['php_version']; ?></td><td><em><?php echo $phpversion; ?></em></td></tr>
                 <tr><td><?php echo $languageService->module['zend_version']; ?></td><td><em><?php echo $zendversion; ?></em></td></tr>
                 <tr><td><?php echo $languageService->module['mysql_version']; ?></td><td><em><?php echo $mysqlversion; ?></em></td></tr>

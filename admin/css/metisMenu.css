@@ -222,3 +222,25 @@
     display: none;
   }
 }
+
+
+/* -----------------------------------------
+   ✨ Fix: Sidebar Kategorien linksbündig
+   ----------------------------------------- */
+.sidebar-nav .metismenu > li > a {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    padding-left: 15px !important;
+}
+
+/* Icon + Text richtig ausrichten */
+.sidebar-nav .metismenu > li > a i {
+    margin-right: 10px;
+}
+
+/* Unterpunkte ebenfalls linksbündig */
+.sidebar-nav .nav-third-level li a,
+.sidebar-nav .nav-second-level li a {
+    text-align: left !important;
+    padding-left: 32px !important;
+}

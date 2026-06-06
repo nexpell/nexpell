@@ -21,13 +21,53 @@ if ($_database->connect_error) {
 $themename = 'flatly';
 $navbarStyle = 'bg-primary|light'; // Fallback
 
-$result = $_database->query("SELECT themename, navbar_class, navbar_theme FROM settings_themes WHERE active = '1' LIMIT 1");
+/*$result = $_database->query("SELECT themename, navbar_class, navbar_theme FROM settings_themes WHERE active = '1' LIMIT 1");
 if ($result && $row = $result->fetch_assoc()) {
     $themename = $row['themename'];
     if (!empty($row['navbar_class']) && !empty($row['navbar_theme'])) {
         $navbarStyle = $row['navbar_class'] . '|' . $row['navbar_theme'];
     }
 }
+
+
+// Aktives Theme ermitteln
+$themename = 'flatly'; // Fallback Theme*/
+
+// Theme aus settings_themes (nur noch themename verwenden)
+$resTheme = $_database->query("SELECT themename FROM settings_themes WHERE active = '1' LIMIT 1");
+if ($resTheme && $rowTheme = $resTheme->fetch_assoc()) {
+    $themename = $rowTheme['themename'];
+}
+
+// Default-Werte setzen
+$navbarClass = "shadow-sm"; 
+$navbarTheme = "light";
+
+// Navbar CLASS
+$res = $_database->query("
+    SELECT setting_value 
+    FROM navigation_website_settings 
+    WHERE setting_key = 'navbar_shadow'
+    LIMIT 1
+");
+if ($res && $row = $res->fetch_assoc()) {
+    $navbarClass = $row['setting_value'];
+}
+
+// Navbar THEME
+$res = $_database->query("
+    SELECT setting_value 
+    FROM navigation_website_settings 
+    WHERE setting_key = 'navbar_modus'
+    LIMIT 1
+");
+if ($res && $row = $res->fetch_assoc()) {
+    $navbarTheme = $row['setting_value'];
+}
+
+// Kombinierter Stil für Vorschau
+$navbarStyle = $navbarClass . "|" . $navbarTheme;
+
 
 // Theme-Verzeichnis prüfen
 /*$allThemes = ['brite', 'cerulean', 'cosmo', 'cyborg', 'darkly', 'flatly', 'journal', 'litera', 'lumen', 'lux', 'materia', 'minty', 'morph', 'pulse', 'quartz', 'sandstone', 'simplex', 'sketchy', 'slate', 'solar', 'spacelab', 'superhero', 'united', 'vapor', 'yeti', 'zephyr', 'default'];

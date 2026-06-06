@@ -90,22 +90,24 @@ class LanguageService
     /**
      * Liefert die aktuell gesetzte Sprache, falls nicht gesetzt, die Standard-Sprache
      */
-    public function detectLanguage(): string
-    {
-        // Prüfe Session
-        if (isset($_SESSION['language']) && $this->isLanguageActive($_SESSION['language'])) {
-            return $_SESSION['language'];
-        }
-
-        // Fallback auf DB erste aktive Sprache
-        $res = $this->_database->query("SELECT iso_639_1 FROM settings_languages WHERE active = 1 ORDER BY id LIMIT 1");
-        if ($res && $row = $res->fetch_assoc()) {
-            return $row['iso_639_1'];
-        }
-
-        // Fallback hartkodiert (z.B. deutsch)
-        return 'de';
+public function detectLanguage(): string
+{
+    // Session-Sprache ist maßgeblich
+    if (isset($_SESSION['language']) && $this->isLanguageActive($_SESSION['language'])) {
+        return $_SESSION['language'];
     }
+
+    // Fallback: erste aktive Sprache aus DB
+    $res = $this->_database->query("SELECT iso_639_1 FROM settings_languages WHERE active = 1 ORDER BY id LIMIT 1");
+    if ($res && $row = $res->fetch_assoc()) {
+        $_SESSION['language'] = $row['iso_639_1'];
+        return $row['iso_639_1'];
+    }
+
+    // Endgültiger Fallback
+    $_SESSION['language'] = 'de';
+    return 'de';
+}
 
     private function isLanguageActive(string $lang): bool
     {

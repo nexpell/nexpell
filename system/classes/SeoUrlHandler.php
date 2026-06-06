@@ -162,6 +162,160 @@ public static function route(?string $uri = null): void
             // ansonsten weiter zu Standard-Pairs
         }
 
+        /* --------------------------------------
+         * FORUM OVERVIEW PAGINATION
+         * /{lang}/forum/overview/{page}
+         * -------------------------------------- */
+        $s2 = $segments[2] ?? null;
+        $s3 = $segments[3] ?? null;
+
+        if ($s2 !== null && strtolower($s2) === 'overview' && isset($s3) && ctype_digit($s3)) {
+            $_GET['action'] = 'overview';
+            $_GET['page']   = (int)$s3;
+            return;
+        }
+
+
+        /* ============================================================
+         * PROFILE ROUTING – SEO + SLUG + KOMPATIBEL + CANONICAL
+         * ============================================================ */
+        if (($_GET['site'] ?? '') === 'profile') {
+
+            $s2 = $segments[2] ?? null;
+            $s3 = $segments[3] ?? null;
+
+            // --------------------------------------------
+            // 1. /{lang}/profile/{id}
+            // --------------------------------------------
+            if ($s2 !== null && ctype_digit($s2)) {
+                $_GET['userID'] = (int)$s2;
+                return;
+            }
+
+            // --------------------------------------------
+            // 2. /{lang}/profile/{slug}/{id}
+            // --------------------------------------------
+            if ($s2 !== null && $s3 !== null && ctype_digit($s3)) {
+                $_GET['userID'] = (int)$s3;
+                $_GET['slug'] = $s2;
+                return;
+            }
+
+            // --------------------------------------------
+            // 3. /{lang}/profile/{slug} → slug = username
+            //    Prüfen, ob slug eindeutig einem User zugeordnet ist
+            // --------------------------------------------
+            if ($s2 !== null && !ctype_digit($s2)) {
+
+                global $_database;
+
+                $stmt = $_database->prepare("
+                    SELECT userID 
+                    FROM user 
+                    WHERE LOWER(username) = LOWER(?)
+                    LIMIT 1
+                ");
+                $stmt->bind_param("s", $s2);
+                $stmt->execute();
+                $stmt->bind_result($uid);
+                $stmt->fetch();
+                $stmt->close();
+
+                if (!empty($uid)) {
+                    $_GET['userID'] = (int)$uid;
+                    $_GET['slug'] = $s2;
+                    return;
+                }
+            }
+
+            // --------------------------------------------
+            // 4. Alte URL-Variante: /profile/id/2
+            // --------------------------------------------
+            if ($s2 === "id" && $s3 !== null && ctype_digit($s3)) {
+                $_GET['userID'] = (int)$s3;
+                return;
+            }
+
+            // --------------------------------------------
+            // 5. Wenn nichts passt → Profil 404
+            // --------------------------------------------
+            $_GET['userID'] = null;
+            $_GET['profile_error'] = "not_found";
+            return;
+        }
+
+        /* =======================
+         * GAMETRACKER ROUTING
+         * ======================= */
+        if (($_GET['site'] ?? '') === 'gametracker') {
+
+            $s2 = $segments[2] ?? null;
+            $s3 = $segments[3] ?? null;
+
+            // /{lang}/gametracker/serverdetails/{id}
+            if ($s2 && strtolower($s2) === 'serverdetails' && $s3 && ctype_digit($s3)) {
+                $_GET['action'] = 'serverdetails';
+                $_GET['id'] = (int)$s3;
+                $_GET['serverID'] = (int)$s3;
+                return;
+            }
+
+            // /{lang}/gametracker/server/{id}
+            if ($s2 && strtolower($s2) === 'server' && $s3 && ctype_digit($s3)) {
+                $_GET['action'] = 'serverdetails';
+                $_GET['id'] = (int)$s3;
+                $_GET['serverID'] = (int)$s3;
+                return;
+            }
+
+            // /{lang}/gametracker/details/{id}
+            if ($s2 && strtolower($s2) === 'details' && $s3 && ctype_digit($s3)) {
+                $_GET['action'] = 'serverdetails';
+                $_GET['id'] = (int)$s3;
+                $_GET['serverID'] = (int)$s3;
+                return;
+            }
+
+            // Übersicht bleibt wie sie ist
+            return;
+        }
+
+        /* =======================
+         * DOWNLOADS
+         * /{lang}/downloads/detail/{id}
+         * /{lang}/downloads/{id}
+         * ======================= */
+        /* DOWNLOADS Routing (HIER MUSS ES HIN) */
+        if (($_GET['site'] ?? '') === 'downloads') {
+            $s2 = $segments[2] ?? null;
+            $s3 = $segments[3] ?? null;
+
+            if ($s2 === 'cat_list' && ctype_digit((string)$s3)) {
+                $_GET['action']     = 'cat_list';
+                $_GET['categoryID'] = (int)$s3;
+                return;
+            }
+
+            // restliche download-routen: detail, id, page ...
+            if ($s2 === 'detail' && ctype_digit((string)$s3)) {
+                $_GET['action'] = 'detail';
+                $_GET['id']     = (int)$s3;
+                return;
+            }
+            if ($s2 !== null && ctype_digit((string)$s2)) {
+                $_GET['action'] = 'detail';
+                $_GET['id']     = (int)$s2;
+                return;
+            }
+            if ($s2 === 'page' && ctype_digit((string)$s3)) {
+                $_GET['page'] = (int)$s3;
+                return;
+            }
+        }
+
+
+
+
         // ===== Standard Key/Value-Paare ab Segment 2/3 =====
         $start = ($_GET['action'] === null) ? 2 : 3;
         for ($i = $start; $i < count($segments); $i += 2) {

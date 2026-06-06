@@ -6,85 +6,12 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-/*global $_database;
 
-// Prüfe Login
-#if (!isset($_SESSION['userID'])) {
-#    die('<div style="color:red;font-weight:bold;">❌ Kein Benutzer angemeldet!</div>');
-#}
-
-#$userID = (int)$_SESSION['userID'];
-$modulname = 'ac_plugin_widgets_setting';
-
-echo "<h2>🔍 Rechte-Test für Modul: <code>{$modulname}</code></h2>";
-echo "<p>Angemeldeter Benutzer: <strong>UserID {$userID}</strong></p>";
-
-// --- SQL: zeige alle Rollen des Users und ob sie Zugriff haben ---
-$query = "
-    SELECT 
-        ur.roleID,
-        r.role_name,
-        ar.type,
-        ar.modulname
-    FROM user_role_assignments ur
-    JOIN user_roles r ON ur.roleID = r.roleID
-    LEFT JOIN user_role_admin_navi_rights ar 
-        ON ar.roleID = ur.roleID 
-        AND ar.modulname = '" . $modulname . "'
-    WHERE ur.userID = {$userID}
-    ORDER BY r.roleID ASC
-";
-
-$result = safe_query($query);
-
-if (!$result || mysqli_num_rows($result) === 0) {
-    echo "<div style='color:red;'>⚠️ Keine Rollen gefunden.</div>";
-    exit;
-}
-
-echo "<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;'>
-        <tr style='background:#eee;'>
-            <th>roleID</th>
-            <th>role_name</th>
-            <th>type</th>
-            <th>modulname</th>
-            <th>✔ Zugriff</th>
-        </tr>";
-
-$hasAccess = false;
-while ($row = mysqli_fetch_assoc($result)) {
-    $access = ($row['modulname'] === $modulname && $row['type'] === 'link');
-    if ($access) $hasAccess = true;
-
-    echo "<tr>
-        <td>{$row['roleID']}</td>
-        <td>{$row['role_name']}</td>
-        <td>{$row['type']}</td>
-        <td>{$row['modulname']}</td>
-        <td style='text-align:center; font-weight:bold; color:" . ($access ? "green" : "gray") . ";'>" 
-            . ($access ? "✅ Ja" : "❌ Nein") . 
-        "</td>
-    </tr>";
-}
-echo "</table>";
-
-if ($hasAccess) {
-    echo "<div style='margin-top:1rem; color:green; font-weight:bold;'>✅ Dieser Benutzer HAT Zugriff auf <code>{$modulname}</code>.</div>";
-} else {
-    echo "<div style='margin-top:1rem; color:red; font-weight:bold;'>❌ Dieser Benutzer HAT KEINEN Zugriff auf <code>{$modulname}</code>.</div>";
-}
-*/
-
-
-// /includes/themes/default/index.php
-#declare(strict_types=1);
 
 require_once BASE_PATH . '/system/core/init.php';
 require_once BASE_PATH . '/system/core/builder_live.php';
 
 use nexpell\AccessControl;
-#AccessControl::checkAdminAccess('ac_plugin_widgets_setting');
-
 
 // --- Builder-Modus aktiv? ---
 $isBuilder = (isset($_GET['builder']) && $_GET['builder'] === '1');

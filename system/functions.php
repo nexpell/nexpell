@@ -12,44 +12,112 @@ function show_var($var) {
 }
 
 
-// Funktion zum Laden von CSS- und JS-Dateien aus einem Template-Verzeichnis
-function headfiles($var, $path) {
+
+
+
+
+
+function headfiles($var, $path)
+{
+    // =========================================
+    // GLOBALE NAVIGATION SETTINGS LADEN
+    // =========================================
+    if (!isset($GLOBALS['nx_settings'])) {
+
+        global $_database;
+        $GLOBALS['nx_settings'] = [];
+
+        $res = $_database->query("
+            SELECT setting_key, setting_value
+            FROM navigation_website_settings
+        ");
+
+        while ($row = $res->fetch_assoc()) {
+            $GLOBALS['nx_settings'][$row['setting_key']] = $row['setting_value'];
+        }
+    }
+    
     $css = "";
     $js  = "\n";
 
+    // SETTINGS LADEN
+    $settings = $GLOBALS['nx_settings'] ?? [];
+
+    // Theme-Engine ON/OFF
+    $themeEngine = $settings['theme_engine_enabled'] ?? "1";
+
     switch ($var) {
 
+        /* ======================================================
+           CSS LADEN (kontrolliert!)
+        ====================================================== */
         case "css":
-            $subf = is_dir($path . "css/") ? "css/" : "";
-            $f = glob($path . $subf . '*.css');
-            $fc = count($f);
 
-            if ($fc > 0) {
-                for ($b = 0; $b < $fc; $b++) {
-                    $css .= '<link type="text/css" rel="stylesheet" href="./' . $f[$b] . '" />' . "\r\n";
+            $css = "";
+
+            // SETTINGS LADEN
+            $settings = $GLOBALS['nx_settings'] ?? [];
+
+            // Theme-Engine Status (0 = aus, 1 = basic, 2 = full-theme)
+            $themeEngine = (int)($settings['theme_engine_enabled'] ?? 0);
+
+            // Theme-Pfad erkennen
+            $subf = is_dir($path . "css/") ? "css/" : "";
+            $cssPath = $path . $subf;
+
+            /* ======================================================
+               THEME ENGINE = 2  
+               => Nur stylesheet.css laden
+            ====================================================== */
+            if ($themeEngine === 2) {
+
+                $file = $cssPath . "stylesheet.css";
+
+                if (file_exists($file)) {
+                    return '<link rel="stylesheet" href="/' . $file . '">' . "\n";
+                }
+
+                // Fallback falls stylesheet nicht existiert
+                return "<!-- stylesheet.css nicht gefunden -->\n";
+            }
+
+
+            /* ======================================================
+               THEME ENGINE = 0 oder 1  
+               => Alle CSS aus dem Ordner laden
+            ====================================================== */
+            $files = glob($cssPath . '*.css');
+
+            if (!empty($files)) {
+                foreach ($files as $f) {
+                    $css .= '<link type="text/css" rel="stylesheet" href="/' . $f . '">' . "\n";
                 }
             }
+
             return $css;
 
+        /* ======================================================
+           JS AUTOMATISCH LADEN (wie gehabt)
+        ====================================================== */
         case "js":
-            $subf2 = is_dir($path . "js/") ? "js/" : "";
-            $g = glob($path . $subf2 . '*.js');
-            $fc = count($g);
 
-            if ($fc > 0) {
-                for ($d = 0; $d < $fc; $d++) {
-                    $js .= '<script defer src="./' . $g[$d] . '"></script>' . "\r\n";
+            $subf = is_dir($path . "js/") ? "js/" : "";
+            $files = glob($path . $subf . '*.js');
+
+            if (!empty($files)) {
+                foreach ($files as $file) {
+                    $js .= '<script defer src="/' . $file . '"></script>' . "\n";
                 }
             }
+
             return $js;
 
+
+
         default:
-            return "<!-- invalid parameter, use 'css', 'js' or 'components' -->";
+            return "<!-- invalid parameter -->";
     }
 }
-
-
-
 
 // -- SYSTEM FILE INCLUDE -- //
 // Diese Funktion lädt Systemdateien sicher und gibt eine Fehlermeldung aus, falls die Datei nicht gefunden wird
@@ -429,9 +497,11 @@ systeminc('classes/PluginUninstaller');
 systeminc('classes/ThemeUninstaller');
 systeminc('classes/LanguageService');
 systeminc('classes/LanguageManager');
-systeminc('classes/DatabaseMigrationHelper');
 systeminc('classes/SeoUrlHandler');
 systeminc('classes/PluginManager');
+//systeminc('classes/UpdaterFileInstaller');
+systeminc('classes/CMSUpdater');
+systeminc('classes/CMSDatabaseMigration');
 
 // Besucherstatistik
 systeminc('visitor_log_statistic');

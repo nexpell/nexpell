@@ -1,41 +1,114 @@
 <?php
+// ==========================================================
+// Session starten (für Sprache, Login, Theme-Toggle etc.)
+// ==========================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+// ==========================================================
+// Sprache per ?setlang=xx wechseln → in Session speichern
+// ==========================================================
+if (isset($_GET['setlang'])) {
+    $lang = preg_replace('/[^a-z]/', '', $_GET['setlang']); // Sicherheitsfilter
+    $_SESSION['language'] = $lang;
+
+    if (isset($languageService)) {
+        $languageService->setLanguage($lang);
+    }
+
+    header("Location: " . strtok($_SERVER['REQUEST_URI'], '?'));
+    exit;
 }
 
 use webspell\LanguageService;
 use nexpell\SeoUrlHandler;
 use nexpell\PluginManager;
 
-// URL-Routing
+// ==========================================================
+// SEO-URL Routing (schöne URLs wie /news/123 auflösen)
+// ==========================================================
 SeoUrlHandler::route();
 
-// PluginManager initialisieren
+// ==========================================================
+// PluginManager initialisieren (Seiten + Widgets laden)
+// ==========================================================
 $pluginManager = new PluginManager($_database);
 $currentSite = $_GET['site'] ?? 'start';
 
-// Sprache aus Session laden oder Standard setzen
-$currentLang = $_SESSION['language'] ?? 'de';
-$_SESSION['language'] = $currentLang;
+// ==========================================================
+// Sprache erneut für Redirect-Variante ?setlang setzen
+// (Erhalt der URL-Parameter ohne setlang)
+// ==========================================================
+if (isset($_GET['setlang'])) {
 
+    $lang = strtolower(preg_replace('/[^a-z]/', '', $_GET['setlang']));
+    $_SESSION['language'] = $lang;
+
+    if (isset($languageService) && method_exists($languageService, 'setLanguage')) {
+        $languageService->setLanguage($lang);
+    }
+
+    $params = $_GET;
+    unset($params['setlang']);
+
+    $target = $_SERVER['PHP_SELF'];
+    if (!empty($params)) {
+        $target .= '?' . http_build_query($params);
+    }
+
+    header("Location: $target", true, 302);
+    exit;
+}
+
+// ==========================================================
+// LanguageService initialisieren + aktive Sprache ermitteln
+// ==========================================================
 if (!isset($languageService)) {
     $languageService = new LanguageService($_database);
 }
+
+$currentLang = $_SESSION['language'] ?? $languageService->detectLanguage();
 $languageService->setLanguage($currentLang);
+
+// Alte Variable für Kompatibilität
 $_language = $languageService;
 
 // Aktuelle Seite für Widgets
 $page = $_GET['site'] ?? 'index';
 $page_escaped = mysqli_real_escape_string($GLOBALS['_database'], $page);
 
-// Widgets laden
+
+
+
+
+// ==========================================================
+// HTML-THEME aus DB übernehmen
+// auto = startet immer als light (wichtig – JS switcht später)
+// ==========================================================
+$settings = [];
+
+$res = $_database->query("
+    SELECT setting_key, setting_value
+    FROM navigation_website_settings
+");
+
+while ($row = $res->fetch_assoc()) {
+    $settings[$row['setting_key']] = $row['setting_value'];
+}
+$dbTheme = $settings['navbar_modus'] ?? 'auto';
+$htmlTheme = ($dbTheme === 'auto') ? 'light' : $dbTheme;
+
+// ==========================================================
+// Widgets für die aktuelle Seite aus DB laden
+// ==========================================================
 $positions = [];
 $res = safe_query("SELECT * FROM settings_widgets_positions WHERE page='$page_escaped' ORDER BY position, sort_order ASC");
 while ($row = mysqli_fetch_assoc($res)) {
     $positions[$row['position']][] = $row['widget_key'];
 }
 
-// Widgets rendern
+// Widgets rendern und nach Bereichen sortieren
 $allPositions = ['top','undertop','left','maintop','mainbottom','right','bottom'];
 $widgetsByPosition = [];
 foreach ($allPositions as $position) {
@@ -50,7 +123,9 @@ foreach ($allPositions as $position) {
     }
 }
 
-// Plugin nur im Main-Content rendern
+// ==========================================================
+// Hauptinhalt des Plugins laden (site=xyz)
+// ==========================================================
 if (!function_exists('get_mainContent')) {
     function get_mainContent(): string
     {
@@ -60,7 +135,7 @@ if (!function_exists('get_mainContent')) {
         if ($pluginFile) {
             $pluginName = basename($pluginFile, '.php');
 
-            // Plugin-Assets **registrieren**, aber noch nicht ausgeben
+            // Plugin-CSS/JS registrieren, aber NICHT ausgeben
             $pluginManager->loadPluginAssets($pluginName);
 
             ob_start();
@@ -72,7 +147,9 @@ if (!function_exists('get_mainContent')) {
     }
 }
 
-// Theme laden
+// ==========================================================
+// Aktives Website-Theme ermitteln (default, lux etc.)
+// ==========================================================
 $currentTheme = 'lux';
 $theme_name = 'default';
 $result = safe_query("SELECT * FROM settings_themes WHERE modulname='default'");
@@ -80,21 +157,26 @@ if ($row = mysqli_fetch_assoc($result)) {
     $currentTheme = $row['themename'] ?: 'lux';
 }
 
-// SEO/Meta laden
+// ==========================================================
+// SEO-Metadaten der aktuellen Seite laden
+// ==========================================================
 require_once BASE_PATH.'/system/seo_meta_helper.php';
 $meta = getSeoMeta($page);
 
-// CSS/JS im <head>
-// Plugin im Main-Content registrieren, aber noch nicht rendern
+// ==========================================================
+// Plugin-CSS/JS für späteren <head> Ausgaben vorbereiten
+// ==========================================================
 $pluginFile = $pluginManager->loadPluginPage($currentSite);
 if ($pluginFile) {
     $pluginName = basename($pluginFile, '.php');
-    $pluginManager->loadPluginAssets($pluginName); // registriert CSS/JS
+    $pluginManager->loadPluginAssets($pluginName);
 }
 
-// CSS für <head> vorbereiten
 $plugin_css = $pluginManager->cssOutput;
 $plugin_js  = $pluginManager->jsOutput;
 
-// Live-Visitor Tracking
+// ==========================================================
+// Live-Visitor Statistik aktualisieren
+// zählt Seitenbesuche, Online-Zeit etc.
+// ==========================================================
 live_visitor_track($currentSite);

@@ -75,7 +75,11 @@ public static function checkAdminAccess($modulname, bool $apiMode = false)
         }
 
         // ⛔ DEIN ORIGINALER FEHLERTEXT UNVERÄNDERT ⛔
-        $errorMessage = "<link rel='stylesheet' href='/includes/themes/default/css/dist/yeti/bootstrap.min.css'/>
+        $errorMessage = "<link href='/admin/css/bootstrap.min.css' rel='stylesheet'>
+    <link href='/admin/css/bootstrap-icons.min.css' rel='stylesheet'>
+    <link href='/admin/css/page.css' rel='stylesheet'>
+    <link href='/admin/css/metisMenu.css' rel='stylesheet'>
+    
             <div class='alert alert-danger text-center mt-5'>
                 <i class='bi bi-shield-lock-fill fs-4'></i><br>
                 <strong>Zugriff verweigert</strong><br>
@@ -88,7 +92,7 @@ public static function checkAdminAccess($modulname, bool $apiMode = false)
                     Dieser Bereich ist nur für Benutzer mit der entsprechenden <b>Admin-Rolle</b> 
                     oder speziellen <b>Zugriffsrechten</b> freigegeben.<br>
                     Falls du Zugriff benötigst, bitte einen Administrator, 
-                    dir das Recht <code>ac_plugin_widgets_setting</code> 
+                    dir das Recht <code><i>$modulnameDisplay</i></code> 
                     unter <em>Benutzerrollen & Rechte</em> zuzuweisen.<hr>
                     <small class='text-muted'>
                         Falls du glaubst, dass es sich um einen Fehler handelt, 
@@ -341,53 +345,24 @@ private static function hasAnyRoleAccess(string $modulname, int $userID): bool
         }
         return $refs;
     }
-    public static function userHasRole($userID, $role): bool
-    {
-        global $_database;
 
-        if (!($_database instanceof \mysqli)) {
-            return false;
-        }
+    public static function userHasRole(int $userID, string $roleName): bool
+{
+    global $_database;
 
-        $userID = (int)$userID;
-        if ($userID <= 0) {
-            return false;
-        }
+    $roleName = self::escape($roleName);
 
-        if (is_numeric($role)) {
-            $roleID = (int)$role;
-            $stmt = $_database->prepare("
-                SELECT 1
-                FROM user_role_assignments
-                WHERE userID = ? AND roleID = ?
-                LIMIT 1
-            ");
-            if (!$stmt) {
-                return false;
-            }
-            $stmt->bind_param("ii", $userID, $roleID);
-        } else {
-            $roleName = trim((string)$role);
-            if ($roleName === '') {
-                return false;
-            }
-            $stmt = $_database->prepare("
-                SELECT 1
-                FROM user_role_assignments ura
-                JOIN user_roles r ON r.roleID = ura.roleID
-                WHERE ura.userID = ?
-                  AND (r.role_name = ? OR r.modulname = ?)
-                LIMIT 1
-            ");
-            if (!$stmt) {
-                return false;
-            }
-            $stmt->bind_param("iss", $userID, $roleName, $roleName);
-        }
+    $query = "
+        SELECT r.role_name
+        FROM user_roles r
+        JOIN user_role_assignments ura ON ura.roleID = r.roleID
+        WHERE ura.userID = $userID
+          AND r.role_name = '$roleName'
+        LIMIT 1
+    ";
 
-        $stmt->execute();
-        $stmt->store_result();
+    $res = $_database->query($query);
+    return ($res && $res->num_rows > 0);
+}
 
-        return $stmt->num_rows > 0;
-    }
 }

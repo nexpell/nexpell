@@ -23,6 +23,7 @@
 <!-- reCAPTCHA Loader -->
 <script src="https://www.google.com/recaptcha/api.js?hl=de" async defer></script>
 
+
 <?php
 if (defined('DEBUG_PERFORMANCE') && DEBUG_PERFORMANCE) {
     $userId = $_SESSION['userID'] ?? null; // Session-Variable prüfen
