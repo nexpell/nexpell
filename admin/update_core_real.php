@@ -475,15 +475,7 @@ $updates = array_values(array_filter(
             return true;
         }
 
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
-            return true;
-        }
-
-        return false;
+return false;
     }
 ));
 
@@ -604,6 +596,10 @@ $updates = array_filter(
             return false;
         }
 
+        if (version_compare((string)$entry["version"], CURRENT_VERSION, "<=")) {
+            return false;
+        }
+
         // 1) Kanal-Regeln
         $allowedByChannel = match ($channel) {
             'stable' => $entry['channel'] === 'stable',
@@ -698,6 +694,10 @@ $updates = array_filter(
     function ($entry) use ($channel, $user_email, $client_ip) {
 
         if (!is_array($entry) || empty($entry['version']) || empty($entry['channel'])) {
+            return false;
+        }
+
+        if (version_compare((string)$entry["version"], CURRENT_VERSION, "<=")) {
             return false;
         }
 
@@ -927,15 +927,7 @@ $updates = array_values(array_filter(
             return true;
         }
 
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
-            return true;
-        }
-
-        return false;
+return false;
     }
 ));
 
