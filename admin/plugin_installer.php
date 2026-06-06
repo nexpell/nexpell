@@ -154,7 +154,6 @@ function loadPluginsRegistry(string $url): array
     if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) {
         throw new RuntimeException('Registry HTTP error');
     }
-    curl_close($ch);
 
     $data = json_decode($json, true);
     if (!isset($data['plugins']) || !is_array($data['plugins'])) {
