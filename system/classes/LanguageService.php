@@ -6,13 +6,9 @@ class LanguageService
 {
     private \mysqli $_database;
 
-    public string $currentLanguage;
+    public string $currentLanguage = 'en';
 
-    /** Aktive Sprache (merged) */
-    #protected array $module = [];
     public array $module = [];
-
-    /** Fallback-Sprache (z. B. EN) */
     protected array $fallback = [];
 
     protected string $fallbackLanguage = 'en';
@@ -28,78 +24,9 @@ class LanguageService
             session_start();
         }
 
-        if (isset($_SESSION['language'])) {
-            $this->currentLanguage = $_SESSION['language'];
-        } else {
-            $res = $this->_database->query("SELECT default_language FROM settings LIMIT 1");
-            if ($res && $row = $res->fetch_assoc()) {
-                $this->currentLanguage = $row['default_language'] ?: 'de';
-            } else {
-                $this->currentLanguage = 'de';
-            }
-            $_SESSION['language'] = $this->currentLanguage;
-        }
+        $this->currentLanguage = $this->resolveInitialLanguage();
+        $_SESSION['language'] = $this->currentLanguage;
     }
-
-    /* ==========================================================
-       CORE MODULE LOADER (base + fallback + merge)
-    ========================================================== */
-
-public function readModule(string $module, bool $isAdmin = false): void
-{
-    // 🔥 AKTIVE SPRACHE AUS DEM SERVICE
-    $language = $this->currentLanguage;
-
-    $basePath = $isAdmin
-        ? $_SERVER['DOCUMENT_ROOT'] . '/admin/language'
-        : $_SERVER['DOCUMENT_ROOT'] . '/languages';
-
-    /* ---------- BASE + FALLBACK (1x pro Kontext) ---------- */
-    if (($isAdmin && !$this->baseLoadedAdmin) || (!$isAdmin && !$this->baseLoadedFrontend)) {
-
-        // 🔹 Fallback base (EN)
-        $fallbackBase = "{$basePath}/{$this->fallbackLanguage}/base.php";
-        if (file_exists($fallbackBase)) {
-            $language_array = [];
-            include $fallbackBase;
-            if (is_array($language_array)) {
-                $this->fallback = array_replace($this->fallback, $language_array);
-            }
-        }
-
-        // 🔹 Aktive Sprache base
-        $baseFile = "{$basePath}/{$language}/base.php";
-        if (file_exists($baseFile)) {
-            $language_array = [];
-            include $baseFile;
-            if (is_array($language_array)) {
-                $this->module = array_replace($this->module, $language_array);
-            }
-        }
-
-        $isAdmin
-            ? $this->baseLoadedAdmin = true
-            : $this->baseLoadedFrontend = true;
-    }
-
-    /* ---------- Fallback-Modul ---------- */
-    $this->loadFallback($module, $isAdmin);
-
-    /* ---------- Aktives Sprachmodul ---------- */
-    $file = "{$basePath}/{$language}/{$module}.php";
-    if (!file_exists($file)) {
-        return;
-    }
-
-    $language_array = [];
-    include $file;
-
-    if (is_array($language_array)) {
-        $this->module = array_replace($this->module, $language_array);
-    }
-}
-
-
 
     public function autoLoadActiveModule(bool $isAdmin = false): void
     {
@@ -107,19 +34,172 @@ public function readModule(string $module, bool $isAdmin = false): void
             return;
         }
 
-        $module = preg_replace('/[^a-zA-Z0-9_-]/', '', $GLOBALS['nx_active_module']);
+        $rawModule = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)$GLOBALS['nx_active_module']);
+        $module = $rawModule;
+
+        if ($isAdmin) {
+            $resolved = $this->resolveAdminModuleName($rawModule);
+            if ($resolved !== '') {
+                $module = $resolved;
+            } elseif (str_starts_with($rawModule, 'admin_')) {
+                $module = substr($rawModule, 6);
+            }
+        }
+
         $this->readModule($module, $isAdmin);
     }
 
+    public function readModule(string $module, bool $isAdmin = false): void
+    {
+        $language = $this->currentLanguage;
+        $basePath = rtrim(BASE_PATH, '/') . '/';
 
-    /* ==========================================================
-       FALLBACK LOADER (intern)
-    ========================================================== */
+        $coreBasePath = $isAdmin
+            ? $basePath . 'admin/languages'
+            : $basePath . 'languages';
+
+        if (($isAdmin && !$this->baseLoadedAdmin) || (!$isAdmin && !$this->baseLoadedFrontend)) {
+            $fallbackBase = "{$coreBasePath}/{$this->fallbackLanguage}/base.php";
+            if (file_exists($fallbackBase)) {
+                $language_array = [];
+                include $fallbackBase;
+                if (is_array($language_array)) {
+                    $this->fallback = array_replace($this->fallback, $language_array);
+                }
+            }
+
+            $baseFile = "{$coreBasePath}/{$language}/base.php";
+            if (file_exists($baseFile)) {
+                $language_array = [];
+                include $baseFile;
+                if (is_array($language_array)) {
+                    $this->module = array_replace($this->module, $language_array);
+                }
+            }
+
+            $isAdmin ? $this->baseLoadedAdmin = true : $this->baseLoadedFrontend = true;
+        }
+
+        $coreCandidates = [$module];
+        if ($isAdmin && !str_starts_with($module, 'admin_')) {
+            $coreCandidates[] = 'admin_' . $module;
+        }
+
+        foreach ($coreCandidates as $candidate) {
+            $coreFile = "{$coreBasePath}/{$language}/{$candidate}.php";
+            if (!is_file($coreFile)) {
+                continue;
+            }
+
+            $language_array = [];
+            include $coreFile;
+
+            if (!empty($language_array) && is_array($language_array)) {
+                $this->module = array_replace($this->module, $language_array);
+            }
+        }
+
+        $pluginLangPaths = $this->getPluginLanguagePaths($module);
+        $pluginFileCandidates = [$module];
+        if ($isAdmin && !str_starts_with($module, 'admin_')) {
+            $pluginFileCandidates[] = 'admin_' . $module;
+        }
+
+        foreach ($pluginLangPaths as $pluginLangPath) {
+            foreach ($pluginFileCandidates as $candidate) {
+                $pluginFallback = "{$pluginLangPath}{$this->fallbackLanguage}/{$candidate}.php";
+                if (file_exists($pluginFallback)) {
+                    $language_array = [];
+                    include $pluginFallback;
+                    if (is_array($language_array)) {
+                        $this->fallback = array_replace($this->fallback, $language_array);
+                    }
+                }
+
+                $pluginFile = "{$pluginLangPath}{$language}/{$candidate}.php";
+                if (file_exists($pluginFile)) {
+                    $language_array = [];
+                    include $pluginFile;
+                    if (is_array($language_array)) {
+                        $this->module = array_replace($this->module, $language_array);
+                    }
+                }
+            }
+        }
+    }
+
+    protected function resolveAdminModuleName(string $adminRoute): string
+    {
+        if ($adminRoute === '' || !$this->_database) {
+            return '';
+        }
+
+        $stmt = $this->_database->prepare("SELECT modulname, admin_file FROM settings_plugins WHERE activate = 1");
+        if (!$stmt) {
+            return '';
+        }
+
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $resolved = '';
+
+        while ($row = $res->fetch_assoc()) {
+            $files = array_map('trim', explode(',', (string)($row['admin_file'] ?? '')));
+            if (in_array($adminRoute, $files, true)) {
+                $resolved = (string)($row['modulname'] ?? '');
+                break;
+            }
+        }
+
+        $stmt->close();
+        return $resolved;
+    }
+
+    protected function getPluginLanguagePaths(string $module): array
+    {
+        $basePath = rtrim(BASE_PATH, '/') . '/';
+        $paths = [];
+
+        $candidates = [
+            $basePath . "includes/plugins/{$module}/languages/",
+            $basePath . "__plugins/{$module}/languages/",
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_dir($candidate)) {
+                $paths[] = $candidate;
+            }
+        }
+
+        $stmt = $this->_database->prepare(
+            "SELECT path FROM settings_plugins WHERE activate = 1 AND modulname = ? LIMIT 1"
+        );
+        if ($stmt) {
+            $stmt->bind_param("s", $module);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res->fetch_assoc();
+            $stmt->close();
+
+            $pluginPath = trim((string)($row['path'] ?? ''));
+            if ($pluginPath !== '') {
+                if (!preg_match('~^([a-zA-Z]:[\\\\/]|/)~', $pluginPath)) {
+                    $pluginPath = $basePath . ltrim($pluginPath, "/\\");
+                }
+                $pluginPath = rtrim($pluginPath, "/\\") . '/languages/';
+                if (is_dir($pluginPath)) {
+                    $paths[] = $pluginPath;
+                }
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
 
     protected function loadFallback(string $module, bool $isAdmin = false): void
     {
         $basePath = $isAdmin
-            ? $_SERVER['DOCUMENT_ROOT'] . '/admin/language'
+            ? $_SERVER['DOCUMENT_ROOT'] . '/admin/languages'
             : $_SERVER['DOCUMENT_ROOT'] . '/languages';
 
         $file = "{$basePath}/{$this->fallbackLanguage}/{$module}.php";
@@ -136,46 +216,10 @@ public function readModule(string $module, bool $isAdmin = false): void
         }
     }
 
-
-    /* ==========================================================
-       PLUGIN MODULE LOADER (mit Fallback)
-    ========================================================== */
-
     public function readPluginModule(string $pluginName): void
     {
-        $lang = $this->currentLanguage;
-
-        // 🔹 Fallback (EN)
-        $fallbackFile = $_SERVER['DOCUMENT_ROOT']
-            . "/includes/plugins/{$pluginName}/languages/{$this->fallbackLanguage}/{$pluginName}.php";
-
-        if (file_exists($fallbackFile)) {
-            $language_array = [];
-            include $fallbackFile;
-            if (is_array($language_array)) {
-                $this->fallback = array_replace($this->fallback, $language_array);
-            }
-        }
-
-        // 🔹 Aktive Sprache
-        $file = $_SERVER['DOCUMENT_ROOT']
-            . "/includes/plugins/{$pluginName}/languages/{$lang}/{$pluginName}.php";
-
-        if (!file_exists($file)) {
-            return;
-        }
-
-        $language_array = [];
-        include $file;
-
-        if (is_array($language_array)) {
-            $this->module = array_replace($this->module, $language_array);
-        }
+        $this->readModule($pluginName, false);
     }
-
-    /* ==========================================================
-       GET TEXT (mit Fallback)
-    ========================================================== */
 
     public function get(string $key): string
     {
@@ -190,47 +234,14 @@ public function readModule(string $module, bool $isAdmin = false): void
         return "[{$key}]";
     }
 
-    /* ==========================================================
-       LANGUAGE HANDLING
-    ========================================================== */
-
     public function setLanguage(string $lang): void
     {
-        $this->currentLanguage = $lang;
-        $_SESSION['language'] = $lang;
+        $this->currentLanguage = $this->normalizeLanguageCode($lang);
     }
 
     public function detectLanguage(): string
     {
-        if (isset($_SESSION['language']) && $this->isLanguageActive($_SESSION['language'])) {
-            return $_SESSION['language'];
-        }
-
-        $res = $this->_database->query(
-            "SELECT iso_639_1 FROM settings_languages WHERE active = 1 ORDER BY id LIMIT 1"
-        );
-
-        if ($res && $row = $res->fetch_assoc()) {
-            $_SESSION['language'] = $row['iso_639_1'];
-            return $row['iso_639_1'];
-        }
-
-        $_SESSION['language'] = 'de';
-        return 'de';
-    }
-
-    private function isLanguageActive(string $lang): bool
-    {
-        $stmt = $this->_database->prepare(
-            "SELECT 1 FROM settings_languages WHERE iso_639_1 = ? AND active = 1"
-        );
-        $stmt->bind_param("s", $lang);
-        $stmt->execute();
-        $stmt->store_result();
-        $active = $stmt->num_rows === 1;
-        $stmt->close();
-
-        return $active;
+        return $this->currentLanguage;
     }
 
     public function getActiveLanguages(): array
@@ -263,22 +274,36 @@ public function readModule(string $module, bool $isAdmin = false): void
         return $data ?: null;
     }
 
-    /* ==========================================================
-       MULTILANG CONTENT [[lang:xx]]
-    ========================================================== */
-
-    public function parseMultilang(string $text): string
+    protected function resolveInitialLanguage(): string
     {
-        $pattern = '/\[\[lang:' . preg_quote($this->currentLanguage, '/') . '\]\](.*?)(?=(\[\[lang:|\z))/s';
-        if (preg_match($pattern, $text, $m)) {
-            return trim($m[1]);
+        $lang = (string)($_SESSION['language'] ?? '');
+
+        if ($lang === '') {
+            $lang = (string)($GLOBALS['default_language'] ?? '');
         }
 
-        $patternFallback = '/\[\[lang:' . preg_quote($this->fallbackLanguage, '/') . '\]\](.*?)(?=(\[\[lang:|\z))/s';
-        if (preg_match($patternFallback, $text, $m)) {
-            return trim($m[1]);
+        if ($lang === '' && $this->_database) {
+            $res = $this->_database->query("SELECT default_language FROM settings LIMIT 1");
+            if ($res && ($row = $res->fetch_assoc())) {
+                $lang = (string)($row['default_language'] ?? '');
+            }
         }
 
-        return $text;
+        return $this->normalizeLanguageCode($lang !== '' ? $lang : 'en');
+    }
+
+    protected function normalizeLanguageCode(string $lang): string
+    {
+        $lang = strtolower(trim($lang));
+        if ($lang === '') {
+            return 'en';
+        }
+
+        $lang = str_replace('-', '_', $lang);
+        if (str_contains($lang, '_')) {
+            $lang = explode('_', $lang, 2)[0];
+        }
+
+        return preg_replace('/[^a-z]/', '', $lang) ?: 'en';
     }
 }

@@ -1,0 +1,171 @@
+<?php
+
+// Sprach-Array für das Modul 'settings'
+$language_array = array(
+  'admin_email'              => 'Admin E-Mail',
+  'admin_name'               => 'Admin Name',
+  'alert_transaction_invalid'=> 'Ungültige Transaktion. Bitte versuche es erneut.',
+  'clan_name'                => 'Projekt- oder Clanname',
+  'clan_tag'                 => 'Clan-Kürzel',
+  'disable_website_text'     => 'Wenn aktiviert, wird die Webseite deaktiviert und ein Hinweistext angezeigt.',
+  'general_settings'         => 'Allgemeine Einstellungen',
+  'meta_description'         => 'Meta-Beschreibung',
+  'meta_keywords'            => 'Meta-Keywords',
+  'meta_manage_btn'          => 'SEO-Metadaten verwalten',
+  'meta_manage_btn_desc'     => 'Öffnet die Verwaltung der SEO-Metadaten (Titel/Beschreibung pro Seite & Sprache).',
+  'meta_managed_notice'      => 'Hinweis: Meta-Titel und Meta-Beschreibung werden über die SEO-Metadaten verwaltet.',
+  'no_sitemap'               => 'Keine Sitemap vorhanden.',
+  'no_startpage'             => 'Keine Startseite ausgewählt.',
+  'off_pagelock'             => 'Pagelock deaktiviert',
+  'on_pagelock'              => 'Pagelock aktiviert',
+  'page_title'               => 'Seitentitel',
+  'page_url'                 => 'Seiten-URL',
+  'project_info_description' => 'Projektinformationen und grundlegende Einstellungen deiner Webseite.',
+  'recaptcha'                => 'reCAPTCHA',
+  'recaptcha_description'    => '<p><strong>Bitte bestätigen Sie, dass Sie kein Roboter sind.</strong><br>
+  Bevor Sie diese Modifikation aktivieren, benötigen Sie die reCAPTCHA API-Schlüssel.<br>
+  Folgen Sie dazu bitte dieser Schritt-für-Schritt-Anleitung:</p>
+
+  <ol>
+    <li>Erstellen Sie einen reCAPTCHA-Account unter 
+      <a href="https://www.google.com/recaptcha" target="_blank" rel="noopener noreferrer">
+        https://www.google.com/recaptcha
+      </a>.
+    </li>
+    <li>Registrieren Sie Ihre Internetadresse (Domain), auf der das reCAPTCHA verwendet werden soll.</li>
+    <li>Wählen Sie den reCAPTCHA-Typ <strong>V2 - „Ich bin kein Roboter“ Checkbox</strong> aus.</li>
+    <li>Nach der Registrierung erhalten Sie zwei Schlüssel: den <strong>Site Key</strong> und den <strong>Secret Key</strong>.</li>
+    <li>Tragen Sie diese beiden Schlüssel hier in die vorgesehenen Felder ein, um die Funktion zu aktivieren.</li>
+  </ol>
+
+  <p><em>Hinweis:</em><br>
+  Ohne diese Schlüssel kann der Schutz nicht funktionieren und die Modifikation bleibt deaktiviert.</p>
+  ',
+  'secret_key'               => 'Secret-Key',
+  'seo_url_setting'          => 'SEO-URLs',
+  'seo_urls_desc_short'      => 'Aktiviere sprechende URLs für bessere Lesbarkeit und SEO.',
+  'seo_urls_description'     => 'Wenn aktiviert, werden URLs als SEO-freundliche, sprechende Links ausgegeben.',
+  'seo_urls_disabled'        => 'SEO-URLs sind deaktiviert.',
+  'seo_urls_enabled'         => 'SEO-URLs sind aktiviert.',
+  'seo_urls_title'           => 'SEO-URL-Einstellungen',
+  'since'                    => 'Gegründet',
+  'site_settings'            => 'Webseiten-Einstellungen',
+  'sitemap_description'      => 'Hier kannst du die Sitemap prüfen und bei Bedarf neu generieren.',
+  'sitemap_invalid_xml'      => 'Die Sitemap ist ungültig (XML-Fehler).',
+  'sitemap_last_update'      => 'Letztes Update',
+  'sitemap_log_error'        => 'Fehler beim Schreiben des Logs.',
+  'sitemap_log_success'      => 'Sitemap wurde erfolgreich erstellt und protokolliert.',
+  'sitemap_missing_dir'      => 'Das Sitemap-Verzeichnis fehlt.',
+  'sitemap_no_xml'           => 'Keine sitemap.xml gefunden.',
+  'sitemap_regenerate'       => 'Sitemap neu generiert',
+  'sitemap_rename_failed'    => 'Umbenennen der bestehenden Sitemap ist fehlgeschlagen.',
+  'sitemap_title'            => 'Sitemap',
+  'sitemap_tmp_failed'       => 'Temporäre Sitemap-Datei konnte nicht erstellt werden.',
+  'sitemap_updatedir'        => 'Sitemap-Verzeichnis aktualisieren',
+  'sitemap_write_failed'     => 'Sitemap konnte nicht geschrieben werden.',
+  'sitemap_writeable'        => 'Schreibbar',
+  'social_media_active'      => 'Aktiv',
+  'social_media_desc'        => 'Pflege hier die Links zu deinen Social-Media-Profilen.',
+  'social_media_empty'       => 'Keine Social-Media-Einträge vorhanden.',
+  'social_media_intro'       => 'Social Media Links werden in Theme/Widgets angezeigt, sofern unterstützt.',
+  'social_settings'          => 'Social-Media-Einstellungen',
+  'startpage'                => 'Startseite',
+  'startpage_description'    => 'Wähle die Seite aus, die als Startseite geladen werden soll.',
+  'title_social_media'       => 'Social Media',
+  'web_key'                  => 'Web-Key',
+  'website_disable'          => 'Webseite deaktivieren',
+  'website_info_description' => 'Konfiguriere grundlegende Informationen und Verhalten deiner Webseite.',
+
+
+// alt
+    'disable_seo_urls'        => 'SEO URLs deaktivieren',
+    'disable_website_text'    => 'Deaktiviere die öffentliche Erreichbarkeit deiner Website vorübergehend. Besucher sehen eine Wartungsseite, während Administratoren weiterhin Zugriff auf das Backend haben.',
+    'enable_seo_urls'         => 'SEO URLs aktivieren',
+    'faq'                     => 'Häufig gestellte Fragen',
+    'general_settings'        => 'Allgemeine Einstellungen',
+    'home'                    => 'Startseite',
+    'info'                    => 'Information',
+    'loading'                 => 'Lädt...',
+    'loading_data'            => 'Daten werden geladen',
+    'messages'                => 'Nachrichten',
+    'meta_description'        => 'Meta-Beschreibung',
+    'meta_managed_notice'     => 'Meta-Titel und Beschreibungen werden zentral verwaltet und können hier nicht direkt bearbeitet werden.',
+    'meta_manage_btn'         => 'SEO Meta Verwaltung',
+    'meta_manage_btn_desc'    => 'SEO Meta Einstellungen bearbeiten',
+    'meta_keywords'           => 'Meta-Schlüsselwörter',
+    'new_message'             => 'Neue Nachricht',
+    'no_startpage'            => 'Keine Startseite',
+    'no_sitemap'              => 'noch keine Sitemap generiert',
+    'notifications'           => 'Benachrichtigungen',
+    'off_pagelock'            => 'Seite entsperren',
+    'on_pagelock'             => 'Seite sperren',
+    'page_title'              => 'Seitentitel',
+    'page_url'                => 'Seiten-URL',
+    'privacy_policy'          => 'Datenschutzrichtlinie',
+    'profile'                 => 'Profil',
+    'reCaptcha'               => 'reCAPTCHA',
+    'recaptcha'               => 'reCaptcha',
+    'recaptcha_description'   => '<p><strong>Bitte bestätigen Sie, dass Sie kein Roboter sind.</strong><br>
+Bevor Sie diese Modifikation aktivieren, benötigen Sie die reCAPTCHA API-Schlüssel.<br>
+Folgen Sie dazu bitte dieser Schritt-für-Schritt-Anleitung:</p>
+
+<ol>
+  <li>Erstellen Sie einen reCAPTCHA-Account unter 
+    <a href="https://www.google.com/recaptcha" target="_blank" rel="noopener noreferrer">
+      https://www.google.com/recaptcha
+    </a>.
+  </li>
+  <li>Registrieren Sie Ihre Internetadresse (Domain), auf der das reCAPTCHA verwendet werden soll.</li>
+  <li>Wählen Sie den reCAPTCHA-Typ <strong>V2 - „Ich bin kein Roboter“ Checkbox</strong> aus.</li>
+  <li>Nach der Registrierung erhalten Sie zwei Schlüssel: den <strong>Site Key</strong> und den <strong>Secret Key</strong>.</li>
+  <li>Tragen Sie diese beiden Schlüssel hier in die vorgesehenen Felder ein, um die Funktion zu aktivieren.</li>
+</ol>
+
+<p><em>Hinweis:</em><br>
+Ohne diese Schlüssel kann der Schutz nicht funktionieren und die Modifikation bleibt deaktiviert.</p>
+',
+    'register'                => 'Registrieren',
+    'secret_key'              => 'Geheimschlüssel',
+    'select_language'         => 'Sprache auswählen',
+    'seo_url_setting'         => 'SEO URLs',
+    'seo_urls_activated'      => 'SEO URLs wurden aktiviert.',
+    'seo_urls_deactivated'    => 'SEO URLs wurden deaktiviert.',
+    'seo_urls_description'    => 'Wenn aktiviert, sehen die Webseiten-Adressen einfacher und verständlicher aus.
+Suchmaschinen und Besucher können Seiten dadurch besser lesen und finden
+(z. B. /de/about statt index.php?site=about&lang=de).',
+    'seo_urls_desc_short'     => 'Aktiviere oder deaktiviere die Verwendung von SEO-freundlichen URLs.',
+    'seo_urls_disabled'       => 'SEO URLs ist deaktiviert',
+    'seo_urls_enabled'        => 'SEO URLs ist aktiviert',
+    'seo_urls_title'          => 'SEO URLs verwenden',
+    'settings'                => 'Einstellungen',
+    'settings_saved'          => 'Einstellungen gespeichert',
+    'sitemap_description'     => 'Hier kannst du die Sitemap manuell neu generieren. Das hilft Suchmaschinen, deine Website aktuell zu indexieren.',
+    'sitemap_last_update'     => 'Letzte Aktualisierung',
+    'sitemap_title'           => 'Sitemap Verwaltung',
+    'sitemap_missing_dir'     => 'Sitemap-Verzeichnis fehlt:',
+    'sitemap_writeable'       => 'Sitemap-Verzeichnis nicht schreibbar:',
+    'sitemap_updatedir'       => 'Update-Verzeichnis nicht schreibbar:',
+    'sitemap_no_xml'          => '%s hat keinen XML-String zurückgegeben.',
+    'sitemap_invalid_xml'     => 'Sitemap-XML unvollständig (kein %s gefunden).',
+    'sitemap_tmp_failed'      => 'Temporäre Datei konnte nicht erstellt werden (%s).',
+    'sitemap_write_failed'    => 'Sitemap konnte nicht geschrieben werden (%s).',
+    'sitemap_rename_failed'   => 'Umbenennen von %s nach %s fehlgeschlagen.',
+    'sitemap_log_success'     => '[sitemap] erfolgreich generiert am %s',
+    'sitemap_log_error'       => 'Sitemap-Generate-Error: %s',
+    'site_settings'           => 'Seiteneinstellungen',
+    'social_settings'         => 'Social-Media Einstellungen',
+    'social_media_active'     => 'aktiv',
+    'social_media_empty'      => 'leer',
+    'social_media_desc'       => 'Social-Media Verwaltung',
+    'social_media_intro'      => 'Hier verwaltest du alle Social-Media-Links deiner Website an einer zentralen Stelle. Anhand der Icons erkennst du Plattformen wie Facebook, Twitter oder Discord sofort und kannst die URLs bequem aktualisieren.',
+    'startpage'               => 'Startseite',
+    'startpage_description'   => 'Wähle die Seite aus, die als Startseite deiner Website angezeigt werden soll.',
+    'terms_of_service'        => 'Nutzungsbedingungen',
+    'title_social_media'      => 'Social-Media',
+    'user_settings'           => 'Benutzereinstellungen',
+    'web_key'                 => 'Web-Schlüssel',
+    'website_disable'         => 'Website deaktivieren',
+    'welcome'                 => 'Willkommen',
+    'website_info_description' => 'Hier kannst du die grundlegenden Informationen zu deiner Website sowie wichtige SEO-Einstellungen eintragen. Diese helfen, deine Seite besser in Suchmaschinen zu positionieren.',
+    'project_info_description' => 'Allgemeine Informationen zu deinem Clan oder Projekt, die auf der gesamten Seite sichtbar sind. Diese Angaben können jederzeit geändert werden.',
+);

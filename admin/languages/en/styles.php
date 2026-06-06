@@ -1,0 +1,36 @@
+<?php
+
+// Language array for the module 'styles'
+$language_array = Array(
+  'bordercolor'           => 'Table border color',
+  'category_bg'           => 'Category background',
+  'cell_bg1'              => 'Row background 1',
+  'cell_bg2'              => 'Row background 2',
+  'cell_bg3'              => 'Row background 3',
+  'cell_bg4'              => 'Row background 4',
+  'draw_color'            => 'Draw text color',
+  'error_bordercolor'     => 'Invalid color selection for "Table border color"',
+  'error_category_bg'     => 'Invalid color selection for "Category background"',
+  'error_cell_bg1'        => 'Invalid color selection for "Row background 1"',
+  'error_cell_bg2'        => 'Invalid color selection for "Row background 2"',
+  'error_cell_bg3'        => 'Invalid color selection for "Row background 3"',
+  'error_cell_bg4'        => 'Invalid color selection for "Row background 4"',
+  'error_draw_color'      => 'Invalid color selection for "Draw text color"',
+  'error_head_bg'         => 'Invalid color selection for "Title background"',
+  'error_loose_color'     => 'Invalid color selection for "Lost text color"',
+  'error_page_bg'         => 'Invalid color selection for "Page background color"',
+  'error_win_color'       => 'Invalid color selection for "Win text color"',
+  'errors'                => 'Errors have occurred',
+  'head_bg'               => 'Title background',
+  'loose_color'           => 'Lost text color',
+  'page_bg'               => 'Page background color',
+  'page_title'            => 'Homepage title',
+  'sc_plugin_info'        => 'Info for the sc file',
+  'stylesheet'            => 'Stylesheet',
+  'stylesheet_info'       => 'Do not delete any classes unless you are 100% sure what you are doing!',
+  'styles'                => 'Styles',
+  'transaction_invalid'   => 'Transaction ID invalid',
+  'update'                => 'update',
+  'win_color'             => 'Win text color',
+);
+?>

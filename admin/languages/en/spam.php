@@ -1,0 +1,42 @@
+<?php
+
+// Language array for the module 'spam'
+$language_array = array(
+    "comments_deleted" => "Comments deleted",
+    "topics_deleted" => "Topics deleted",
+    "posts_deleted" => "Posts deleted",
+    "topic_count_updated" => " times the number of posts in topics has been corrected",
+    "topics_updated" => "Topics updated",
+    "boards_updated" => "Boards updated",
+    "guestbook_deleted" => "Guestbook entries deleted",
+    "messages_deleted" => "Messages deleted",
+    "user_banned" => "User banned",
+    "userID" => "User ID",
+    "profile" => "Profile",
+    "ban_user" => "Ban user",
+    "userid_must_be_numeric" => "The user ID must be numeric",
+    "cant_delete_team_members" => "Team members cannot be deleted",
+    "transaction_invalid" => "Transaction ID invalid",
+    "nickname" => "Nickname",
+    "register_date" => "Registration date",
+    "last_login" => "Last login",
+    "activated" => "Activated",
+    "banned" => "Banned",
+    "posts" => "Posts",
+    "ip_look_up" => "Look up IP",
+    "ban_and_delete_all" => "Ban all and delete posts (for spam accounts)",
+    "ban_all" => "Ban all (for multi-accounts)",
+    "question_ban_all" => "Really ban all?",
+    "question_delete_all" => "Really delete everything?",
+    "password" => "Password",
+    "no_accounts_with_same_ips" => "No accounts with the same IP",
+    "nothing_deleted" => "nothing deleted",
+    "delete_all" => "Delete all",
+    "date" => "Date",
+    "topic" => "Topic",
+    "message" => "Message",
+    "options" => "Options",
+    "question_delete" => "Really delete?",
+    "delete" => "delete"
+);
+?>

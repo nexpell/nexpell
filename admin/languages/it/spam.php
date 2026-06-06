@@ -1,0 +1,42 @@
+<?php
+
+// Array di lingua per il modulo 'spam'
+$language_array = array(
+    "comments_deleted" => "Commenti eliminati",
+    "topics_deleted" => "Topic eliminati",
+    "posts_deleted" => "Post eliminati",
+    "topic_count_updated" => " volte il numero di post nei topic è stato corretto",
+    "topics_updated" => "Topic aggiornati",
+    "boards_updated" => "Board aggiornate",
+    "guestbook_deleted" => "Voci del guestbook eliminate",
+    "messages_deleted" => "Messaggi eliminati",
+    "user_banned" => "Utente bannato",
+    "userID" => "ID utente",
+    "profile" => "Profilo",
+    "ban_user" => "Banna utente",
+    "userid_must_be_numeric" => "L'ID utente deve essere numerico",
+    "cant_delete_team_members" => "I membri del team non possono essere eliminati",
+    "transaction_invalid" => "ID transazione non valido",
+    "nickname" => "Nickname",
+    "register_date" => "Data di registrazione",
+    "last_login" => "Ultimo accesso",
+    "activated" => "Attivato",
+    "banned" => "Bannato",
+    "posts" => "Post",
+    "ip_look_up" => "Controlla IP",
+    "ban_and_delete_all" => "Banna tutti ed elimina i post (per account spam)",
+    "ban_all" => "Banna tutti (per multi-account)",
+    "question_ban_all" => "Bannare davvero tutti?",
+    "question_delete_all" => "Eliminare davvero tutto?",
+    "password" => "Password",
+    "no_accounts_with_same_ips" => "Nessun account con lo stesso IP",
+    "nothing_deleted" => "nulla eliminato",
+    "delete_all" => "Elimina tutto",
+    "date" => "Data",
+    "topic" => "Topic",
+    "message" => "Messaggio",
+    "options" => "Opzioni",
+    "question_delete" => "Eliminare davvero?",
+    "delete" => "elimina"
+);
+?>

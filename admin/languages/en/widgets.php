@@ -1,0 +1,38 @@
+<?php
+
+$language_array = array(
+
+  'access_denied'                 => 'Access denied',
+  'actions'                       => 'Actions',
+  'apply_module_setting'          => 'Apply module setting',
+  'content_foot_activated'        => 'Footer content section &#8595;',
+  'content_head_activated'        => 'Head content section &#8593;',
+  'delete'                        => 'Delete plugin',
+  'edit'                          => 'Edit setting',
+  'foot_section_activated'        => 'Footer section &#8595;',
+  'head_activated'                => 'Page head &#8593;',
+  'head_section_activated'        => 'Head section &#8593;',
+  'id'                            => 'ID',
+  'left'                          => 'Left',
+  'left_sidebar_activated'        => '&#8592; Left sidebar',
+  'module_overview'               => 'Module overview',
+  'name'                          => 'Name',
+  'off'                           => 'Off',
+  'on'                            => 'On',
+  'overview'                      => 'Overview',
+  'plugin'                        => 'Plugin',
+  'plugin_module_widget_overview' => 'Plugin module & widget overview',
+  'plugin_name'                   => 'Plugin name',
+  'plugin_widget_overview'        => 'Plugin widget overview',
+  'right'                         => 'Right',
+  'right_left_active'             => 'Right & Left active',
+  'right_left_not_active'         => 'Right & Left not active',
+  'right_sidebar_activated'       => 'Right sidebar &#8594;',
+  'sort'                          => 'Sort',
+  'sorting'                       => 'Sorting',
+  'transaction_invalid'           => 'Transaction ID invalid',
+  'via_navigation'                => 'Above navigation &#8593;',
+  'widget'                        => 'Widget management',
+  'widget_sort'                   => 'Widget sorting',
+
+);

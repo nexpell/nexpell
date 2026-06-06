@@ -1,0 +1,36 @@
+<?php
+
+// Array di lingua per il modulo 'styles'
+$language_array = Array(
+  'bordercolor'           => 'Colore bordo tabella',
+  'category_bg'           => 'Sfondo categoria',
+  'cell_bg1'              => 'Sfondo riga 1',
+  'cell_bg2'              => 'Sfondo riga 2',
+  'cell_bg3'              => 'Sfondo riga 3',
+  'cell_bg4'              => 'Sfondo riga 4',
+  'draw_color'            => 'Colore testo pareggio',
+  'error_bordercolor'     => 'Selezione colore non valida per "Colore bordo tabella"',
+  'error_category_bg'     => 'Selezione colore non valida per "Sfondo categoria"',
+  'error_cell_bg1'        => 'Selezione colore non valida per "Sfondo riga 1"',
+  'error_cell_bg2'        => 'Selezione colore non valida per "Sfondo riga 2"',
+  'error_cell_bg3'        => 'Selezione colore non valida per "Sfondo riga 3"',
+  'error_cell_bg4'        => 'Selezione colore non valida per "Sfondo riga 4"',
+  'error_draw_color'      => 'Selezione colore non valida per "Colore testo pareggio"',
+  'error_head_bg'         => 'Selezione colore non valida per "Sfondo titolo"',
+  'error_loose_color'     => 'Selezione colore non valida per "Colore testo sconfitta"',
+  'error_page_bg'         => 'Selezione colore non valida per "Colore sfondo pagina"',
+  'error_win_color'       => 'Selezione colore non valida per "Colore testo vittoria"',
+  'errors'                => 'Si sono verificati degli errori',
+  'head_bg'               => 'Sfondo titolo',
+  'loose_color'           => 'Colore testo sconfitta',
+  'page_bg'               => 'Colore sfondo pagina',
+  'page_title'            => 'Titolo homepage',
+  'sc_plugin_info'        => 'Informazioni per il file sc',
+  'stylesheet'            => 'Stylesheet',
+  'stylesheet_info'       => 'Non eliminare classi se non sei sicuro al 100% di quello che stai facendo!',
+  'styles'                => 'Stili',
+  'transaction_invalid'   => 'ID transazione non valido',
+  'update'                => 'aggiorna',
+  'win_color'             => 'Colore testo vittoria',
+);
+?>

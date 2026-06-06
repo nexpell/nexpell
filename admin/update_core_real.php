@@ -24,43 +24,6 @@ if (file_exists($lockFile)) {
     exit;
 }
 
-if (!function_exists('nx_core_log')) {
-    function nx_core_log(string $msg): void
-    {
-        $file = __DIR__ . '/update_core_debug.log';
-        @file_put_contents(
-            $file,
-            date('[Y-m-d H:i:s] ') . $msg . PHP_EOL,
-            FILE_APPEND
-        );
-    }
-}
-
-if (!function_exists('nx_delete_dir')) {
-    function nx_delete_dir(string $dir): void
-    {
-        if (!is_dir($dir)) {
-            return;
-        }
-
-        $files = scandir($dir);
-        foreach ($files as $file) {
-            if ($file === '.' || $file === '..') {
-                continue;
-            }
-
-            $path = $dir . '/' . $file;
-            if (is_dir($path)) {
-                nx_delete_dir($path);
-            } else {
-                @unlink($path);
-            }
-        }
-
-        @rmdir($dir);
-    }
-}
-
 
 /* =====================================================
    🚀 AB HIER BEGINNT DER NEUE UPDATER
@@ -97,6 +60,80 @@ global $_language, $_database;
 
 $tpl = new Template();
 $data_array = [];
+
+if (!function_exists('nx_t')) {
+    function nx_t(string $key, string $fallback = ''): string
+    {
+        global $languageService;
+
+        if (isset($languageService) && method_exists($languageService, 'get')) {
+            $val = (string)$languageService->get($key);
+            if ($val !== '' && $val !== '[' . $key . ']') {
+                return $val;
+            }
+        }
+
+        return $fallback;
+    }
+}
+
+if (!function_exists('nx_download_site_host')) {
+    function nx_download_site_host(): string
+    {
+        $candidates = [
+            $_SERVER['HTTP_HOST'] ?? '',
+            $_SERVER['SERVER_NAME'] ?? '',
+        ];
+
+        foreach ($candidates as $candidate) {
+            $host = strtolower(trim((string)$candidate));
+            $host = preg_replace('/:\d+$/', '', $host);
+            $host = preg_replace('/[^a-z0-9.\-]/i', '', $host);
+
+            if ($host !== '') {
+                return $host;
+            }
+        }
+
+        return 'unknown';
+    }
+}
+
+if (!function_exists('nx_append_download_site')) {
+    function nx_append_download_site(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+
+        if (!str_contains($url, 'system/download.php')) {
+            return $url;
+        }
+
+        $site = nx_download_site_host();
+        if ($site === 'unknown') {
+            return $url;
+        }
+
+        if (preg_match('/([?&])site=/', $url)) {
+            return $url;
+        }
+
+        $separator = str_contains($url, '?') ? '&' : '?';
+
+        return $url . $separator . 'site=' . rawurlencode($site);
+    }
+}
+
+$data_array['update_title'] = nx_t('update_title', 'Nexpell Core Updater');
+$data_array['update_subtitle'] = nx_t('update_subtitle', 'Core-Updates prüfen, herunterladen und installieren');
+$data_array['update_channel_title'] = nx_t('update_channel_title', 'Update-Kanal');
+$data_array['update_channel_hint'] = nx_t('update_channel_hint', 'Wähle aus, welche Art von Updates angezeigt und installiert werden sollen.');
+$data_array['update_progress_title'] = nx_t('update_progress_title', 'Update-Fortschritt');
+$data_array['update_steps_title'] = nx_t('update_steps_title', 'Schritte');
+$data_array['update_log_title'] = nx_t('update_log_title', 'Updates');
+$data_array['update_footer_hint'] = nx_t('update_footer_hint', 'Sicherer Core-Updater · Nexpell CMS');
 
 $version_file = __DIR__ . '/../system/version.php';
 $core_version = file_exists($version_file) ? include $version_file : '1.0.0';
@@ -185,6 +222,7 @@ $action = $_GET['action'] ?? 'start';
 // ============================================================
 // 🧩 Update-Info-Datei abrufen und prüfen
 // ============================================================
+$local_update_info = realpath(__DIR__ . '/../update_info_v2.json') ?: (__DIR__ . '/../update_info_v2.json');
 $update_info_url = "https://update.nexpell.de/updates/update_info_v2.json";
 $http_status = "unbekannt";
 $error_reason = "";
@@ -226,7 +264,19 @@ function nx_checkUpdateSource(string $url, &$http_status): string {
 
 
 // --- Datei abrufen ---
-$update_info_json = @file_get_contents($update_info_url);
+$update_info_json = '';
+$update_info_source = $update_info_url;
+
+if (is_file($local_update_info)) {
+    $update_info_json = (string)@file_get_contents($local_update_info);
+    if ($update_info_json !== '') {
+        $update_info_source = $local_update_info;
+    }
+}
+
+if ($update_info_json === '') {
+    $update_info_json = (string)@file_get_contents($update_info_url);
+}
 
 // --- Fehler: Datei nicht erreichbar ---
 if (!$update_info_json) {
@@ -309,6 +359,17 @@ if (json_last_error() !== JSON_ERROR_NONE || !isset($update_info['updates']) || 
 #    fn($entry) => version_compare($entry['version'], CURRENT_VERSION, '>')
 #));
 
+if (!empty($update_info['updates']) && is_array($update_info['updates'])) {
+    usort($update_info['updates'], static function (array $a, array $b): int {
+        $verCompare = version_compare((string)($a['version'] ?? '0'), (string)($b['version'] ?? '0'));
+        if ($verCompare !== 0) {
+            return $verCompare;
+        }
+
+        return ((int)($a['build'] ?? 0)) <=> ((int)($b['build'] ?? 0));
+    });
+}
+
 // -------------------------------------------------------
 // 🔧 Update-Kanal
 // -------------------------------------------------------
@@ -367,10 +428,6 @@ $updates = array_values(array_filter(
         $version = (string)$entry['version'];
         $build   = (int)($entry['build'] ?? 1);
 
-        nx_core_log(
-            "[UPDATER] {$version} | build {$build} | channel {$entry['channel']} | installed " .
-            ($installedBuilds[$version] ?? 0)
-        );
 
         // ------------------------------
         // 1️⃣ KANAL-REGELN
@@ -823,10 +880,6 @@ $updates = array_values(array_filter(
         $version = (string)$entry['version'];
         $build   = (int)($entry['build'] ?? 1);
 
-        nx_core_log(
-            "[UPDATER] {$version} | build {$build} | channel {$entry['channel']} | installed " .
-            ($installedBuilds[$version] ?? 0)
-        );
 
         // ------------------------------
         // 1️⃣ KANAL-REGELN
@@ -1423,9 +1476,15 @@ if ($all_updates_succeeded) {
         // -----------------------------------
         // AB HIER ERST DOWNLOAD & ZIP
         // -----------------------------------
-        $zip_url  = $update['zip_url'];
+        $zip_url  = nx_append_download_site((string)$update['zip_url']);
         $zip_file = "$tmp_dir/update_{$version}.zip";
         $sql_file = "$tmp_dir/migrations/{$version}.php";
+
+        // Prevent stale migration files from previous failed runs.
+        if (file_exists($sql_file)) {
+            @unlink($sql_file);
+            $migrator->log("🧹 Alte tmp-Migration {$version}.php entfernt");
+        }
 
         $migrator->log("⬇️ Lade Update {$version} (build {$build})");
 
@@ -1509,7 +1568,24 @@ if ($all_updates_succeeded) {
                 }
 
                 if (!$migrationFound) {
-                    $migrator->log("⚠️ Version {$version} enthält keine Datenbank-Migration (Datei-Update).");
+                    // Fallback: use local migration file if present after file update step.
+                    $localMigration = __DIR__ . "/update_core/migrations/{$version}.php";
+                    if (file_exists($localMigration)) {
+                        if (!is_dir(dirname($sql_file))) {
+                            mkdir(dirname($sql_file), 0755, true);
+                        }
+                        if (@copy($localMigration, $sql_file)) {
+                            $migrator->log("Migration {$version}.php loaded from local path (fallback).");
+                            $migrationFound = true;
+                        }
+                    }
+                }
+
+                if (!$migrationFound) {
+                    if (file_exists($sql_file)) {
+                        unlink($sql_file); // ensure no stale file can be executed
+                    }
+                    $migrator->log("Version {$version} has no database migration file in update package.");
                 }
 
                 $zip->close();
@@ -1519,7 +1595,7 @@ if ($all_updates_succeeded) {
             $src = "$tmp_dir/admin/update_core/migrations/$version.php";
             if (file_exists($src)) {
                 rename($src, $sql_file);
-                $migrator->log("📦 Migration {$version}.php extrahiert");
+                $migrator->log("Migration {$version}.php extracted from ZIP.");
             }
         }
     }
@@ -1554,8 +1630,8 @@ if ($all_updates_succeeded) {
 // 🔒 Flags IMMER initialisieren
 $requiresNewUpdater = false;
 $requiresVersion    = null;
-$hardStopAfterLogs  = false;
 $updatesToRun       = [];
+$migrationExecuted  = [];
 
 /* ---------------------------------------
    Updates begrenzen (bis Hard-Stop)
@@ -1578,7 +1654,7 @@ if (!$all_updates_succeeded) {
 $steps_log[] = "
 <div class='alert alert-info mb-2'>
     <i class='bi bi-database me-2'></i>
-    <b>3️⃣ Führe Datenbank-Migrationen aus</b>
+    <b>Step 3: Run database migrations</b>
 </div>";
 
 $steps_log[] = "
@@ -1591,7 +1667,7 @@ if (empty($updatesToRun)) {
     $steps_log[] = "
     <div class='alert alert-info py-1 my-1 small'>
         <i class='bi bi-info-circle-fill me-2'></i>
-        Keine auszuführenden Migrationen gefunden.
+        No migrations found to execute.
     </div>";
 }
 
@@ -1604,10 +1680,72 @@ foreach ($updatesToRun as $update) {
     if ($version === '') {
         continue;
     }
+    $migrationExecuted[$version] = false;
 
     $sql_file = $tmp_dir . "/migrations/{$version}.php";
-    if (!file_exists($sql_file)) {
-        continue; // 📄 Kein DB-Update → sauber überspringen
+    $localMigration = __DIR__ . "/update_core/migrations/{$version}.php";
+    $zip_file = "{$tmp_dir}/update_{$version}.zip";
+    $migrationFile = null;
+
+    if (file_exists($sql_file)) {
+        $migrationFile = $sql_file;
+    } elseif (file_exists($localMigration)) {
+        $migrationFile = $localMigration;
+        $steps_log[] = "
+        <div class='alert alert-info py-1 my-1 small'>
+            <i class='bi bi-info-circle-fill me-2'></i>
+            Using local migration file for <b>{$version}</b>.
+        </div>";
+    } else {
+        // Last fallback: locate migration directly inside update ZIP with tolerant path matching.
+        if (file_exists($zip_file)) {
+            $zip = new ZipArchive();
+            if ($zip->open($zip_file) === true) {
+                $needleA = "update_core/migrations/{$version}.php";
+                $needleB = "/{$version}.php";
+                $foundName = null;
+
+                for ($zi = 0; $zi < $zip->numFiles; $zi++) {
+                    $name = (string)$zip->getNameIndex($zi);
+                    $norm = str_replace('\\', '/', $name);
+
+                    if (
+                        str_ends_with($norm, $needleA) ||
+                        str_ends_with($norm, $needleB)
+                    ) {
+                        $foundName = $name;
+                        break;
+                    }
+                }
+
+                if ($foundName !== null) {
+                    if (!is_dir(dirname($sql_file))) {
+                        mkdir(dirname($sql_file), 0755, true);
+                    }
+
+                    $payload = $zip->getFromName($foundName);
+                    if ($payload !== false && file_put_contents($sql_file, $payload) !== false) {
+                        $migrationFile = $sql_file;
+                        $steps_log[] = "
+                        <div class='alert alert-info py-1 my-1 small'>
+                            <i class='bi bi-info-circle-fill me-2'></i>
+                            Migration <b>{$version}</b> loaded from ZIP entry <code>" . htmlspecialchars($foundName, ENT_QUOTES, 'UTF-8') . "</code>.
+                        </div>";
+                    }
+                }
+
+                $zip->close();
+            }
+        }
+
+        if ($migrationFile === null) {
+            $steps_log[] = "
+            <div class='alert alert-warning py-1 my-1 small'>
+                <i class='bi bi-exclamation-triangle-fill me-2'></i>
+                No DB migration file for <b>{$version}</b>.
+            </div>";
+            continue;
+        }
     }
 
     $migrator    = new \nexpell\CMSDatabaseMigration($_database);
@@ -1618,7 +1756,7 @@ foreach ($updatesToRun as $update) {
         ob_start();
 
         // 🔥 MIGRATION LADEN
-        $migration = include $sql_file;
+        $migration = include $migrationFile;
 
         if (!is_callable($migration)) {
             throw new RuntimeException("Migration {$version} ist nicht callable.");
@@ -1655,6 +1793,7 @@ foreach ($updatesToRun as $update) {
             <i class='bi bi-database-check me-2'></i>
             Migration <b>{$version}</b> erfolgreich abgeschlossen.
         </div>";
+        $migrationExecuted[$version] = true;
 
         /* ====================================================
            ✅ HISTORY NUR BEI ERFOLG
@@ -1710,6 +1849,19 @@ foreach ($updatesToRun as $update) {
 
 
 $steps_log[] = "</div></div>";
+
+
+
+
+
+
+
+    // ============================================================
+    // 🧩 Schritt 4: Dateien entpacken & Änderungen auflisten
+    // ============================================================
+/* ============================================================
+   🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
+   ============================================================ */
 /* ============================================================
    🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
    ============================================================ */
@@ -1752,9 +1904,21 @@ foreach ($updatesToRun as $update) {
     $channel   = $update['channel'] ?? 'stable';
     $notes     = $update['notes'] ?? '';
     $zip_file  = "{$tmp_dir}/update_{$version}.zip";
+    $localMigration = __DIR__ . "/update_core/migrations/{$version}.php";
 
     if (!file_exists($zip_file)) {
         continue;
+    }
+
+    if (file_exists($localMigration) && empty($migrationExecuted[$version])) {
+        $steps_log[] = "
+        <div class='alert alert-danger py-1 my-1 small'>
+            <i class='bi bi-x-circle-fill me-2'></i>
+            Version <b>{$version}</b> hat eine Migration, diese wurde aber nicht ausgeführt.
+            Update wird gestoppt, um inkonsistente Datenbankstände zu vermeiden.
+        </div>";
+        $all_updates_succeeded = false;
+        break;
     }
 
     /* ===============================
@@ -1806,16 +1970,6 @@ foreach ($updatesToRun as $update) {
             }
         }
     }
-    /* ===============================
-       🗑️ delete_Ordner
-    ================================ */
-    if (!empty($update['delete_dirs'])) {
-        foreach ($update['delete_dirs'] as $rel) {
-            $full = $extract_path . '/' . ltrim($rel, '/');
-            nx_delete_dir($full);
-            $files_deleted[] = $rel . ' (Ordner)';
-        }
-    }
 
     /* ====================================================
        ✅ UPDATE-HISTORY (IMMER VOR HARD STOP)
@@ -1845,12 +1999,36 @@ foreach ($updatesToRun as $update) {
        ⛔ HARD STOP – NUR NACH HISTORY
     ===================================================== */
     if (!empty($update['requires_new_updater'])) {
-        $requiresNewUpdater = true;
-        $requiresVersion    = $version;
-        $hardStopAfterLogs  = true;
-        break; // PATCH: nur Update-Schleife stoppen
-    }
 
+        $lockDir = __DIR__ . '/../update_core';
+        if (!is_dir($lockDir)) {
+            mkdir($lockDir, 0755, true);
+        }
+
+        file_put_contents(
+            $lockDir . '/.updater_lock',
+            json_encode([
+                'version' => $version,
+                'time'    => time()
+            ])
+        );
+
+        $data_array['content'] = "
+        <div class='alert alert-warning'>
+            <i class='bi bi-exclamation-triangle-fill me-2'></i>
+            <b>Updater {$version} wurde installiert.</b><br><br>
+            Der Update-Prozess wurde bewusst angehalten,
+            damit der neue Updater neu geladen wird.
+        </div>
+
+        <a href='admincenter.php?site=update_core&action=start'
+           class='btn btn-secondary mt-3'>
+            Neuer Updater laden
+        </a>";
+
+        echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
+        exit;
+    }
 }
 
 /* ---------------------------------------
@@ -1883,42 +2061,6 @@ if ($changes) {
 }
 
 $steps_log[] = "</div></div>";
-
-/* ====================================================
-   ⛔ HARD STOP NACH LOG-AUSGABE (PATCH)
-==================================================== */
-if ($hardStopAfterLogs === true && $requiresVersion !== null) {
-
-    $lockDir = __DIR__ . '/../admin/update_core';
-    if (!is_dir($lockDir)) {
-        mkdir($lockDir, 0755, true);
-    }
-
-    file_put_contents(
-        $lockDir . '/.updater_lock',
-        json_encode([
-            'version' => $requiresVersion,
-            'time'    => time()
-        ])
-    );
-
-    $steps_log[] = "
-    <div class='alert alert-warning mt-3'>
-        <i class='bi bi-exclamation-triangle-fill me-2'></i>
-        <b>Updater {$requiresVersion} wurde installiert.</b><br><br>
-        Alle Updates wurden protokolliert.<br>
-        Der Update-Prozess wird jetzt bewusst angehalten,
-        damit der neue Updater geladen werden kann.
-    </div>
-
-    <div class='text-center mt-3'>
-        <a href='admincenter.php?site=update_core&action=start'
-           class='btn btn-secondary'>
-            Neuer Updater laden
-        </a>
-    </div>";
-}
-
 
 /* ====================================================
    🏁 Version final setzen (NUR wenn kein Hard-Stop)
@@ -2056,4 +2198,7 @@ if ($action === 'finish') {
     echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
     
 }
+
+
+
 
