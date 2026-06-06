@@ -42,6 +42,10 @@ $baseScheme = isset($baseParsed['scheme']) ? strtolower((string)$baseParsed['sch
 $baseHost   = (string)($baseParsed['host'] ?? $requestHost);
 $basePort   = isset($baseParsed['port']) ? ':' . (int)$baseParsed['port'] : '';
 $basePath   = trim((string)($baseParsed['path'] ?? ''), '/');
+$scriptBasePath = trim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+if ($basePath === '' && $scriptBasePath !== '') {
+    $basePath = $scriptBasePath;
+}
 
 $scheme = $baseScheme . '://';
 $host   = $baseHost . $basePort;
@@ -254,23 +258,33 @@ $jsonLdGraphs[] = [
 <script type="application/ld+json"><?= json_encode($graph, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 <?php endforeach; ?>
 
+<?php
+$theme_name = trim((string)($theme_name ?? '')) !== '' ? (string)$theme_name : 'default';
+$currentTheme = trim((string)($currentTheme ?? '')) !== '' ? (string)$currentTheme : 'lux';
+$bootstrapFile = defined('BASE_PATH') ? BASE_PATH . '/includes/themes/' . $theme_name . '/css/dist/' . $currentTheme . '/bootstrap.min.css' : '';
+if ($bootstrapFile === '' || !is_file($bootstrapFile)) {
+    $luxBootstrapFile = defined('BASE_PATH') ? BASE_PATH . '/includes/themes/' . $theme_name . '/css/dist/lux/bootstrap.min.css' : '';
+    if ($luxBootstrapFile !== '' && is_file($luxBootstrapFile)) {
+        $currentTheme = 'lux';
+    }
+}
+?>
 <!-- ===================== -->
 <!-- FAVICONS -->
 <!-- ===================== -->
-<link rel="icon" href="/includes/themes/default/images/favicon.ico">
+<link rel="icon" href="<?= htmlspecialchars($baseRoot, ENT_QUOTES) ?>/includes/themes/default/images/favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32"
-      href="/includes/themes/default/images/favicon-32.png">
+      href="<?= htmlspecialchars($baseRoot, ENT_QUOTES) ?>/includes/themes/default/images/favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192"
-      href="/includes/themes/default/images/favicon-192.png">
+      href="<?= htmlspecialchars($baseRoot, ENT_QUOTES) ?>/includes/themes/default/images/favicon-192.png">
 <link rel="apple-touch-icon" sizes="180x180"
-      href="/includes/themes/default/images/favicon-180.png">
+      href="<?= htmlspecialchars($baseRoot, ENT_QUOTES) ?>/includes/themes/default/images/favicon-180.png">
 
 <!-- ===================== -->
 <!-- CSS -->
 <!-- ===================== -->
-<base href="/">
 <link rel="stylesheet"
-      href="/includes/themes/<?= htmlspecialchars($theme_name, ENT_QUOTES) ?>/css/dist/<?= htmlspecialchars($currentTheme, ENT_QUOTES) ?>/bootstrap.min.css">
+      href="<?= htmlspecialchars($baseRoot, ENT_QUOTES) ?>/includes/themes/<?= htmlspecialchars($theme_name, ENT_QUOTES) ?>/css/dist/<?= htmlspecialchars($currentTheme, ENT_QUOTES) ?>/bootstrap.min.css">
 
 <?= $components_css ?? '' ?>
 <?= $plugin_css ?? '' ?>

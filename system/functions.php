@@ -21,6 +21,10 @@ function headfiles(string $type, string $path): string
     ========================================= */
     $settings    = $GLOBALS['nx_settings'] ?? [];
     $themeEngine = (int)($settings['theme_engine_enabled'] ?? 0);
+    $assetBase = rtrim((string)($GLOBALS['hp_url'] ?? ''), '/');
+    $assetUrl = static function (string $file) use ($assetBase): string {
+        return ($assetBase !== '' ? $assetBase : '') . '/' . ltrim($file, '/');
+    };
 
     /* =========================================
        CSS
@@ -33,13 +37,13 @@ function headfiles(string $type, string $path): string
         if ($themeEngine === 2) {
             $file = $cssPath . 'stylesheet.css';
             return is_file($file)
-                ? '<link rel="stylesheet" href="/' . $file . '">' . PHP_EOL
+                ? '<link rel="stylesheet" href="' . htmlspecialchars($assetUrl($file), ENT_QUOTES, 'UTF-8') . '">' . PHP_EOL
                 : '';
         }
 
         $out = '';
         foreach (glob($cssPath . '*.css') ?: [] as $f) {
-            $out .= '<link rel="stylesheet" href="/' . $f . '">' . PHP_EOL;
+            $out .= '<link rel="stylesheet" href="' . htmlspecialchars($assetUrl($f), ENT_QUOTES, 'UTF-8') . '">' . PHP_EOL;
         }
         return $out;
     }
@@ -53,7 +57,7 @@ function headfiles(string $type, string $path): string
 
         $out = '';
         foreach (glob($jsPath . '*.js') ?: [] as $f) {
-            $out .= '<script defer src="/' . $f . '"></script>' . PHP_EOL;
+            $out .= '<script defer src="' . htmlspecialchars($assetUrl($f), ENT_QUOTES, 'UTF-8') . '"></script>' . PHP_EOL;
         }
         return $out;
     }

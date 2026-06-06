@@ -12,8 +12,7 @@ AccessControl::checkAdminAccess('ac_database');
 
 // Captcha/Transaction
 $CAPCLASS = new \nexpell\Captcha;
-$CAPCLASS->createTransaction();
-$hash = $CAPCLASS->getHash();
+$hash = '';
 
 // Helper: safe redirect on invalid transaction
 $requireCaptcha = static function (string $returnUrl, $CAPCLASS): void {
@@ -23,10 +22,63 @@ $requireCaptcha = static function (string $returnUrl, $CAPCLASS): void {
     }
 };
 
+$ensureBackupsTable = static function (mysqli $_database): void {
+    $_database->query("
+        CREATE TABLE IF NOT EXISTS `backups` (
+            `id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            `filename` text NOT NULL,
+            `description` text,
+            `createdby` int(11) NOT NULL DEFAULT '0',
+            `createdate` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+};
+
+$syncBackupFiles = static function (mysqli $_database, int $userID): void {
+    $backupDir = __DIR__ . '/myphp-backup-files/';
+    if (!is_dir($backupDir)) {
+        return;
+    }
+
+    $existing = [];
+    $result = $_database->query("SELECT filename FROM `backups`");
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $existing[(string)($row['filename'] ?? '')] = true;
+        }
+    }
+
+    foreach (glob($backupDir . '*.sql') ?: [] as $file) {
+        if (!is_file($file)) {
+            continue;
+        }
+
+        $filename = basename($file);
+        if ($filename === '' || isset($existing[$filename])) {
+            continue;
+        }
+
+        $description = mysqli_real_escape_string($_database, $filename);
+        $createdBy = (int)$userID;
+        $createdAt = date('Y-m-d H:i:s', (int)(filemtime($file) ?: time()));
+        $createdAtEsc = mysqli_real_escape_string($_database, $createdAt);
+        $filenameEsc = mysqli_real_escape_string($_database, $filename);
+
+        $_database->query("
+            INSERT INTO `backups` (`filename`, `description`, `createdby`, `createdate`)
+            VALUES ('$filenameEsc', '$description', '$createdBy', '$createdAtEsc')
+        ");
+        $existing[$filename] = true;
+    }
+};
+
+$ensureBackupsTable($_database);
+$syncBackupFiles($_database, (int)$userID);
+
 // POST: Upload SQL Backup
 if (isset($_POST['upload'])) {
 
-    $returnUrl = 'admincenter.php?site=backup';
+    $returnUrl = 'admincenter.php?site=database';
     $upload    = $_FILES['sql'] ?? null;
 
     $requireCaptcha($returnUrl, $CAPCLASS);
@@ -77,8 +129,44 @@ if (isset($_POST['upload'])) {
 $action   = (string)($_GET['action'] ?? '');
 $returnto = (string)($_GET['back'] ?? 'database');
 
+// GET: Download Backup
+if ($action === 'download') {
+
+    $returnUrl = 'admincenter.php?site=database';
+    $requireCaptcha($returnUrl, $CAPCLASS);
+
+    $id = (int)($_GET['id'] ?? 0);
+    $res = safe_query("SELECT filename FROM backups WHERE id='$id' LIMIT 1");
+    $row = ($res) ? mysqli_fetch_assoc($res) : null;
+    $filename = is_array($row) ? basename((string)($row['filename'] ?? '')) : '';
+
+    if ($filename === '' || !preg_match('/\.sql\z/i', $filename)) {
+        nx_redirect($returnUrl, 'danger', 'alert_not_found', false);
+    }
+
+    $backupDir = realpath(__DIR__ . '/myphp-backup-files');
+    $backupFile = ($backupDir !== false) ? realpath($backupDir . DIRECTORY_SEPARATOR . $filename) : false;
+
+    if ($backupDir === false || $backupFile === false || strpos($backupFile, $backupDir . DIRECTORY_SEPARATOR) !== 0 || !is_file($backupFile) || !is_readable($backupFile)) {
+        nx_redirect($returnUrl, 'danger', 'alert_not_found', false);
+    }
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    header('Content-Type: application/sql; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+    header('Content-Length: ' . filesize($backupFile));
+    header('Cache-Control: private, no-store, no-cache, must-revalidate');
+    header('Pragma: no-cache');
+
+    readfile($backupFile);
+    exit;
+}
+
 // GET: Delete Backup
-if (isset($_GET['delete'])) {
+elseif (isset($_GET['delete'])) {
 
     $returnUrl = 'admincenter.php?site=database';
     $requireCaptcha($returnUrl, $CAPCLASS);
@@ -283,31 +371,16 @@ elseif ($action === 'back') {
         }
 
         public function restoreDb(): int {
-            if (!file_exists($this->backupFile)) {
+            if (!is_file($this->backupFile) || !is_readable($this->backupFile)) {
                 throw new RuntimeException($this->languageService->get('error_no_backup') . ' ' . htmlspecialchars($this->backupFile));
-            }
-
-            mysqli_query($this->conn, 'SET FOREIGN_KEY_CHECKS=0');
-
-            $result = mysqli_query($this->conn, 'SHOW TABLES');
-            if (!$result) {
-                mysqli_query($this->conn, 'SET FOREIGN_KEY_CHECKS=1');
-                throw new RuntimeException('SHOW TABLES failed: ' . mysqli_error($this->conn));
-            }
-
-            while ($row = mysqli_fetch_row($result)) {
-                $table = (string)($row[0] ?? '');
-                if ($table === '' || in_array($table, $this->excludeTables, true)) {
-                    continue;
-                }
-                mysqli_query($this->conn, "DROP TABLE IF EXISTS `$table`");
             }
 
             $handle = fopen($this->backupFile, 'r');
             if (!$handle) {
-                mysqli_query($this->conn, 'SET FOREIGN_KEY_CHECKS=1');
                 throw new RuntimeException($this->languageService->get('error_backup_open') . ' ' . $this->backupFile);
             }
+
+            mysqli_query($this->conn, 'SET FOREIGN_KEY_CHECKS=0');
 
             $sql = '';
             $executed = 0;
@@ -319,14 +392,14 @@ elseif ($action === 'back') {
                     continue;
                 }
 
-                // backups-Tabelle nicht wiederherstellen
-                if (preg_match('/\b`?backups`?\b/i', $trim)) {
-                    continue;
-                }
-
                 $sql .= $line;
 
                 if (substr(trim($line), -1) === ';') {
+                    if ($this->isExcludedStatement($sql)) {
+                        $sql = '';
+                        continue;
+                    }
+
                     if (!mysqli_query($this->conn, $sql)) {
                         $err = mysqli_error($this->conn);
                         fclose($handle);
@@ -343,14 +416,27 @@ elseif ($action === 'back') {
 
             return $executed;
         }
+
+        private function isExcludedStatement(string $sql): bool {
+            foreach ($this->excludeTables as $table) {
+                $quoted = preg_quote($table, '/');
+                if (preg_match('/\b(?:TABLE|INTO|FROM|UPDATE)\s+`?' . $quoted . '`?\b/i', $sql)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     try {
         $restore = new Restore_Database($_database, $backupFile, $languageService);
         $count   = (int)$restore->restoreDb();
+        $ensureBackupsTable($_database);
+        $syncBackupFiles($_database, (int)$userID);
 
         nx_audit_action('database', 'audit_action_backup_restored', null, null, $returnUrl, ['filename' => basename($backupFile), 'count' => $count]);
-        nx_redirect($returnUrl, 'success', 'alert_backup_restored' . ' (' . $count . ')', false);
+        nx_redirect($returnUrl, 'success', $languageService->get('alert_backup_restored') . ' SQL-Statements: ' . $count, false, true);
 
     } catch (Throwable $e) {
         nx_redirect($returnUrl, 'danger', 'Restore error: ' . $e->getMessage(), true, true);
@@ -359,6 +445,11 @@ elseif ($action === 'back') {
 
 // Standardansicht
 else {
+    $CAPCLASS->createTransaction();
+    $hash = $CAPCLASS->getHash();
+
+    $syncBackupFiles($_database, (int)$userID);
+
     $resultBackups = safe_query('SELECT * FROM `backups` ORDER BY id DESC');
 
     // Card: Aktionen (Export/Optimize/Upload)
@@ -431,7 +522,6 @@ else {
                     </thead>
                     <tbody>
                     <?php
-                    $download_url = 'admin/myphp-backup-files/';
                     if ($resultBackups) {
                         while ($ds = mysqli_fetch_array($resultBackups)):
                             $id = (int)($ds['id'] ?? 0);
@@ -439,6 +529,12 @@ else {
                             $description = (string)($ds['description'] ?? '');
                             $createdby = getusername($ds['createdby']);
                             $createdate = date('d/m/Y H:i', strtotime($ds['createdate']));
+                            $CAPCLASS->createTransaction();
+                            $downloadHash = $CAPCLASS->getHash();
+                            $CAPCLASS->createTransaction();
+                            $restoreHash = $CAPCLASS->getHash();
+                            $CAPCLASS->createTransaction();
+                            $deleteHash = $CAPCLASS->getHash();
                     ?>
                         <tr>
                             <td><?= $id ?></td>
@@ -452,16 +548,16 @@ else {
                             <td><?= htmlspecialchars((string)$createdby) ?></td>
                             <td>
                                 <div class="d-inline-flex flex-wrap gap-2">
-                                    <a href="<?= $download_url . rawurlencode($filename) ?>" class="btn btn-primary d-inline-flex align-items-center gap-1 flex-row w-auto">
+                                    <a href="admincenter.php?site=database&amp;action=download&amp;id=<?= $id ?>&amp;captcha_hash=<?= htmlspecialchars($downloadHash) ?>" class="btn btn-primary d-inline-flex align-items-center gap-1 flex-row w-auto">
                                         <i class="bi bi-download"></i>Download
                                     </a>
-                                    <a href="admincenter.php?site=database&amp;action=back&amp;id=<?= $id ?>&amp;captcha_hash=<?= htmlspecialchars($hash) ?>" class="btn btn-success d-inline-flex align-items-center gap-1 flex-row w-auto">
-                                        <i class="bi bi-database-up"></i><?= $languageService->get('upload') ?>
+                                    <a href="admincenter.php?site=database&amp;action=back&amp;id=<?= $id ?>&amp;captcha_hash=<?= htmlspecialchars($restoreHash) ?>" class="btn btn-success d-inline-flex align-items-center gap-1 flex-row w-auto">
+                                        <i class="bi bi-database-up"></i><?= $languageService->get('restore') ?>
                                     </a>
 
                                     <button type="button" class="btn btn-danger d-inline-flex align-items-center gap-1 flex-row w-auto"
                                             data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
-                                            data-delete-url="admincenter.php?site=database&amp;delete=true&amp;id=<?= $id ?>&amp;captcha_hash=<?= htmlspecialchars($hash) ?>">
+                                            data-delete-url="admincenter.php?site=database&amp;delete=true&amp;id=<?= $id ?>&amp;captcha_hash=<?= htmlspecialchars($deleteHash) ?>">
                                         <i class="bi bi-trash3"></i><?= $languageService->get('delete') ?>
                                     </button>
                                 </div>

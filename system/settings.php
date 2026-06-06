@@ -524,6 +524,59 @@ function safe_query($query = "")
     if (stristr(str_replace(' ', '', $query), "unionselect") === false and
         stristr(str_replace(' ', '', $query), "union(select") === false
     ) {
+        // Backward compatibility for legacy code after removing settings columns in 1.0.4.
+        if (is_string($query) && class_exists('nexpell\\LegacySettingsCompatibility')) {
+            $query = \nexpell\LegacySettingsCompatibility::rewriteSelectQuery($query);
+        }
+
+        // Builder-driven theme compatibility after removing legacy theme tables.
+        if (is_string($query) && preg_match('/\bfrom\s+`?settings_themes`?\b/i', $query)) {
+            $themeTableExists = $_database->query("SHOW TABLES LIKE 'settings_themes'");
+            if (!$themeTableExists || mysqli_num_rows($themeTableExists) === 0) {
+                if (preg_match('/^\s*select\b/i', $query)) {
+                    if (preg_match('/\bcount\s*\(/i', $query)) {
+                        return $_database->query("SELECT 1 AS cnt, 1 AS aggregate_value");
+                    }
+
+                    return $_database->query(
+                        "SELECT
+                            1 AS themeID,
+                            'Default' AS name,
+                            'default' AS modulname,
+                            'default' AS slug,
+                            'default' AS pfad,
+                            '1.0.0' AS version,
+                            1 AS active,
+                            'lux' AS themename,
+                            'bg-light' AS navbar_class,
+                            'light' AS navbar_theme,
+                            0 AS express_active,
+                            'default_logo.png' AS logo_pic,
+                            'default_login_bg.jpg' AS reg_pic,
+                            'headlines_03.css' AS headlines,
+                            0 AS sort,
+                            'includes/themes/default/theme.json' AS manifest_path,
+                            'index.php' AS layout_file,
+                            'images/default_logo.png' AS preview_image,
+                            'Builder-driven default theme.' AS description"
+                    );
+                }
+
+                return true;
+            }
+        }
+
+        if (is_string($query) && preg_match('/\bfrom\s+`?settings_themes_installed`?\b/i', $query)) {
+            $installedThemeTableExists = $_database->query("SHOW TABLES LIKE 'settings_themes_installed'");
+            if (!$installedThemeTableExists || mysqli_num_rows($installedThemeTableExists) === 0) {
+                if (preg_match('/^\s*select\b/i', $query)) {
+                    return $_database->query("SELECT 1 AS aggregate_value");
+                }
+
+                return true;
+            }
+        }
+
         $_mysql_querys[] = $query;
 
         // ÃœberprÃ¼fe, ob die Abfrage leer ist
@@ -577,7 +630,6 @@ if ($result && mysqli_num_rows($result) > 0) {
 $components = array(
     'css' => array(
         '/components/bootstrap/css/bootstrap-icons.min.css',
-        //'/components/css/animate.css',
         '/components/css/page.css',
         '/components/css/headstyles.css',
         '/includes/plugins/navigation/css/navigation.css',
@@ -586,7 +638,6 @@ $components = array(
     'js' => array(
         '/components/jquery/jquery.min.js',
         '/components/bootstrap/js/bootstrap.bundle.min.js',
-        //'/components/js/slick.min.js',
         '/components/cookie/cookie-consent.js',
         '/includes/themes/default/js/page.js',
         '/includes/plugins/navigation/js/navigation.js',

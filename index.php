@@ -135,17 +135,33 @@ $theme_js  = headfiles("js",  $tpl->themes_path);
 $components_css = "";
 $components_js  = "";
 
+$nxAssetBase = rtrim((string)($hp_url ?? ''), '/');
+if ($nxAssetBase !== '') {
+    $nxAssetParsed = parse_url($nxAssetBase);
+    $nxAssetScriptDir = trim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? ''))), '/');
+    if ($nxAssetScriptDir !== '' && ($nxAssetParsed['path'] ?? '') === '') {
+        $nxAssetBase .= '/' . $nxAssetScriptDir;
+    }
+}
+$nxAssetUrl = static function (string $asset) use ($nxAssetBase): string {
+    if ($asset === '' || preg_match('#^(?:https?:)?//#i', $asset)) {
+        return $asset;
+    }
+
+    return ($nxAssetBase !== '' ? $nxAssetBase : '') . '/' . ltrim($asset, '/');
+};
+
 if (!empty($components['css']) && is_array($components['css'])) {
     foreach ($components['css'] as $component) {
         $components_css .= '<link rel="stylesheet" href="' .
-            htmlspecialchars($component, ENT_QUOTES, 'UTF-8') . '">' . "\n";
+            htmlspecialchars($nxAssetUrl((string)$component), ENT_QUOTES, 'UTF-8') . '">' . "\n";
     }
 }
 
 if (!empty($components['js']) && is_array($components['js'])) {
     foreach ($components['js'] as $component) {
         $components_js .= '<script src="' .
-            htmlspecialchars($component, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
+            htmlspecialchars($nxAssetUrl((string)$component), ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
     }
 }
 

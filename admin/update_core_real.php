@@ -139,6 +139,78 @@ $version_file = __DIR__ . '/../system/version.php';
 $core_version = file_exists($version_file) ? include $version_file : '1.0.0';
 define('CURRENT_VERSION', $core_version);
 
+function nx_update_normalize_initial_history(mysqli $_database, string $currentVersion, int $userID): void
+{
+    if ($currentVersion !== '1.0.3.3') {
+        return;
+    }
+
+    $tableCheck = safe_query("SHOW TABLES LIKE 'system_update_history'");
+    if (!$tableCheck || mysqli_num_rows($tableCheck) === 0) {
+        return;
+    }
+
+    $res = safe_query("
+        SELECT version, installed_at, installed_by
+        FROM system_update_history
+        ORDER BY installed_at ASC, id ASC
+    ");
+
+    $history = [];
+    while ($res && ($row = mysqli_fetch_assoc($res))) {
+        $history[] = [
+            'version' => (string)($row['version'] ?? ''),
+            'installed_at' => (int)($row['installed_at'] ?? 0),
+            'installed_by' => (int)($row['installed_by'] ?? 0),
+        ];
+    }
+
+    $hasCurrent = false;
+    $maxVersion = '';
+    $installedAt = 0;
+    $installedBy = $userID > 0 ? $userID : 1;
+
+    foreach ($history as $entry) {
+        if ($entry['version'] === $currentVersion) {
+            $hasCurrent = true;
+        }
+        if ($entry['version'] !== '' && ($maxVersion === '' || version_compare($entry['version'], $maxVersion, '>'))) {
+            $maxVersion = $entry['version'];
+        }
+        if ($entry['installed_at'] > 0 && $installedAt === 0) {
+            $installedAt = $entry['installed_at'];
+        }
+        if ($entry['installed_by'] > 0) {
+            $installedBy = $entry['installed_by'];
+        }
+    }
+
+    if ($hasCurrent) {
+        return;
+    }
+
+    if (!empty($history) && $maxVersion !== '' && version_compare($maxVersion, $currentVersion, '>=')) {
+        return;
+    }
+
+    if ($installedAt === 0) {
+        $installedAt = time();
+    }
+
+    safe_query("DELETE FROM system_update_history");
+    safe_query("
+        INSERT INTO system_update_history
+            (version, channel, build, installed_at, installed_by, success, notes)
+        VALUES
+            ('" . escape($currentVersion) . "', 'stable', 1, {$installedAt}, {$installedBy}, 1, 'Erstinstallation von Nexpell {$currentVersion}')
+    ");
+}
+
+nx_update_normalize_initial_history($_database, CURRENT_VERSION, (int)($userID ?? 1));
+
+
+
+
 
 /*$installedBuilds = [];
 
@@ -475,13 +547,6 @@ $updates = array_values(array_filter(
             return true;
         }
 
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
-            return true;
-        }
 
         return false;
     }
@@ -927,13 +992,6 @@ $updates = array_values(array_filter(
             return true;
         }
 
-        // Gleiche Version → nur höherer Build
-        if (
-            version_compare($version, CURRENT_VERSION, '==') &&
-            $build > ($installedBuilds[$version] ?? 0)
-        ) {
-            return true;
-        }
 
         return false;
     }
@@ -1338,7 +1396,7 @@ if ($action === 'progress') {
     $requiresVersion    = null;
 
     // 🕒 Zeitpunkt für Update-History
-    $installedAt = time();
+    $installedAt = 0;
 
     // 🔒 Feste Ausgangsversion für DIESEN Update-Lauf
     $baseVersion = null;
