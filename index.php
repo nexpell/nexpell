@@ -1,13 +1,13 @@
 <?php
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * nexpell 1.0 - Modern Content & Community Management System
+ * nexpell - Modern Content & Community Management System
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * @version       1.0
+ * @version       1
  * @build         Stable Release
- * @release       2025
- * @copyright     © 2025 nexpell | https://www.nexpell.de
+ * @release       2026
+ * @copyright     © 2026 nexpell | https://www.nexpell.de
  * 
  * @description   nexpell is a modern open source CMS designed for gaming
  *                communities, esports teams, and digital projects of any kind.
@@ -25,15 +25,17 @@
  *                → Wiki:    https://www.nexpell.de/wiki.html
  * 
  * ─────────────────────────────────────────────────────────────────────────────
+ *
  */
 
-
-// === Fehleranzeige aktivieren ===
+/* ==========================================================
+   1️⃣ Fehleranzeige (Dev-Modus)
+========================================================== */
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-register_shutdown_function(function() {
+register_shutdown_function(function () {
     $error = error_get_last();
     if ($error !== null) {
         echo "<pre style='background:#fee;color:#900;padding:10px;border:1px solid #900;'>";
@@ -43,123 +45,117 @@ register_shutdown_function(function() {
     }
 });
 
-// === Session starten ===
+/* ==========================================================
+   2️⃣ Session starten
+========================================================== */
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-
-
-// === Sprachsystem vorbereiten ===
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// === System-Dateien einbinden ===
-include_once("system/config.inc.php");
-include_once("system/settings.php");
-include_once("system/functions.php");
-include_once("system/themes.php");
-include_once("system/init.php");
-include_once("system/multi_language.php");
-include_once("system/init_language.php"); // setzt $languageService
-include_once("system/classes/Template.php");
-include_once("system/classes/SeoUrlHandler.php");
-include_once("system/session_update.php");
-include_once("system/visitor_log_statistic.php");
-
-// === Globale Variablen ===
-global $tpl;
-global $_database;
-global $languageService;
-
-// === Template initialisieren ===
-$tpl = new Template();
-Template::setInstance($tpl);
-
-// Jetzt kannst du getInstance() ohne Fehler aufrufen
-$instance = Template::getInstance();
-
-$theme = new Theme();
-
-$tpl->themes_path = rtrim($theme->get_active_theme(), '/\\') . DIRECTORY_SEPARATOR;
-$tpl->template_path = "templates" . DIRECTORY_SEPARATOR;
-
-// === CSS / JS Komponenten vorbereiten ===
-$components_css = "";
-if (!empty($components['css'])) {
-    foreach ($components['css'] as $component) {
-        $components_css .= '    <link type="text/css" rel="stylesheet" href="' . htmlspecialchars($component) . '" />' . "\n";
-    }
+/* ==========================================================
+   3️⃣ BASE_PATH (GANZ OBEN, EINMALIG)
+========================================================== */
+if (!defined('BASE_PATH')) {
+    define('BASE_PATH', __DIR__);
 }
 
-define("MODULE", "./includes/modules/");
-define("PLUGIN", "./includes/plugins/");
+/* ==========================================================
+   4️⃣ Core-System laden
+========================================================== */
+require_once BASE_PATH . "/system/config.inc.php";
+require_once BASE_PATH . "/system/settings.php";
+require_once BASE_PATH . "/system/functions.php";
+require_once BASE_PATH . "/system/themes.php";
 
-$components_js = "";
-if (!empty($components['js'])) {
-    foreach ($components['js'] as $component) {
-        $components_js .= '<script defer src="' . htmlspecialchars($component) . '"></script>' . "\n";
-    }
-}
+/* 🔥 ZENTRALE Sprachinitialisierung */
+require_once BASE_PATH . "/system/init_language.php";
 
-$theme_css = headfiles("css", $tpl->themes_path);
-$theme_js = headfiles("js", $tpl->themes_path);
+/* Weitere Core-Klassen */
+require_once BASE_PATH . "/system/classes/Template.php";
+require_once BASE_PATH . "/system/classes/TextFormatter.php";
+require_once BASE_PATH . "/system/classes/SeoUrlHandler.php";
+require_once BASE_PATH . "/system/session_update.php";
+require_once BASE_PATH . "/system/visitor_log_statistic.php";
+require_once BASE_PATH . "/system/classes/PluginManager.php";
 
-$availableLangs = ['de', 'en', 'it'];
-
+/* ==========================================================
+   5️⃣ Routing (JETZT!)
+========================================================== */
 $requestUri = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
-$segments = explode('/', $requestUri);
+$segments   = explode('/', $requestUri);
 
-// Sprache
-if (isset($_GET['lang']) && in_array($_GET['lang'], $availableLangs)) {
-    $lang = $_GET['lang'];
-} elseif (isset($segments[0]) && in_array($segments[0], $availableLangs)) {
-    $lang = $segments[0];
-} elseif (isset($_SESSION['language']) && in_array($_SESSION['language'], $availableLangs)) {
-    $lang = $_SESSION['language'];
-} else {
-    $lang = 'de';
-}
-$_SESSION['language'] = $lang;
-
-// Seite
+/* site bestimmen */
 $site = $_GET['site'] ?? ($segments[1] ?? 'index');
 $site = preg_replace('/[^a-zA-Z0-9_-]/', '', $site);
 $_GET['site'] = $site;
 
-// Action, ID, Page etc.
+/* optionale Parameter */
 $action = $_GET['action'] ?? ($segments[2] ?? null);
-$id     = $_GET['id'] ?? ($segments[3] ?? null);
-$page   = $_GET['page'] ?? null;
+$id     = $_GET['id']     ?? ($segments[3] ?? null);
+$page   = $_GET['page']   ?? null;
 
 if ($action) $_GET['action'] = $action;
-if ($id) $_GET['id'] = $id;
-if ($page) $_GET['page'] = $page;
+if ($id)     $_GET['id']     = $id;
+if ($page)   $_GET['page']   = $page;
 
-$langfile = BASE_PATH . "/languages/{$lang}/{$site}.php";
-if (!file_exists($langfile)) {
-    $pluginLangFile = BASE_PATH . "/includes/plugins/{$site}/languages/{$lang}/{$site}.php";
-    if (file_exists($pluginLangFile)) {
-        $langfile = $pluginLangFile;
-    } else {
-        // Kein trigger_error
-        $translations = [];
+/* ==========================================================
+   6️⃣ Sprachmodul JETZT korrekt laden
+========================================================== */
+global $languageService;
+
+/* Aktives Modul für AutoLoad setzen */
+$GLOBALS['nx_active_module'] = $site;
+
+/* 🔥 Modul automatisch laden */
+$languageService->autoLoadActiveModule(false);
+
+/* ==========================================================
+   7️⃣ Template & Theme vorbereiten
+========================================================== */
+$tpl = new Template();
+Template::setInstance($tpl);
+
+$theme = new Theme();
+$tpl->themes_path   = rtrim($theme->get_active_theme(), '/\\') . DIRECTORY_SEPARATOR;
+$tpl->template_path = "templates" . DIRECTORY_SEPARATOR;
+
+/* ==========================================================
+   8️⃣ Konstanten
+========================================================== */
+define("MODULE", BASE_PATH . "/includes/modules/");
+define("PLUGIN", BASE_PATH . "/includes/plugins/");
+
+$theme_css = headfiles("css", $tpl->themes_path);
+$theme_js  = headfiles("js",  $tpl->themes_path);
+
+/* ==========================================================
+   Komponenten JS/CSS bauen
+========================================================== */
+
+$components_css = "";
+$components_js  = "";
+
+if (!empty($components['css']) && is_array($components['css'])) {
+    foreach ($components['css'] as $component) {
+        $components_css .= '<link rel="stylesheet" href="' .
+            htmlspecialchars($component, ENT_QUOTES, 'UTF-8') . '">' . "\n";
     }
 }
 
-if (file_exists($langfile)) {
-    $translations = include $langfile; // Spracharray laden
-} else {
-    $translations = [];
+if (!empty($components['js']) && is_array($components['js'])) {
+    foreach ($components['js'] as $component) {
+        $components_js .= '<script src="' .
+            htmlspecialchars($component, ENT_QUOTES, 'UTF-8') . '"></script>' . "\n";
+    }
 }
 
-// Sprachauswahl an LanguageService übergeben – hier nur die Sprachkennung
-$languageService->setLanguage($lang);  // $lang ist ein String, z.B. 'de'
-
-// Template laden
+/* ==========================================================
+   9️⃣ Theme laden
+========================================================== */
 $themeFile = BASE_PATH . '/' . $tpl->themes_path . 'index.php';
 
 if (file_exists($themeFile)) {
-    include $themeFile;
+    require $themeFile;
 } else {
     die("Theme-Datei nicht gefunden: " . $themeFile);
 }

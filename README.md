@@ -1,4 +1,4 @@
-# nexpell 1.0 – Next Generation CMS (2025)
+# nexpell – Next Generation CMS (2026)
 
 **nexpell** ist ein vollständig neu entwickeltes, modulares und sicheres Open-Source CMS für Communities, Clans und Teams – bereit für das Jahr 2025 und darüber hinaus.
 
@@ -129,4 +129,4 @@ Bitte halte dich an unseren Beitrag-Guide (folgt demnächst).
 ## 📜 Lizenz
 
 nexpell wird unter der **GNU General Public License v3.0** veröffentlicht.  
-© 2025 [nexpell.de](https://www.nexpell.de)
+© 2026 [nexpell.de](https://www.nexpell.de)

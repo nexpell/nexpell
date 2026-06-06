@@ -6,9 +6,10 @@ if (session_status() === PHP_SESSION_NONE) {
 
 use nexpell\LanguageService;
 
-global $languageService;
+global $languageService,$_database;
 
 $lang = $languageService->detectLanguage();
+$languageService->readModule('privacy_policy');
 
 global $hp_title;
 $config = mysqli_fetch_array(safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id=1"));
@@ -17,46 +18,78 @@ $class = htmlspecialchars($config['selected_style']);
 // Header-Daten
 $data_array = [
     'class'    => $class,
-    'title' => $languageService->get('privacy_policy'), // Titel der Datenschutzrichtlinie
+    'title' => $languageService->module['privacy_policy'], // Titel der Datenschutzrichtlinie
     'subtitle' => 'Privacy policy',
-    /*'myclanname' => $myclanname, // Clanname einfügen*/
+    /*'myclanname' => $myclanname, // Clanname einfÃ¼gen*/
     
-    'privacy_policy' => $languageService->get('privacy_policy'),
+    'privacy_policy' => $languageService->module['privacy_policy'],
 ];
 
-// Template für den Kopfbereich laden
+// Template fÃ¼r den Kopfbereich laden
 echo $tpl->loadTemplate("privacy_policy", "head", $data_array, 'theme');
 
-// Datenschutzrichtlinie direkt abrufen (ersetzt Funktion getPrivacyPolicy)
-$ergebnis = safe_query("SELECT * FROM settings_privacy_policy LIMIT 1");
+/* =====================================================
+   DATENSCHUTZERKLÃ„RUNG LADEN (settings_content_lang)
+===================================================== */
 
-if (mysqli_num_rows($ergebnis)) {
-    $ds = mysqli_fetch_array($ergebnis);
+$content = '';
+$contentKey = 'privacy_policy';
 
-    // Datenschutzrichtlinien-Text aus der Datenbank holen
-    $privacy_policy_text = $ds['privacy_policy_text'];
+// 1. Wunsch-Sprache
+$stmt = $_database->prepare("
+    SELECT content, updated_at
+    FROM settings_content_lang
+    WHERE content_key = ? AND language = ?
+    LIMIT 1
+");
+$stmt->bind_param('ss', $contentKey, $lang);
+$stmt->execute();
+$stmt->bind_result($content, $updated_at);
+$stmt->fetch();
+$stmt->close();
 
-    // Übersetzungen mit der multiLanguage-Klasse
-    $translate = new multiLanguage($lang);
-    $translate->detectLanguages($privacy_policy_text);
-    $privacy_policy_text = $translate->getTextByLanguage($privacy_policy_text);
+// 2. Fallback DE
+if (empty($content) && $lang !== 'de') {
+    $stmt = $_database->prepare("
+        SELECT content, updated_at
+        FROM settings_content_lang
+        WHERE content_key = ? AND language = 'de'
+        LIMIT 1
+    ");
+    $stmt->bind_param('s', $contentKey);
+    $stmt->execute();
+    $stmt->bind_result($content, $updated_at);
+    $stmt->fetch();
+    $stmt->close();
+}
 
-    // Datum der Datenschutzrichtlinie formatieren
-    $timestamp = strtotime($ds['date']);
+if (!empty($content)) {
+
+    $timestamp = $updated_at ? strtotime($updated_at) : time();
     $date = date('d.m.Y H:i:s', $timestamp);
 
     $data_array = [
         'page_title' => $hp_title,
-        'privacy_policy_text' => $privacy_policy_text,
-        'stand1' => $languageService->get('stand1'),
-        'stand2' => $languageService->get('stand2'),
-        'date' => $date,
+        'privacy_policy_text' => $content,
+        'stand1' => $languageService->module['stand1'],
+        'stand2' => $languageService->module['stand2'],
+        'date'   => $date,
     ];
 
-    // Template für den Inhalt laden
-    echo $tpl->loadTemplate("privacy_policy", "content", $data_array, 'theme');
+    echo $tpl->loadTemplate(
+        "privacy_policy",
+        "content",
+        $data_array,
+        'theme'
+    );
+
 } else {
-    // Wenn keine Datenschutzrichtlinie vorhanden ist
-    echo generateAlert($languageService->get('no_privacy_policy'), 'alert-info');
+
+    $msg = $languageService->get('no_privacy_policy');
+    if ($msg === '[no_privacy_policy]') {
+        $msg = 'Keine Datenschutzerklaerung vorhanden.';
+    }
+    echo '<div class="alert alert-info">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
 }
-?>
+
+

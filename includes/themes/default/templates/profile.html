@@ -92,6 +92,7 @@
             <!-- Über mich -->
             <div class="tab-pane fade show active" id="about" role="tabpanel">
               <h5>{lang_about_title}</h5>
+              {if viewer_is_registered}
               <table class="table table-sm">
                 <tr><th>{lang_about_firstname}</th><td>{user_name}</td></tr>
                 <tr><th>{lang_about_lastname}</th><td>{user_surname}</td></tr>
@@ -107,6 +108,9 @@
 
               <h6>{lang_about_signature}</h6>
               <p>{user_signature}</p>
+              {else}
+              <div class="alert alert-info mb-0">{private_profile_notice}</div>
+              {endif}
             </div>
 
             <!-- Beiträge -->

@@ -121,23 +121,10 @@ function get_mainContent()
 
 
 
-// CKEditor Konfiguration (je nach Superadmin)
+// NxEditor Konfiguration
 function get_editor()
 {
-    global $userID;
-
-    if (!function_exists('issuperadmin')) {
-        echo '<p>Error: Superadmin function is not defined.</p>';
-        return;
-    }
-
-    echo '<script src="./components/ckeditor/ckeditor.js"></script>';
-
-    if (issuperadmin($userID)) {
-        echo '<script src="./components/ckeditor/config.js"></script>';
-    } else {
-        echo '<script src="./components/ckeditor/user_config.js"></script>';
-    }
+    echo '<script src="./components/js/nx_editor.js"></script>';
 }
 
 #Wartungsmodus wird anezeigt

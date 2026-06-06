@@ -7,16 +7,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard setzen, wenn nicht vorhanden
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// Initialisieren
-global $languageService;
-$languageService = new LanguageService($_database);
-
-// Admin-Modul laden
-$languageService->readModule('email', true);
-
 use nexpell\AccessControl;
 
 // Admin-Zugriff für das Modul prüfen
@@ -28,104 +18,107 @@ if (isset($_GET[ 'action' ])) {
     $action = '';
 }
 
-if (isset($_POST[ 'submit' ])) {
-    $CAPCLASS = new \nexpell\Captcha;
-    if ($CAPCLASS->checkCaptcha(0, $_POST[ 'captcha_hash' ])) {
-        safe_query(
-            "UPDATE
-                email
-            SET
-                host='" . $_POST[ 'host' ] . "',
-                user='" . $_POST[ 'user' ] . "',
-                password='" . $_POST[ 'password' ] . "',
-                port='" . intval($_POST[ 'port' ]) . "',
-                secure='" . intval($_POST[ 'secure' ]) . "',
-                auth='" . intval($_POST[ 'auth' ]) . "',
-                debug='" . intval($_POST[ 'debug' ]) . "',
-                smtp='" . intval($_POST[ 'smtp' ]) . "',
-                html='" . intval($_POST[ 'html' ]) . "'"
-        );
-        redirect("admincenter.php?site=email", "", 0);
-    } else {
-        redirect("admincenter.php?site=email", $languageService->get('transaction_invalid'), 3);
-    }
-} elseif (isset($_POST[ 'send' ])) {
-    $to = $_POST[ 'email' ];
-    $subject = $languageService->get('test_subject');
-    $message = $languageService->get('test_message');
+if (isset($_POST['submit'])) {
 
     $CAPCLASS = new \nexpell\Captcha;
-    if ($CAPCLASS->checkCaptcha(0, $_POST[ 'captcha_hash' ])) {
-        $sendmail = \nexpell\Email::sendEmail($admin_email, 'Test eMail', $to, $subject, $message);
-        if ($sendmail['result'] == 'fail') {
-            if (isset($sendmail['debug'])) {
-                echo '<b>' . $languageService->get('test_fail') . '</b>';
-                echo '<br>' . $sendmail[ 'error' ];
-                echo '<br>' . $sendmail[ 'debug' ];
-                redirect("admincenter.php?site=email&amp;action=test", $languageService->get('test_fail'), 10);
-            } else {
-                echo '<b>' . $languageService->get('test_fail') . '</b>';
-                echo '<br>' . $sendmail[ 'error' ];
-                redirect("admincenter.php?site=email&amp;action=test", $languageService->get('test_fail'), 10);
-            }
-        } else {
-            if (isset($sendmail[ 'debug' ])) {
-                echo '<b> Debug </b>';
-                echo '<br>' . $sendmail[ 'debug' ];
-                redirect("admincenter.php?site=email&amp;action=test", $languageService->get('test_ok'), 10);
-            } else {
-                redirect("admincenter.php?site=email&amp;action=test", $languageService->get('test_ok'), 3);
-            }
-        }
-    } else {
-        redirect("admincenter.php?site=email&amp;action=test", $languageService->get('transaction_invalid'), 3);
+
+    if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'] ?? '')) {
+
+        safe_query("
+            UPDATE email SET
+                host='" . escape($_POST['host'] ?? '') . "',
+                user='" . escape($_POST['user'] ?? '') . "',
+                password='" . escape($_POST['password'] ?? '') . "',
+                port=" . intval($_POST['port'] ?? 0) . ",
+                secure=" . intval($_POST['secure'] ?? 0) . ",
+                auth=" . intval($_POST['auth'] ?? 0) . ",
+                debug=" . intval($_POST['debug'] ?? 0) . ",
+                smtp=" . intval($_POST['smtp'] ?? 0) . ",
+                html=" . intval($_POST['html'] ?? 0) . "
+            WHERE emailID=1
+            LIMIT 1
+        ");
+
+        nx_audit_update('email', null, true, null, 'admincenter.php?site=email');
+        nx_redirect('admincenter.php?site=email', 'success', 'alert_saved', true, false);
     }
-} elseif ($action == "test") {
+
+    nx_redirect('admincenter.php?site=email', 'danger', 'alert_transaction_invalid', true, false);
+}
+elseif (isset($_POST['send'])) {
+
+    $to      = $_POST['email'] ?? '';
+    $subject = 'test_subject';
+    $message = 'test_message';
+
+    $CAPCLASS = new \nexpell\Captcha;
+    if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'] ?? '')) {
+
+        $sendmail = \nexpell\Email::sendEmail($admin_email, 'Test eMail', $to, $subject, $message);
+
+        $result = $sendmail['result'] ?? 'fail';
+        $error  = (string)($sendmail['error'] ?? '');
+        $debug  = (string)($sendmail['debug'] ?? '');
+
+        if ($result === 'fail') {
+            nx_audit_action('email', 'audit_action_email_test_fail', 'test', (string)$to, 'admincenter.php?site=email&action=test', ['to' => (string)$to, 'error' => ($error !== '' ? $error : null)]);
+            $msg = nx_translate('alert_test_fail');
+            if ($error !== '') $msg .= ' | Error: ' . $error;
+            if ($debug !== '') {
+                $dbg = mb_substr($debug, 0, 500);
+                if (strlen($debug) > 500) $dbg .= '…';
+                $msg .= ' | Debug: ' . $dbg;
+            }
+            nx_redirect('admincenter.php?site=email&action=test', 'danger', $msg, true, true);
+        }
+
+        nx_audit_action('email', 'audit_action_email_test_ok', 'test', (string)$to, 'admincenter.php?site=email&action=test', ['to' => (string)$to]);
+        nx_redirect('admincenter.php?site=email&action=test', 'success', 'alert_test_ok', false);
+    }
+
+    nx_redirect('admincenter.php?site=email&action=test', 'danger', 'alert_transaction_invalid', false);
+}
+elseif ($action == 'test') {
+
     $CAPCLASS = new \nexpell\Captcha;
     $CAPCLASS->createTransaction();
     $hash = $CAPCLASS->getHash();
 
-    echo'<div class="card">
+    echo '<div class="card shadow-sm border-0 mb-4 mt-4">
             <div class="card-header">
-                ' . $languageService->get('email') . '
-            </div>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb t-5 p-2 bg-light">
-                    <li class="breadcrumb-item"><a href="admincenter.php?site=email">' . $languageService->get('email') . '</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
-                </ol>
-            </nav>
-            <div class="card-body">
-                <div class="container py-5">
-                    <form method="post" action="admincenter.php?site=email&amp;action=test" enctype="multipart/form-data">
-                        <div class="mb-3 row">
-                            <label class="col-sm-2 col-form-label">
-                                ' . $languageService->get('email') . ':
-                            </label>
-                            <div class="col-sm-8">
-                                <input type="text" class="form-control" name="email" />
-                            </div>
-                        </div>
-
-                        <input type="hidden" name="captcha_hash" value="' . $hash . '" />
-
-                        <div class="mb-3 row">
-                            <div class="offset-sm-2 col-sm-8">
-                                <button class="btn btn-success" type="submit" name="send">
-                                    ' . $languageService->get('send') . '
-                                </button>
-                            </div>
-                        </div>
-                    </form>
+                <div class="card-title">
+                    <i class="bi bi-envelope-check"></i>
+                    <span>' . $languageService->get('email') . '</span>
+                    <small class="small-muted">' . $languageService->get('test_email') . '</small>
                 </div>
             </div>
-        </div>
-        ';
+
+            <div class="card-body p-4">
+                <div class="row">
+                    <div class="col-12 col-lg-8">
+                        <form method="post" action="admincenter.php?site=email&action=test" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="form-label">' . $languageService->get('email') . '</label>
+                                <input class="form-control" type="email" name="email" value="" placeholder="name@example.com" required>
+                                <div class="form-text text-muted">' . $languageService->get('test_subject') . ' / ' . $languageService->get('test_message') . '</div>
+                            </div>
+
+                            <input type="hidden" name="captcha_hash" value="' . htmlspecialchars($hash) . '">
+
+                            <button class="btn btn-primary" type="submit" name="send">
+                                ' . $languageService->get('send') . '
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>';
+
 } else {
+
     $CAPCLASS = new \nexpell\Captcha;
     $CAPCLASS->createTransaction();
     $hash = $CAPCLASS->getHash();
-
     $settings = safe_query("SELECT * FROM email");
     $ds = mysqli_fetch_array($settings);
 
@@ -177,27 +170,25 @@ if (isset($_POST[ 'submit' ])) {
     $debug =
         str_replace("value='" . $ds[ 'debug' ] . "'", "value='" . $ds[ 'debug' ] . "' selected='selected'", $debug);
 
-    echo '<div class="card">
+    echo '<div class="card shadow-sm border-0 mb-4 mt-4">
         <div class="card-header">
-            ' . $languageService->get('email') . '
+            <div class="card-title">
+                <i class="bi bi-envelope"></i>
+                <span>' . $languageService->get('email') . '</span>
+                <small class="small-muted">' . $languageService->get('settings') . '</small>
+            </div>
         </div>
-        <nav aria-label="breadcrumb">
-                        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item active" aria-current="page">' . $languageService->get('email') . '</li>
-          </ol>
-        </nav>
 
-<div class="card-body">
+        <div class="card-body p-4">
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <a class="btn btn-secondary" href="admincenter.php?site=email&action=test">
+                        ' . $languageService->get('test_email') . '</a>
+                </div>
+            </div>
 
-<div class="mb-3 row">
-    <label class="col-md-1 control-label">' . $languageService->get('options') . ':</label>
-    <div class="col-md-8">
-      <a href="admincenter.php?site=email&amp;action=test" class="btn btn-primary" type="button">' . $languageService->get('test_email') . '</a>
-    </div>
-  </div>';
-
-    echo '<script type="text/javascript">
-    function HideFields(state) {
+            <script type="text/javascript">
+function HideFields(state) {
         if (state == true) {
             document.getElementById(\'tr_user\').style.display = "";
             document.getElementById(\'tr_password\').style.display = "";
@@ -255,15 +246,13 @@ if (isset($_POST[ 'submit' ])) {
         }
     }
 </script>
-<div class="container py-5">
     <form method="post" action="admincenter.php?site=email" enctype="multipart/form-data">
-
-        <table class="table table-bordered table-striped">
+        <table class="table">
             <tr>
                 <td width="15%"><b>' . $languageService->get('type') . '</b></td>
                 <td width="35%">
-                    <div class="input-group">
-                        <select class="form-select" id="select_smtp" name="smtp" onchange="javascript:HideFields2();"
+                    <div class="input-group no-border">
+                        <select class="form-select no-border" id="select_smtp" name="smtp" onchange="javascript:HideFields2();"
                             onmouseover="showWMTT(\'id1\')" onmouseout="hideWMTT()">' . $smtp . '</select>
                     </div>
                 </td>
@@ -339,7 +328,7 @@ if (isset($_POST[ 'submit' ])) {
             <tr id="tr_secure"' . $show_auth2 . '>
                 <td width="15%"><b>' . $languageService->get('secure') . '</b></td>
                 <td width="35%">
-                    <div class="input-group">
+                    <div class="input-group no-border">
                         <select class="form-select" id="select_secure" name="secure" 
                             onmouseover="showWMTT(\'id8\')" onchange="javascript:SetPort();" onmouseout="hideWMTT()">
                             ' . $secure . '
@@ -351,7 +340,7 @@ if (isset($_POST[ 'submit' ])) {
             <tr id="tr_debug"' . $show_auth2 . '>
                 <td width="15%"><b>' . $languageService->get('debug') . '</b></td>
                 <td width="35%">
-                    <div class="input-group">
+                    <div class="input-group no-border">
                         <select class="form-select" id="select_debug" name="debug" 
                             onmouseover="showWMTT(\'id9\')" onmouseout="hideWMTT()">
                             ' . $debug . '
@@ -361,16 +350,12 @@ if (isset($_POST[ 'submit' ])) {
             </tr>
         </table>
 
-
-        <div style="clear: both; padding-top: 20px;">
+        <div class="d-flex justify-content-start gap-2 pt-3 mt-4">
             <input type="hidden" name="captcha_hash" value="' . $hash . '">
-            <input class="btn btn-success" type="submit" name="submit" value="' . $languageService->get('update') . '">
+            <button class="btn btn-primary" type="submit" name="submit">' . $languageService->get('save') . '</button>
         </div>
-
-    </form>
-</div>
-
-
-
-</div></div>';
+        </form>
+        </div>
+    </div>';
 }
+?>

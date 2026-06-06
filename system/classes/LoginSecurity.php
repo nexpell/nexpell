@@ -59,50 +59,78 @@ class LoginSecurity
     }
     
 
-    public static function verifyLogin($email, $password_hash, $ip, $is_active , $banned): array {
-        // Zuerst prüfen, ob IP gesperrt ist
-        $isIpBanned = self::isIpBanned($ip); // IP-Überprüfung
-        if ($isIpBanned) {
-            return ['success' => false, 'ip_banned' => true, 'error' => 'Deine IP-Adresse wurde gesperrt.'];
-        }
-
-        // Benutzer aus der Datenbank abrufen
-        $query = "SELECT * FROM `users` WHERE `email` = '" . self::escape($email) . "'";
-        $result = safe_query($query);
-
-        if ($result && mysqli_num_rows($result) > 0) {
-            $user = mysqli_fetch_array($result);
-
-            // Überprüfen, ob das Konto aktiv ist
-            if ($user['is_active'] == 0) {
-                return ['success' => false, 'ip_banned' => false, 'error' => 'Dein Konto wurde noch nicht aktiviert. Bitte überprüfe deine E-Mail.'];
-            }
-
-            // Überprüfen, ob der User gebannt ist
-            if (isset($user['banned']) && $user['banned'] == 1) {
-                return ['success' => false, 'ip_banned' => false, 'error' => 'Dein Konto wurde gesperrt. Bitte überprüfe deine E-Mail.'];
-            }
-
-            // Entschlüsseln des Peppers
-            $pepper_plain = self::decryptPepper($user['password_pepper']);
-            if (!$pepper_plain) {
-                return ['success' => false, 'ip_banned' => false, 'error' => 'Fehler beim Entschlüsseln des Peppers.'];
-            }
-
-            // Passwort mit E-Mail und Pepper kombinieren und überprüfen
-            if (password_verify($password_hash . $email . $pepper_plain, $user['password_hash'])) {
-                // Erfolgreiches Login
-                return ['success' => true, 'ip_banned' => false];
-            } else {
-                // Falsches Passwort
-                return ['success' => false, 'ip_banned' => false, 'error' => 'Ungültige E-Mail-Adresse oder Passwort.'];
-            }
-
-        } else {
-            // Keine Benutzer gefunden
-            return ['success' => false, 'ip_banned' => false, 'error' => 'Ungültige E-Mail-Adresse oder Passwort.'];
-        }
+    public static function verifyLogin($email, $password_hash, $ip, $is_active , $banned): array
+{
+    // Zuerst prüfen, ob IP gesperrt ist
+    $isIpBanned = self::isIpBanned($ip); // IP-Überprüfung
+    if ($isIpBanned) {
+        return [
+            'success'   => false,
+            'ip_banned' => true,
+            'error'     => 'Deine IP-Adresse wurde gesperrt.'
+        ];
     }
+
+    // Benutzer aus der Datenbank abrufen
+    $query = "SELECT * FROM `users` WHERE `email` = '" . self::escape($email) . "'";
+    $result = safe_query($query);
+
+    if ($result && mysqli_num_rows($result) > 0) {
+        $user = mysqli_fetch_array($result);
+
+        // Überprüfen, ob das Konto aktiv ist
+        if ($user['is_active'] == 0) {
+            return [
+                'success'   => false,
+                'ip_banned' => false,
+                'error'     => 'Dein Konto wurde noch nicht aktiviert. Bitte überprüfe deine E-Mail.'
+            ];
+        }
+
+        // Überprüfen, ob der User gebannt ist
+        if (isset($user['banned']) && $user['banned'] == 1) {
+            return [
+                'success'   => false,
+                'ip_banned' => false,
+                'error'     => 'Dein Konto wurde gesperrt. Bitte überprüfe deine E-Mail.'
+            ];
+        }
+
+        // Entschlüsseln des Peppers
+        $pepper_plain = self::decryptPepper($user['password_pepper']);
+        if (!$pepper_plain) {
+            return [
+                'success'   => false,
+                'ip_banned' => false,
+                'error'     => 'Fehler beim Entschlüsseln des Peppers.'
+            ];
+        }
+
+        // Passwort prüfen
+        if (password_verify($password_hash . $email . $pepper_plain, $user['password_hash'])) {
+            // ✅ PATCH: userID mit zurückgeben
+            return [
+                'success'   => true,
+                'ip_banned' => false,
+                'userID'    => (int)$user['userID']
+            ];
+        } else {
+            return [
+                'success'   => false,
+                'ip_banned' => false,
+                'error'     => 'Ungültige E-Mail-Adresse oder Passwort.'
+            ];
+        }
+
+    } else {
+        return [
+            'success'   => false,
+            'ip_banned' => false,
+            'error'     => 'Ungültige E-Mail-Adresse oder Passwort.'
+        ];
+    }
+}
+
 
 
 

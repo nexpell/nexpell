@@ -1,153 +1,194 @@
 <?php
-
 use nexpell\LanguageService;
 use nexpell\AccessControl;
-use nexpell\Captcha;
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-global $languageService;
-$languageService = new LanguageService($_database);
-$languageService->readModule('privacy_policy', true);
-
-// Zugriff prüfen
+if (session_status() === PHP_SESSION_NONE) session_start();
 AccessControl::checkAdminAccess('ac_privacy_policy');
 
-$CAPCLASS = new Captcha;
-$tpl = new Template();
+$CAPCLASS = new \nexpell\Captcha;
+$content_key = 'privacy_policy'; // Der Key für diese Seite
 
-// Sprachen
+
+// 1. Sprachen laden
 $languages = [];
-
-$query = "SELECT iso_639_1, name_de FROM settings_languages WHERE active = 1 ORDER BY id ASC";
-$result = mysqli_query($_database, $query);
-
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        // $row['iso_639_1'] z.B. 'de', $row['name_de'] z.B. 'Deutsch'
-        $languages[$row['iso_639_1']] = $row['name_de'];
-    }
-} else {
-    // Fallback falls Query nicht klappt
-    $languages = ['de' => 'Deutsch', 'en' => 'English', 'it' => 'Italiano'];
+$res = mysqli_query($_database, "SELECT iso_639_1, name_de FROM settings_languages WHERE active = 1 ORDER BY id ASC");
+while ($row = mysqli_fetch_assoc($res)) {
+    $languages[$row['iso_639_1']] = $row['name_de'];
 }
 
-if (isset($_POST['submit'])) {
-    $current_datetime = date("Y-m-d H:i:s");
-    #$nameArray = $_POST['privacy_policy_text'] ?? [];
-    $editor = isset($_POST['editor']) ? '1' : '0';
+// 2. Aktive Sprache bestimmen
+$currentLang = null;
 
-    // Mehrsprachigen privacy_policy_text zusammensetzen
-        $languages = ['de', 'en', 'it']; // Definiere deine Sprachen hier, passend zum Frontend
-        $privacy_policy_text = '';
-        if (isset($_POST['privacy_policy_text']) && is_array($_POST['privacy_policy_text'])) {
-            foreach ($languages as $lang) {
-                $text = trim($_POST['privacy_policy_text'][$lang] ?? '');
-                if ($text !== '') {
-                    $privacy_policy_text .= "[[lang:$lang]]" . $text . "\n";
-                }
-            }
+// 2️⃣ Aktive Sprache bestimmen
+
+if (!empty($_SESSION['privacy_policy_active_lang'])) {
+    $currentLang = $_SESSION['privacy_policy_active_lang'];
+    unset($_SESSION['privacy_policy_active_lang']);
+}
+elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['active_lang'])) {
+    $currentLang = $_POST['active_lang'];
+}
+elseif (!empty($_SESSION['language'])) {
+    $currentLang = $_SESSION['language'];
+}
+else {
+    $currentLang = $languageService->detectLanguage();
+}
+
+// 4️⃣ Sicherheit: nur erlaubte Sprachen
+if (!isset($languages[$currentLang])) {
+    $currentLang = array_key_first($languages); // meist 'de'
+}
+
+// 2. Speichern
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
+
+    if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'] ?? '')) {
+
+        $activeLang = $_POST['active_lang'] ?? $currentLang;
+
+        if (
+            isset($_POST['content'][$activeLang]) &&
+            is_string($_POST['content'][$activeLang])
+        ) {
+            $lang_e = $_database->real_escape_string($activeLang);
+            $html_e = $_database->real_escape_string(trim($_POST['content'][$activeLang]));
+
+            $_database->query("
+                INSERT INTO settings_content_lang
+                (content_key, language, content, updated_at)
+                VALUES
+                ('$content_key', '$lang_e', '$html_e', NOW())
+                ON DUPLICATE KEY UPDATE
+                    content = VALUES(content),
+                    updated_at = NOW()
+            ");
         }
 
-    if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'])) {
-        if (mysqli_num_rows(safe_query("SELECT * FROM settings_privacy_policy"))) {
-            safe_query("UPDATE settings_privacy_policy SET date='" . $current_datetime . "', privacy_policy_text='" . $privacy_policy_text . "', editor='" . $editor . "'");
-        } else {
-            safe_query("INSERT INTO settings_privacy_policy (date, privacy_policy_text, editor) VALUES (NOW(), '" . $privacy_policy_text . "', '" . $editor . "')");
-        }
-        echo '<div class="alert alert-success">' . $languageService->module['changes_successful'] . '</div>';
-        echo '<script>setTimeout(() => window.location.href="admincenter.php?site=settings_privacy_policy", 3000);</script>';
+        // aktive Sprache merken
+        $_SESSION['privacy_policy_active_lang'] = $activeLang;
+
+        nx_audit_update(
+            'settings_content_lang',
+            null,
+            true,
+            null,
+            'admincenter.php?site=settings_privacy_policy'
+        );
+
+        nx_redirect(
+            'admincenter.php?site=settings_privacy_policy',
+            'success',
+            'alert_saved',
+            false
+        );
+
     } else {
-        echo '<div class="alert alert-danger">' . $languageService->module['transaction_invalid'] . '</div>';
-        echo '<script>setTimeout(() => window.location.href="admincenter.php?site=settings_privacy_policy", 3000);</script>';
+        nx_redirect(
+            'admincenter.php?site=settings_privacy_policy',
+            'danger',
+            'alert_transaction_invalid',
+            false
+        );
     }
 }
 
-// Datenbank holen
-$ds = mysqli_fetch_array(safe_query("SELECT * FROM settings_privacy_policy"));
 
-// Lang extrahieren
-function extractLangText(?string $multiLangText, string $lang): string {
-    if (!$multiLangText) return '';
-    if (preg_match('/\[\[lang:' . preg_quote($lang, '/') . '\]\](.*?)(?=\[\[lang:|$)/s', $multiLangText, $matches)) {
-        return trim($matches[1]);
-    }
-    return '';
+// 3. Daten aus der DB laden
+$content    = [];
+$lastUpdate = [];
+
+$res = $_database->query("
+    SELECT language, content, updated_at
+    FROM settings_content_lang
+    WHERE content_key = 'privacy_policy';
+");
+
+while ($row = $res->fetch_assoc()) {
+    $lang = $row['language'];
+    $content[$lang]    = $row['content'];
+    $lastUpdate[$lang] = $row['updated_at'];
 }
-
-$editor_checked = ($ds['editor'] ?? 0) == 1 ? 'checked' : '';
 
 $CAPCLASS->createTransaction();
 $hash = $CAPCLASS->getHash();
 ?>
+<script>
+    const lastUpdateByLang = <?= json_encode($lastUpdate, JSON_UNESCAPED_UNICODE) ?>;
+</script>
+<form method="post" id="privacy_policyForm">
+<div class="nx-lang-editor"> <!-- 🔥 WICHTIGER CONTAINER -->
 
+    <input type="hidden" name="captcha_hash" value="<?= $hash ?>">
+    <input type="hidden" name="active_lang" id="active_lang" value="<?= $currentLang ?>">
 
-<div class="card">
-    <div class="card-header">
-        <?= $languageService->module['privacy_policy'] ?>
-    </div>
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item">
-                <a href="admincenter.php?site=settings_privacy_policy"><?= $languageService->module['privacy_policy'] ?></a>
-            </li>
-            <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
-        </ol>
-    </nav>
+    <div class="card shadow-sm border-0 mb-4 mt-3">
 
-    <div class="card-body">
-        <div class="container py-5">
-            <h3 class="mb-4"><?= $languageService->module['privacy_policy'] ?></h3>
-            <form method="post" action="admincenter.php?site=settings_privacy_policy">
-                <div class="mb-3 row">
-                    <label class="col-sm-2 col-form-label"><?= $languageService->module['editor_is_editor'] ?></label>
-                    <div class="col-sm-10">
-                        <input class="form-check-input" type="checkbox" id="toggle-editor" name="editor" value="1" <?= $editor_checked ?>>
+        <!-- HEADER -->
+        <div class="card-header d-flex justify-content-between align-items-center">
+
+            <div class="card-title mb-0">
+                <i class="bi bi-shield-check"></i>
+                <?= $languageService->get('privacy_policy') ?>
+            </div>
+
+            <div class="d-flex align-items-center gap-3 ms-auto">
+
+                <!-- LANGUAGE SWITCH -->
+                <div class="btn-group" id="lang-switch">
+                    <?php foreach ($languages as $iso => $label): ?>
+                        <button type="button"
+                                class="btn <?= $iso === $currentLang ? 'btn-primary' : 'btn-secondary' ?>"
+                                data-lang="<?= $iso ?>">
+                            <?= strtoupper($iso) ?>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <!-- LAST UPDATE -->
+                <div class="text-end ps-3">
+                    <div class="text-muted small" id="last-update-box">
+                        <?php if (!empty($lastUpdate[$currentLang])): ?>
+                            <i class="bi bi-clock-history me-1"></i>
+                            <span id="last-update-text">
+                                <?= date('d.m.Y H:i', strtotime($lastUpdate[$iso])) ?>
+                            </span>
+                        <?php else: ?>
+                            <span id="last-update-text">–</span>
+                        <?php endif; ?>
                     </div>
                 </div>
 
-                <div class="alert alert-info">
-                    <h4><?= $languageService->module['text'] ?></h4>
-                    <?php foreach ($languages as $code => $label): ?>
-                        <div class="mb-3">
-                            <label for="editor_<?= $code ?>" class="form-label"><?= $label ?></label>
-                            <textarea class="form-control lang-field" rows="6" id="editor_<?= $code ?>" name="privacy_policy_text[<?= $code ?>]"><?= htmlspecialchars(extractLangText($ds['privacy_policy_text'] ?? '', $code)) ?></textarea>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
 
-                <input type="hidden" name="captcha_hash" value="<?= $hash ?>" />
-                <button type="submit" name="submit" class="btn btn-warning"><?= $languageService->module['update'] ?></button>
-            </form>
+            </div>
+        </div>
+
+        <!-- BODY -->
+        <div class="card-body">
+
+            <!-- EDITOR -->
+            <textarea
+                id="nx-editor-main"
+                class="form-control"
+                data-editor="nx_editor"
+                rows="20"><?= htmlspecialchars($content[$currentLang] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+
+            <!-- HIDDEN CONTENT FIELDS -->
+            <?php foreach ($languages as $iso => $label): ?>
+                <input type="hidden"
+                       name="content[<?= $iso ?>]"
+                       id="content_<?= $iso ?>"
+                       value="<?= htmlspecialchars($content[$iso] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            <?php endforeach; ?>
+
+            <div class="mt-3">
+                <button type="submit" name="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> <?= $languageService->get('save') ?>
+                </button>
+            </div>
+
         </div>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const toggle = document.getElementById('toggle-editor');
-    const editors = document.querySelectorAll('.lang-field');
+</div> 
+</form>
 
-    function toggleEditors() {
-        editors.forEach(textarea => {
-            const id = textarea.id;
-            if (toggle.checked) {
-                if (!CKEDITOR.instances[id]) {
-                    CKEDITOR.replace(id);
-                }
-            } else {
-                if (CKEDITOR.instances[id]) {
-                    CKEDITOR.instances[id].destroy(true);
-                }
-            }
-        });
-    }
-
-    toggle.addEventListener('change', toggleEditors);
-    toggleEditors(); // Initialer Zustand
-});
-</script>

@@ -20,7 +20,7 @@ $class = htmlspecialchars($config['selected_style']);
 $data_array = [
     'class'    => $class,
     'title' => $languageService->get('title'),
-    'subtitle' => 'Imprint'
+    'subtitle' => 'Edit Profiles'
 ];
 
 echo $tpl->loadTemplate("edit_profiles", "head", $data_array, 'theme');

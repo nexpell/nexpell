@@ -10,11 +10,6 @@ use nexpell\SeoUrlHandler;
 
 // Initialisieren
 global $_database, $languageService;
-$languageService = new LanguageService($_database);
-$lang = $languageService->detectLanguage();
-
-// Admin-Modul laden
-$languageService->readModule('login', false);
 
 $ip = $_SERVER['REMOTE_ADDR'];
 $message_zusatz = '';

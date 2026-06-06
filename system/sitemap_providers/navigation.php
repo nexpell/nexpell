@@ -20,17 +20,45 @@ return function (array &$pages, array $CTX): void {
     $res = $db->query($sql);
     if (!$res) return;
 
+    $baseHost = (string)(parse_url((string)$BASE, PHP_URL_HOST) ?? '');
+    $langPattern = implode('|', array_map('preg_quote', $languages));
+
     while ($row = $res->fetch_assoc()) {
-        $urlRaw = trim((string)($row['url'] ?? ''));
+        $urlRaw = html_entity_decode(trim((string)($row['url'] ?? '')), ENT_QUOTES);
+        if ($urlRaw === '') {
+            continue;
+        }
+
+        // Platzhalter/Anker/Nicht-HTTP-Schemes ignorieren
+        $urlRaw = str_ireplace(['{current_lang}', '%7Bcurrent_lang%7D', '%7bcurrent_lang%7d'], '', $urlRaw);
+        if (
+            str_starts_with($urlRaw, '#')
+            || preg_match('~^(?:mailto|tel|javascript):~i', $urlRaw)
+        ) {
+            continue;
+        }
 
         // 1) Sprache vorne im Pfad entfernen (falls vorhanden)
         $pathOnly = $urlRaw;
         $queryStr = '';
-        if (false !== ($qpos = strpos($urlRaw, '?'))) {
+        if (preg_match('~^https?://~i', $urlRaw)) {
+            $u = parse_url($urlRaw);
+            $host = strtolower((string)($u['host'] ?? ''));
+            // Externe Hosts niemals in die Sitemap übernehmen
+            if ($host !== '' && $baseHost !== '' && $host !== strtolower($baseHost)) {
+                continue;
+            }
+            $pathOnly = (string)($u['path'] ?? '');
+            $queryStr = (string)($u['query'] ?? '');
+        } elseif (false !== ($qpos = strpos($urlRaw, '?'))) {
             $pathOnly = substr($urlRaw, 0, $qpos);
             $queryStr = substr($urlRaw, $qpos + 1);
         }
-        $pathOnly = preg_replace('~^/?(de|en|it)(?:/|$)~i', '', ltrim($pathOnly, '/'));
+        if ($langPattern !== '') {
+            $pathOnly = preg_replace('~^/?(' . $langPattern . ')(?:/|$)~i', '', ltrim($pathOnly, '/'));
+        } else {
+            $pathOnly = ltrim($pathOnly, '/');
+        }
 
         // 2) Query in Kleinbuchstaben-Schlüssel parsen
         $query = [];

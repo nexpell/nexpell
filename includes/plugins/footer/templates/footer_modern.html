@@ -1,0 +1,316 @@
+<!-- footer_modern_content -->
+<footer class="border-top mt-4 footer-template-modern footer-easy">
+  <div class="container py-5">
+
+    <div class="row gy-5 align-items-start">
+
+      <!-- Brand / Footer-Text -->
+      <div class="col-12 col-lg-4">
+        <div class="footer-brand-logo mb-3">
+          {footer_logo_img}
+        </div>
+
+        <div class="fw-semibold fs-4 mb-3">{myclanname}</div>
+
+        <p class="text-white-50 mb-0 footer-modern-text">
+          {footer_text}
+        </p>
+      </div>
+
+      <!-- Links -->
+      <div class="col-12 col-lg-6">
+        <div class="footer-modern-links">
+          {footer_blocks}
+          {legal_block}
+        </div>
+      </div>
+
+      <!-- Social Icons -->
+      <div class="col-12 col-lg-2 d-flex flex-column align-items-lg-end align-items-start gap-3">
+        <div class="footer-modern-social">
+          {social_block}
+        </div>
+
+        <!-- Actions -->
+        <div class="footer-modern-cta d-flex align-items-center gap-2">
+          <button class="btn btn-outline-light btn-sm"
+                  id="back-to-top"
+                  data-bs-toggle="tooltip"
+                  title="Nach oben scrollen">
+            <i class="bi bi-chevron-up"></i>
+          </button>
+
+          <button class="btn btn-secondary btn-sm"
+                  id="cookie-settings-icon"
+                  data-bs-toggle="tooltip"
+                  title="Cookie-Einstellungen">
+            <i class="bi bi-gear"></i>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Trenner -->
+    <hr class="my-5">
+
+    <!-- Bottom -->
+    <div class="footer-modern-bottom text-center small text-white-50">
+      &copy; {date} {myclanname}
+    </div>
+
+  </div>
+
+  <style>
+  /* ===============================
+     FOOTER THEME ENGINE (light/dark)
+     Nutzt data-bs-theme am <html> (:root), analog zur Navigation
+  =============================== */
+  :root{
+    --fx-footer-bg: #1b1e24;
+    --fx-footer-fg: rgba(255,255,255,.92);
+    --fx-footer-muted: rgba(255,255,255,.66);
+    --fx-footer-border: rgba(255,255,255,.08);
+
+    --fx-footer-btn-outline-border: rgba(255,255,255,.35);
+    --fx-footer-btn-outline-fg: rgba(255,255,255,.85);
+
+    --fx-footer-btn-solid-bg: rgba(255,255,255,.12);
+    --fx-footer-btn-solid-border: rgba(255,255,255,.18);
+    --fx-footer-btn-solid-fg: rgba(255,255,255,.90);
+  }
+
+  :root[data-bs-theme="light"]{
+    --fx-footer-bg: var(--nx-surface-2, #f1f3f6);
+    --fx-footer-fg: rgba(0,0,0,.88);
+    --fx-footer-muted: rgba(0,0,0,.60);
+    --fx-footer-border: rgba(0,0,0,.10);
+
+    --fx-footer-btn-outline-border: rgba(0,0,0,.25);
+    --fx-footer-btn-outline-fg: rgba(0,0,0,.78);
+
+    --fx-footer-btn-solid-bg: rgba(0,0,0,.06);
+    --fx-footer-btn-solid-border: rgba(0,0,0,.14);
+    --fx-footer-btn-solid-fg: rgba(0,0,0,.82);
+  }
+
+  :root[data-bs-theme="dark"]{
+    --fx-footer-bg: var(--nx-surface-2, #1b1e24);
+    --fx-footer-fg: rgba(255,255,255,.92);
+    --fx-footer-muted: rgba(255,255,255,.66);
+    --fx-footer-border: rgba(255,255,255,.08);
+
+    --fx-footer-btn-outline-border: rgba(255,255,255,.35);
+    --fx-footer-btn-outline-fg: rgba(255,255,255,.88);
+
+    --fx-footer-btn-solid-bg: rgba(255,255,255,.12);
+    --fx-footer-btn-solid-border: rgba(255,255,255,.18);
+    --fx-footer-btn-solid-fg: rgba(255,255,255,.92);
+  }
+
+  footer.footer-easy{
+    background-color: var(--fx-footer-bg) !important;
+    color: var(--fx-footer-fg) !important;
+    border-top-color: var(--fx-footer-border) !important;
+  }
+
+  footer.footer-easy .text-white-50,
+  footer.footer-easy .small.text-white-50{
+    color: var(--fx-footer-muted) !important;
+  }
+
+  footer.footer-easy hr{
+    border-top-color: var(--fx-footer-border) !important;
+    opacity: 1 !important;
+  }
+
+  /* Links: konsistent im Theme */
+  footer.footer-easy a{
+    color: inherit;
+  }
+
+  /* Theme-fähige Action-Buttons */
+  footer.footer-easy #back-to-top{
+    background: transparent !important;
+    border-color: var(--fx-footer-btn-outline-border) !important;
+    color: var(--fx-footer-btn-outline-fg) !important;
+  }
+  footer.footer-easy #back-to-top:hover{
+    background: var(--nx-state-hover, rgba(255,255,255,.06)) !important;
+  }
+
+  footer.footer-easy #cookie-settings-icon{
+    background: var(--fx-footer-btn-solid-bg) !important;
+    border-color: var(--fx-footer-btn-solid-border) !important;
+    color: var(--fx-footer-btn-solid-fg) !important;
+  }
+  footer.footer-easy #cookie-settings-icon:hover{
+    filter: brightness(1.05);
+  }
+
+  /* Footer-Logo: Light/Dark Swap via CSS */
+  footer.footer-easy .footer-logo-dark{ display:none; }
+  :root[data-bs-theme="dark"] footer.footer-easy .footer-logo-light{ display:none; }
+  :root[data-bs-theme="dark"] footer.footer-easy .footer-logo-dark{ display:inline-block; }
+
+footer.footer-template-modern .footer-brand-logo img {
+    height: 38px;
+    width: auto;
+    opacity: .95;
+  }
+
+  footer.footer-template-modern .footer-modern-text {
+    max-width: 46ch;
+    line-height: 1.7;
+  }
+
+  footer.footer-template-modern ul.footer-list,
+  footer.footer-template-modern ul.footer-links {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  footer.footer-template-modern ul.footer-list > li::marker,
+  footer.footer-template-modern ul.footer-links > li::marker {
+    content: "" !important;
+  }
+
+  footer.footer-template-modern .footer-modern-links .text-uppercase,
+  footer.footer-template-modern .footer-modern-links .footer-block-title,
+  footer.footer-template-modern .footer-modern-links .footer-title,
+  footer.footer-template-modern .footer-modern-links h6 {
+    display: none !important;
+  }
+  
+  footer.footer-template-modern .footer-modern-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 1rem 3.25rem;
+  }
+
+  footer.footer-template-modern .footer-modern-links .footer-nav-col,
+  footer.footer-template-modern .footer-modern-links .footer-nav-block,
+  footer.footer-template-modern .footer-modern-links .footer-links,
+  footer.footer-template-modern .footer-modern-links .footer-legal-block {
+    flex: 0 0 auto;
+    max-width: none;
+    width: auto;
+  }
+
+  footer.footer-template-modern .footer-modern-links ul.footer-list,
+  footer.footer-template-modern .footer-modern-links ul.footer-links {
+    padding: 0;
+    margin: 0;
+
+    display: grid;
+    gap: .7rem;
+    justify-items: start;
+    text-align: left;
+  }
+
+  footer.footer-template-modern .footer-modern-links .footer-item,
+  footer.footer-template-modern .footer-modern-links .footer-link-item {
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  footer.footer-template-modern .footer-modern-links .footer-link,
+  footer.footer-template-modern .footer-modern-links a {
+    color: inherit;
+    text-decoration: none;
+    opacity: .82;
+    transition: opacity .15s ease;
+  }
+
+  footer.footer-template-modern .footer-modern-links .footer-link:hover,
+  footer.footer-template-modern .footer-modern-links a:hover {
+    opacity: 1;
+  }
+
+  footer.footer-template-modern .footer-modern-social .text-uppercase,
+  footer.footer-template-modern .footer-modern-social h6 {
+    display: none !important;
+  }
+
+  footer.footer-template-modern .footer-modern-social .footer-social-block {
+    text-align: right !important;
+    margin: 0 !important;
+  }
+
+  @media (max-width: 991.98px) {
+    footer.footer-template-modern .footer-modern-social .footer-social-block {
+      text-align: left !important;
+    }
+  }
+
+  footer.footer-template-modern .footer-modern-social .footer-social-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .8rem;
+    align-items: center;
+    justify-content: flex-end !important;
+    margin: 0 !important;
+  }
+
+  @media (max-width: 991.98px) {
+    footer.footer-template-modern .footer-modern-social .footer-social-icons {
+      justify-content: flex-start !important;
+    }
+  }
+
+  footer.footer-template-modern .footer-modern-social .footer-social-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 24px;
+    height: 24px;
+
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent;
+
+    color: inherit;
+    opacity: .85;
+
+    transition: opacity .2s ease, transform .2s ease;
+  }
+
+  footer.footer-template-modern .footer-modern-social .footer-social-chip:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+
+  footer.footer-template-modern .footer-modern-social .footer-social-chip i {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  footer.footer-template-modern .footer-modern-cta {
+    justify-content: flex-end;
+  }
+  @media (max-width: 991.98px) {
+    footer.footer-template-modern .footer-modern-cta {
+      justify-content: flex-start;
+    }
+  }
+
+  footer.footer-template-modern hr.my-5 {
+    opacity: .25;
+  }
+
+  footer.footer-template-modern .footer-modern-bottom {
+    opacity: .75;
+  }
+
+  @media (max-width: 767.98px) {
+    footer.footer-template-modern .footer-modern-links {
+      gap: 1rem 2rem;
+    }
+  }
+</style>
+</footer>
+<!-- END -->

@@ -2,6 +2,10 @@
 
 namespace nexpell;
 
+if (class_exists(__NAMESPACE__ . '\\LanguageService', false)) {
+    return;
+}
+
 class LanguageService
 {
     private \mysqli $_database;

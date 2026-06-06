@@ -1,559 +1,940 @@
 <?php
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * nexpell 1.0 - Modern Content & Community Management System
- * ─────────────────────────────────────────────────────────────────────────────
- *
- * @version       1.0
- * @build         Stable Release
- * @release       2025
- * @copyright     © 2025 nexpell | https://www.nexpell.de
- * 
- * @description   nexpell is a modern open source CMS designed for gaming
- *                communities, esports teams, and digital projects of any kind.
- * 
- * @author        The nexpell Team
- * 
- * @license       GNU General Public License (GPL)
- *                This software is distributed under the terms of the GPL.
- *                It is strictly prohibited to remove this copyright notice.
- *                For license details, see: https://www.gnu.org/licenses/gpl.html
- * 
- * @support       Support, updates, and plugins available at:
- *                → Website: https://www.nexpell.de
- *                → Forum:   https://www.nexpell.de/forum.html
- *                → Wiki:    https://www.nexpell.de/wiki.html
- * 
- * ─────────────────────────────────────────────────────────────────────────────
- */
 
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
 
-// Session starten (nur einmal)
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e) {
+        echo "<pre style='background:#300;color:#fff;padding:10px'>";
+        print_r($e);
+        echo "</pre>";
+    }
+});
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Absolute Pfade definieren (anpassen falls nötig)
+
 define('BASE_PATH', __DIR__ . '/../');
 define('SYSTEM_PATH', BASE_PATH . 'system/');
 
-// Wichtige Systemdateien einbinden
-include SYSTEM_PATH . 'config.inc.php';
-include SYSTEM_PATH . 'settings.php';
-include SYSTEM_PATH . 'functions.php';
-include SYSTEM_PATH . 'multi_language.php';
-include SYSTEM_PATH . 'classes/Template.php';
-include SYSTEM_PATH . 'classes/TextFormatter.php';
-#include SYSTEM_PATH . 'classes/PluginManager.php';
+// CORE
+require SYSTEM_PATH . 'config.inc.php';
+require SYSTEM_PATH . 'settings.php';
+require SYSTEM_PATH . 'functions.php';
+//require SYSTEM_PATH . 'multi_language.php';
+require SYSTEM_PATH . 'classes/Template.php';
+require SYSTEM_PATH . 'classes/TextFormatter.php';
+require SYSTEM_PATH . 'classes/AdminAudit.php';
 
-// Namespaces importieren
-use nexpell\RoleManager;
+if (!class_exists(\nexpell\PluginManager::class)) {
+    require SYSTEM_PATH . 'classes/PluginManager.php';
+}
+
+use nexpell\PluginManager;
 use nexpell\LanguageService;
 use nexpell\AccessControl;
-use nexpell\PluginManager;
-global $pluginManager;
 
-// Plugin-Manager laden und Sprachmodul für Admincenter initialisieren
-$load = new \nexpell\PluginManager($_database);
+/* =========================
+   GLOBALS
+========================= */
+global $_database;
+$_database->set_charset("utf8mb4");
+/* =========================
+   SITE bestimmen (aus URL)
+========================= */
+$currentSite = $_GET['site'] ?? 'admincenter';
+$GLOBALS['nx_active_module'] = $currentSite;
 
-global $languageService;
+/* =========================
+   LANGUAGE SERVICE
+========================= */
 $languageService = new LanguageService($_database);
-$languageService->readModule('admincenter', true);
+global $languageService;
 
-// Sprache in Session setzen (Standard 'de')
-if (!isset($_SESSION['language'])) {
-    $_SESSION['language'] = 'de';
-}
+/* =========================
+   PLUGIN MANAGER
+========================= */
+$pluginManager = new PluginManager($_database);
 
-// Login-Verarbeitung
+/* =========================
+   AUTOLOAD MODULSPRACHE
+========================= */
+$languageService->autoLoadActiveModule(true);
+
+
+
+$GLOBALS['_database'] = $_database;
+
+
+// LOGIN HANDLING (ALT / BACKWARD-COMPAT)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ws_user'], $_POST['password'])) {
-    $ws_user = trim($_POST['ws_user']);
-    $password = $_POST['password'];
 
-    // loginCheck() muss in einer der includes definiert sein
-    $result = loginCheck($ws_user, $password);
+    $result = loginCheck(trim($_POST['ws_user']), $_POST['password']);
 
     if ($result->state === "success") {
+
         $_SESSION['userID']   = $result->userID;
         $_SESSION['username'] = $result->username;
-        $_SESSION['email']    = $result->email;
 
-        // Redirect nur zu internen Pfaden erlauben (Vermeidung von Open Redirects)
-        $redirect_url = $_SESSION['login_redirect'] ?? '/admin/admincenter.php';
+        $url = $_SESSION['login_redirect'] ?? '/admin/admincenter.php';
         unset($_SESSION['login_redirect']);
-        if (!preg_match('#^/admin/#', $redirect_url)) {
-            $redirect_url = '/admin/admincenter.php';
+
+        if (!preg_match('#^/admin/#', $url)) {
+            $url = '/admin/admincenter.php';
         }
 
-        header("Location: " . $redirect_url);
+        header("Location: $url");
         exit;
-    } else {
-        // Fehlermeldung sicher ausgeben (Escaping)
-        echo "<div class='alert alert-warning'>" . htmlspecialchars($result->message) . "</div>";
     }
+
+    $GLOBALS['__nx_alerts'][] = [
+        'type'        => 'warning',
+        'message'     => (string)$result->message,
+        'dismissible' => true,
+    ];
 }
 
-// Fehlerhinweis, falls von admincheck.php weitergeleitet wurde
-if (isset($_GET['error']) && $_GET['error'] === 'login_required') {
-    echo "<div class='alert alert-warning'>Bitte melde dich zuerst an.</div>";
+// USER / ROUTER
+$userID = (int)($_SESSION['userID'] ?? 0);
+
+$site = $_GET['site'] ?? 'info';
+$site = preg_replace('/[^a-z0-9_]/i', '', (string)$site);
+
+if ($site === 'info' || $site === 'dashboard') {
+    $GLOBALS['__pageTitle']    = 'Dashboard';
+    $GLOBALS['__pageCategory'] = null;
 }
 
-// Admin-Zugriffsprüfung: Nutzer muss eingeloggt und Rolle zugewiesen sein
-if (!isset($_SESSION['userID']) || !checkUserRoleAssignment($_SESSION['userID'])) {
-    ?>
-    <div style="
-        background-color: #e74c3c;
-        color: white;
-        padding: 20px;
-        border-radius: 8px;
-        font-family: Arial, sans-serif;
-        max-width: 800px;
-        margin: 50px auto;
-        text-align: center;
-        box-shadow: 0 0 10px rgba(0,0,0,0.2);
-    ">
-        <img src="images/logo.png" alt="Logo" style="
-            width: 400px;
-            height: auto;
-            margin-bottom: 20px;
-            border-radius: 6px;
-        ">
-        <h2 style="margin-top: 0;">Zugriff verweigert</h2>
-        <p>Sie haben derzeit <strong>keine Benutzerrolle</strong> zugewiesen und können daher nicht auf diesen Bereich zugreifen.</p>
-        <p>Bitte wenden Sie sich an einen Administrator, um Ihre Zugriffsrechte zu prüfen.</p>
-        <p style="margin-top: 20px;">Sie werden in <strong>10 Sekunden</strong> automatisch zur Login-Seite weitergeleitet...</p>
+// NICHT EINGELOGGT → ADMIN-LOGIN
+if ($userID <= 0) {
+
+    if (ob_get_level() > 0) {
+        ob_clean();
+    }
+
+    http_response_code(401);
+
+    echo '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="SHORTCUT ICON" href="/admin/images/favicon.ico">
+        <title>' . htmlspecialchars($languageService->get('access-denied-title'), ENT_QUOTES, 'UTF-8') . '</title>
+        <link href="/admin/css/bootstrap.min.css" rel="stylesheet">
+        <link href="/admin/css/page.css" rel="stylesheet">
+    </head>
+    <body>
+
+    <div class="login-page">
+        <div class="login-wrap">
+            <div class="card login-card">
+                <div class="login-card-header access">
+                    <div class="brand">
+                        <img src="/admin/images/logo.png" alt="Logo">
+                    </div>
+                    <h4 class="mb-1">
+                        ' . $languageService->get('access-denied-title') . '
+                    </h4>
+                </div>
+
+                <div class="card-body text-center">
+                    <p class="py-4">
+                        ' . $languageService->get('access-denied-desc_nologin') . '
+                    </p>
+
+                    <div class="d-grid">
+                        <a href="login.php" class="btn btn-danger">
+                            ' . $languageService->get('access-denied-login') . '
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    <script>
-        setTimeout(function() {
-            window.location.href = "login.php";
-        }, 10000);
-    </script>
-    <?php
+
+    </body>
+    </html>';
     exit;
 }
 
-// --- Check für Impressum & Datenschutz ---
-$impressumOk = false;
-$datenschutzOk = false;
+// EINGELOGGT, ABER KEINE ADMIN-RECHTE
+if (!AccessControl::canAccessAdmin($_database, $userID)) {
 
-// Impressum prüfen
-$res1 = $_database->query("SELECT disclaimer FROM settings_imprint LIMIT 1");
-if ($res1 && $row1 = $res1->fetch_assoc()) {
-    if (!empty(trim($row1['disclaimer']))) {
-        $impressumOk = true;
-    }
-}
-
-// Datenschutz prüfen
-$res2 = $_database->query("SELECT privacy_policy_text FROM settings_privacy_policy LIMIT 1");
-if ($res2 && $row2 = $res2->fetch_assoc()) {
-    if (!empty(trim($row2['privacy_policy_text']))) {
-        $datenschutzOk = true;
-    }
-}
-
-
-if (!$impressumOk || !$datenschutzOk): ?>
-  <div class="alert alert-warning d-flex align-items-center" role="alert">
-    <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
-    <div>
-      <strong>Hinweis:</strong>
-      <?= !$impressumOk ? 'Das <b>Impressum</b> ist noch leer. ' : '' ?>
-      <?= !$datenschutzOk ? 'Die <b>Datenschutzerklärung</b> ist noch leer. ' : '' ?>
-      Bitte ergänze die fehlenden Inhalte unter 
-      <?= !$impressumOk ? '<a href="admincenter.php?site=settings_imprint" class="alert-link">Impressum</a> ' : '' ?>
-      <?= !$datenschutzOk ? '<a href="admincenter.php?site=settings_privacy_policy" class="alert-link">Datenschutz</a> ' : '' ?>
-    </div>
-  </div>
-<?php endif;
-
-// $_SERVER['REQUEST_URI'] absichern (normalerweise vorhanden)
-if (!isset($_SERVER['REQUEST_URI'])) {
-    $arr = explode('/', $_SERVER['PHP_SELF']);
-    $_SERVER['REQUEST_URI'] = '/' . end($arr);
-    if (!empty($_SERVER['argv'][0])) {
-        $_SERVER['REQUEST_URI'] .= '?' . $_SERVER['argv'][0];
-    }
-}
-
-// Jetzt kannst du mit $userID, $languageService, etc. weiterarbeiten
-$userID = $_SESSION['userID'];
-
-
-#echo '<pre>';
-#var_dump($_SESSION);
-#echo '</pre>';
-
-#var_dump($_SESSION['roleID']);
-
-function dashnavi() {
-    global $_database; // mysqli-Objekt
-
-    $links = '';
-    $current_query = $_GET['site'] ?? '';
-    $lang = $_SESSION['language'] ?? 'de';
-
-    // --- Rollen prüfen ---
-    $roleIDs = $_SESSION['roles'] ?? [];
-    if (empty($roleIDs)) {
-        if (!empty($_SESSION['roleID'])) {
-            $roleIDs = [ (int)$_SESSION['roleID'] ];
-        } else {
-            return '<li>Keine Rollen gefunden, Zugriff verweigert.</li>';
-        }
+    if (ob_get_level() > 0) {
+        ob_clean();
     }
 
-    // --- SQL-kompatible Liste bauen ---
-    $roleList = implode(',', array_map('intval', $roleIDs));
+    http_response_code(403);
 
-    // --- Rechte einmalig laden ---
-    $rights = [
-        'category' => [],
-        'link' => []
-    ];
-    $res = $_database->query("
-        SELECT type, modulname 
-        FROM user_role_admin_navi_rights 
-        WHERE roleID IN ($roleList)
-    ");
-    if ($res) {
-        while ($r = $res->fetch_assoc()) {
-            $rights[$r['type']][] = $r['modulname'];
-        }
-    }
+    echo '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>' . htmlspecialchars($languageService->get('access-denied-title'), ENT_QUOTES, 'UTF-8') . '</title>
+        <link href="/admin/css/bootstrap.min.css" rel="stylesheet">
+        <link href="/admin/css/page.css" rel="stylesheet">
+    </head>
+    <body>
 
-    // --- Prüfen: Hat der User überhaupt min. 1 Kategorie & Link-Recht? ---
-    $hasCategory = !empty($rights['category']);
-    $hasLink = !empty($rights['link']);
-    if (!$hasCategory || !$hasLink) {
-        // Kein Zugriff auf irgendetwas → nichts anzeigen
-        return '<li>
-            <div class="alert alert-info mb-0 small d-flex align-items-start gap-2" role="alert" style="border-radius:0.5rem;">
-                <i class="bi bi-info-circle-fill fs-5"></i>
-                <div>
-                    <strong>Keine zugriffsberechtigten Bereiche gefunden.</strong><br>
-                    Dir sind aktuell keine Menüpunkte im Admincenter zugewiesen.<br>
-                    <span class="text-muted">
-                        Bitte wende dich an einen Administrator, um entsprechende Rollen oder Zugriffsrechte zu erhalten.
-                    </span>
+    <div class="login-page">
+        <div class="login-wrap">
+            <div class="card login-card">
+                <div class="login-card-header access">
+                    <div class="brand">
+                        <img src="/admin/images/logo.png" alt="Logo">
+                    </div>
+                    <h4 class="mb-1">
+                        ' . $languageService->get('access-denied-title') . '
+                    </h4>
+                </div>
+
+                <div class="card-body text-center">
+                    <p class="py-4">
+                        ' . $languageService->get('access-denied-desc') . '
+                    </p>
+
+                    <p class="text-muted small">
+                        ' . $languageService->get('error_support_admin') . '
+                    </p>
+
+                    <div class="d-grid">
+                        <a href="/" class="btn btn-secondary mt-2">
+                            ' . $languageService->get('back_to_website') . '
+                        </a>
+                    </div>
                 </div>
             </div>
-        </li>';
+        </div>
+    </div>
+
+    </body>
+    </html>';
+    exit;
+}
+
+// HILFSWERTE (KEIN DOPPELTES $userID!)
+$lang = $_SESSION['language'];
+$current_site = $_GET['site'] ?? '';
+
+
+//  Übersetzt einen Key über den globalen LanguageService.
+function nx_translate(string $key): string
+{
+    if (isset($GLOBALS['languageService']) && is_object($GLOBALS['languageService']) && method_exists($GLOBALS['languageService'], 'get')) {
+        $t = (string)$GLOBALS['languageService']->get($key);
+        return $t !== '' ? $t : $key;
+    }
+    return $key;
+}
+
+// Adds an alert.
+function nx_add_alert(
+    string $type,
+    string $keyOrMessage,
+    bool $persist = true,
+    bool $dismissible = true,
+    bool $isRaw = false
+): void {
+    if (!$isRaw && (strpos($keyOrMessage, ' ') !== false || preg_match('/[^A-Za-z0-9_.-]/', $keyOrMessage))) {
+        $isRaw = true;
     }
 
-    // --- Kategorien laden ---
-    $categoriesResult = $_database->query("SELECT * FROM navigation_dashboard_categories ORDER BY sort");
-    if (!$categoriesResult) {
+    $message = $isRaw
+        ? $keyOrMessage
+        : (string)$GLOBALS['languageService']->get($keyOrMessage);
+
+    $alert = [
+        'type'        => $type,
+        'message'     => $message,
+        'dismissible' => $dismissible,
+    ];
+
+    if ($persist) {
+        $_SESSION['__nx_alerts'][] = $alert;
+    } else {
+        $GLOBALS['__nx_alerts'][] = $alert;
+    }
+}
+
+// Kompakter Alias für Alerts.
+function nx_alert(
+    string $type,
+    string $keyOrMessage,
+    bool $persist = true,
+    bool $dismissible = true,
+    bool $isRaw = false
+): void {
+    nx_add_alert($type, $keyOrMessage, $persist, $dismissible, $isRaw);
+}
+
+// Rendert alle alerts (flash + request) als Bootstrap 5 markup.
+function nx_render_alerts(bool $escapeHtml = true): string
+{
+    $alerts = [];
+
+    if (!empty($_SESSION['__nx_alerts'])) {
+        $alerts = $_SESSION['__nx_alerts'];
+        unset($_SESSION['__nx_alerts']);
+    }
+    if (!empty($GLOBALS['__nx_alerts'])) {
+        $alerts = array_merge($alerts, $GLOBALS['__nx_alerts']);
+        unset($GLOBALS['__nx_alerts']);
+    }
+
+    if (!$alerts) return '';
+
+    $out = '<div class="nx-alert-stack mb-3">';
+    foreach ($alerts as $a) {
+        $type = preg_replace('/[^a-z]/', '', strtolower((string)($a['type'] ?? 'info'))) ?: 'info';
+
+        $msg = (string)($a['message'] ?? '');
+        $msg = $escapeHtml ? htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') : $msg;
+
+        $dismissible = !empty($a['dismissible']);
+        $classes = 'alert alert-' . $type . ($dismissible ? ' alert-dismissible fade show' : '');
+
+        $out .= '<div class="' . $classes . '" role="alert">' . $msg;
+        if ($dismissible) {
+            $out .= '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+        }
+        $out .= '</div>';
+    }
+    return $out . '</div>';
+}
+
+// Redirect
+function nx_redirect(string $url, ?string $type=null, ?string $keyOrMessage=null,
+                     bool $dismissible=true, bool $isRaw=false, int $status=303): void
+{
+    if ($type && $keyOrMessage) {
+        nx_add_alert($type, $keyOrMessage, true, $dismissible, $isRaw);
+    }
+
+    if (!headers_sent()) {
+        header('Location: ' . $url, true, $status);
+        exit;
+    }
+
+    if (ob_get_level() > 0) {
+        @ob_clean();
+    }
+
+    $uJson = json_encode($url, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $uHtml = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+
+    echo '<!DOCTYPE html><html lang="de"><head>';
+    echo '<meta charset="utf-8">';
+    echo '<meta http-equiv="refresh" content="0;url=' . $uHtml . '">';
+    echo '<title>Weiterleitung…</title>';
+    echo '</head><body>';
+    echo '<script>window.location.replace(' . $uJson . ');</script>';
+    echo '<noscript><p>Weiterleitung: <a href="' . $uHtml . '">' . $uHtml . '</a></p></noscript>';
+    echo '</body></html>';
+    exit;
+}
+
+
+function dashnavi()
+{
+    global $_database, $languageService;
+
+    // GRUNDWERTE ABSICHERN
+    $uid = (int)($_SESSION['userID'] ?? 0);
+    if ($uid <= 0) {
+        return '<li>Kein Benutzer angemeldet.</li>';
+    }
+
+    $lang = $_SESSION['language'] ?? 'de';
+    $current_site = $_GET['site'] ?? '';
+
+    // ROLLEN DES USERS LADEN (MULTI-ROLE SICHER)
+    $roleIDs = [];
+
+    $resRoles = $_database->query("
+        SELECT roleID
+        FROM user_role_assignments
+        WHERE userID = {$uid}
+    ");
+
+    if (!$resRoles) {
+        return '<li>Fehler beim Laden der Benutzerrollen.</li>';
+    }
+
+    while ($r = $resRoles->fetch_assoc()) {
+        $roleIDs[] = (int)$r['roleID'];
+    }
+
+    if (empty($roleIDs)) {
+        return '<li>' . $languageService->get('error_no_roles_found') . '</li>';
+    }
+
+    $roleList = implode(',', array_map('intval', $roleIDs));
+
+    // RECHTE DER ROLLEN LADEN
+
+    $rights = [
+        'category' => [],
+        'link'     => []
+    ];
+
+    $resRights = $_database->query("
+        SELECT type, modulname
+        FROM user_role_admin_navi_rights
+        WHERE roleID IN ($roleList)
+    ");
+
+    if (!$resRights) {
+        return '<li>Fehler beim Laden der Navigationsrechte.</li>';
+    }
+
+    while ($r = $resRights->fetch_assoc()) {
+        if (!isset($rights[$r['type']])) {
+            continue;
+        }
+        $rights[$r['type']][] = $r['modulname'];
+    }
+
+    if (empty($rights['category']) || empty($rights['link'])) {
+        return '
+            <div class="alert alert-info mb-0 small d-flex align-items-start gap-2" role="alert">
+                <i class="bi bi-info-circle-fill fs-5"></i>
+                <div>
+                    <strong>' . $languageService->get('error_no_areas') . '</strong><br>
+                    ' . $languageService->get('error_no_linked') . '<br>
+                    <span class="text-muted">' . $languageService->get('error_support_admin') . '</span>
+                </div>
+            </div>';
+    }
+
+    // KATEGORIEN LADEN
+    $out = '';
+
+    $cats = $_database->query("
+        SELECT *
+        FROM navigation_dashboard_categories
+        ORDER BY sort
+    ");
+
+    if (!$cats) {
         return '<li>Fehler beim Laden der Kategorien.</li>';
     }
 
-    // --- Durch alle Kategorien ---
-    while ($cat = $categoriesResult->fetch_assoc()) {
-        $catID = (int)$cat['catID'];
+    while ($cat = $cats->fetch_assoc()) {
 
-        // Rechtecheck Kategorie
-        if (!in_array($cat['modulname'], $rights['category'] ?? [], true)) {
+        // Kategorie-Rechte prüfen
+        if (!in_array($cat['modulname'], $rights['category'], true)) {
             continue;
         }
 
-        // Sprachen
-        $translateCat = new multiLanguage($lang);
-        $translateCat->detectLanguages($cat['name']);
-        $catName = $translateCat->getTextByLanguage($cat['name']);
-        $fa_name = $cat['fa_name'];
+        $resCatTitle = $_database->query("
+            SELECT content
+            FROM navigation_dashboard_lang
+            WHERE content_key = 'nav_cat_" . (int)$cat['catID'] . "'
+              AND language = '" . $_database->real_escape_string($lang) . "'
+            LIMIT 1
+        ");
 
-        // Links dieser Kategorie laden
-        $linksResult = $_database->query("
-            SELECT * FROM navigation_dashboard_links 
-            WHERE catID = $catID 
+        $catName = ($resCatTitle && ($r = $resCatTitle->fetch_assoc()))
+            ? $r['content']
+            : 'Kategorie ' . (int)$cat['catID'];
+
+
+        $linksHtml = '';
+        $activeCat = false;
+
+        // LINKS DER KATEGORIE LADEN
+        $lq = $_database->query("
+            SELECT *
+            FROM navigation_dashboard_links
+            WHERE catID = " . (int)$cat['catID'] . "
             ORDER BY sort
         ");
-        if (!$linksResult) {
+
+        if (!$lq) {
             continue;
         }
 
-        $cat_active = false;
-        $cat_links_html = '';
+        while ($link = $lq->fetch_assoc()) {
 
-        while ($link = $linksResult->fetch_assoc()) {
-            // Rechtecheck Link
-            if (!in_array($link['modulname'], $rights['link'] ?? [], true)) {
+            // Link-Rechte prüfen
+            if (!in_array($link['modulname'], $rights['link'], true)) {
                 continue;
             }
 
-            // Sprachen
-            $translateLink = new multiLanguage($lang);
-            $translateLink->detectLanguages($link['name']);
-            $linkName = $translateLink->getTextByLanguage($link['name']);
+            $resLinkTitle = $_database->query("
+                SELECT content
+                FROM navigation_dashboard_lang
+                WHERE content_key = 'nav_link_" . (int)$link['linkID'] . "'
+                  AND language = '" . $_database->real_escape_string($lang) . "'
+                LIMIT 1
+            ");
 
-            // Aktive Seite bestimmen
-            $url = $link['url'];
-            $url_parts = parse_url($url);
-            parse_str($url_parts['query'] ?? '', $url_query);
-            $is_active = ($url_query['site'] ?? '') === $current_query;
-            if ($is_active) {
-                $cat_active = true;
+            $linkName = ($resLinkTitle && ($r2 = $resLinkTitle->fetch_assoc()))
+                ? $r2['content']
+                : 'Link ' . (int)$link['linkID'];
+
+
+            // Aktive Seite ermitteln
+            $urlParts = parse_url($link['url']);
+            parse_str($urlParts['query'] ?? '', $qs);
+
+            $isActive = isset($qs['site']) && $qs['site'] === $current_site;
+
+            if ($isActive) {
+                $activeCat = true;
+                $GLOBALS['__pageTitle']    = $linkName;
+                $GLOBALS['__pageCategory'] = $catName;
             }
 
-            // CSS-Klassen
-            $active_class = $is_active ? 'active' : '';
-            $icon_class = $is_active ? 'bi bi-arrow-right' : 'bi bi-plus-lg';
-
-            // Link-HTML
-            $cat_links_html .= '
-                <li class="' . $active_class . '">
-                    <a href="' . htmlspecialchars($url) . '">
-                        <i class="' . $icon_class . ' ac-link"></i> ' . htmlspecialchars($linkName) . '
+            $linksHtml .= "
+                <li class='nav-item'>
+                    <a class='nav-link" . ($isActive ? " active" : "") . "'
+                       " . ($isActive ? "aria-current='page'" : "") . "
+                       href='" . htmlspecialchars($link['url'], ENT_QUOTES, 'UTF-8') . "'>
+                        <span>" . htmlspecialchars($linkName, ENT_QUOTES, 'UTF-8') . "</span>
                     </a>
-                </li>';
+                </li>";
         }
 
-        // Kategorie mit Links ausgeben (nur, wenn erlaubt und Links vorhanden)
-        if (!empty($cat_links_html)) {
-            $expand_class = $cat_active ? 'mm-active' : '';
-            $aria_expanded = $cat_active ? 'true' : 'false';
-            $show_class = $cat_active ? 'style="display:block;"' : '';
+        // Kategorie nur ausgeben, wenn Links sichtbar sind
+        if ($linksHtml === '') {
+            continue;
+        }
 
-            $links .= '
-                <li class="' . $expand_class . '">
-                    <a class="has-arrow" aria-expanded="' . $aria_expanded . '" href="#">
-                        <i class="' . htmlspecialchars($fa_name) . '" style="font-size: 1rem;"></i> ' . htmlspecialchars($catName) . '
-                    </a>
-                    <ul class="nav nav-third-level" ' . $show_class . '>
-                        ' . $cat_links_html . '
+        // ACCORDION-AUSGABE
+        $catId      = (int)$cat['catID'];
+        $headingId  = "sidebarHeading{$catId}";
+        $collapseId = "sidebarCollapse{$catId}";
+        $expanded   = $activeCat ? 'true' : 'false';
+
+        $out .= "
+        <div class='accordion-item'>
+            <h2 class='accordion-header' id='{$headingId}'>
+                <button class='accordion-button" . ($activeCat ? "" : " collapsed") . "' type='button'
+                        data-bs-toggle='collapse'
+                        data-bs-target='#{$collapseId}'
+                        aria-expanded='{$expanded}'
+                        aria-controls='{$collapseId}'>
+                    <i class='" . htmlspecialchars($cat['fa_name'], ENT_QUOTES, 'UTF-8') . " me-2'></i>
+                    <span class='flex-grow-1'>" . htmlspecialchars($catName, ENT_QUOTES, 'UTF-8') . "</span>
+                </button>
+            </h2>
+            <div id='{$collapseId}' 
+             class='accordion-collapse collapse" . ($activeCat ? " show" : "") . "'
+             aria-labelledby='{$headingId}'
+             data-bs-parent='#sidebarAccordion'>
+                <div class='accordion-body p-0'>
+                    <ul class='nav flex-column ac-sidebar-subnav'>
+                        {$linksHtml}
                     </ul>
-                </li>';
-        }
-    }
-
-    // --- Falls keine Einträge sichtbar waren ---
-    return $links ?: '<li>
-            <div class="alert alert-info mb-0 small d-flex align-items-start gap-2" role="alert" style="border-radius:0.5rem;">
-                <i class="bi bi-info-circle-fill fs-5"></i>
-                <div>
-                    <strong>Keine zugriffsberechtigten Bereiche gefunden.</strong><br>
-                    Dir sind aktuell keine Menüpunkte im Admincenter zugewiesen.<br>
-                    <span class="text-muted">
-                        Bitte wende dich an einen Administrator, um entsprechende Rollen oder Zugriffsrechte zu erhalten.
-                    </span>
                 </div>
             </div>
-        </li>';
+        </div>";
+    }
+
+    // FALLBACK
+    return $out ?: '
+        <div class="alert alert-info mb-0 small d-flex align-items-start gap-2" role="alert">
+            <i class="bi bi-info-circle-fill fs-5"></i>
+            <div>
+                <strong>' . $languageService->get('error_no_areas') . '</strong><br>
+                ' . $languageService->get('error_no_linked') . '<br>
+                <span class="text-muted">' . $languageService->get('error_support_admin') . '</span>
+            </div>
+        </div>';
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-if ($userID && !isset($_GET['userID']) && !isset($_POST['userID'])) {
-	$ds = mysqli_fetch_array(safe_query("SELECT registerdate FROM `users` WHERE userID='" . $userID . "'"));
-	$username = '<a class="nav-link nav-link-3" href="../index.php?site=profile&amp;id=' . $userID . '">' . getusername($userID) . '</a>';
-	$lastlogin = !empty($ds['lastlogin']) ? date("d.m.Y H:i", strtotime($ds['lastlogin'])) : '-';
-    $registerdate = date("d.m.Y H:i", strtotime($ds['registerdate']));
-    
-	$data_array = array();
-	$data_array['$username'] = $username;
-	$data_array['$lastlogin'] = $lastlogin;
-	$data_array['$registerdate'] = $registerdate;
-}
-
-if ($getavatar = getavatar($userID)) {
-	$l_avatar = $getavatar;
-} else {
-	$l_avatar = "noavatar.png";
-}
-
-
-
-
-header('Content-Type: text/html; charset=UTF-8');
-
+if (ob_get_level() > 0) { @ob_clean(); }
 ?>
 <!DOCTYPE html>
-<html lang="<?= htmlspecialchars($languageService->detectLanguage(), ENT_QUOTES, 'UTF-8') ?>">
+<html lang="<?= htmlspecialchars($languageService->currentLanguage) ?>">
 
 <head>
-
-	<meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="Website using nexpell CMS">
-	<meta name="copyright" content="Copyright &copy; 2017-2025 by nexpell.de">
-	<meta name="author" content="nexpell.de">
-
-	<link rel="SHORTCUT ICON" href="/admin/images/favicon.ico">
-
-	<title>nexpell - Bootstrap Admin Theme</title>
-
-	<!-- Bootstrap Core CSS -->
-	<link href="/admin/css/bootstrap.min.css" rel="stylesheet">
-	<link href="/admin/css/bootstrap-switch.css" rel="stylesheet">
-
-	<!-- side-bar CSS -->
-	<link href="/admin/css/page.css" rel="stylesheet">
-	<link href="/admin/css/metisMenu.css" rel="stylesheet" />
-
-	<!-- Custom Fonts -->
-	<link href="/admin/css/bootstrap-icons.min.css" rel="stylesheet">
-
-	<!-- colorpicker -->
-	<link href="/admin/css/bootstrap-colorpicker.min.css" rel="stylesheet">
-    
-
+    <meta charset="utf-8">
+    <title>Nexpell Admincenter</title>
+    <link rel="SHORTCUT ICON" href="/admin/images/favicon.ico">
+    <link href="/admin/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/admin/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/admin/css/page.css" rel="stylesheet">
 </head>
 
 <body>
 
-	<div id="wrapper">
-		<!-- Navigation -->
+<div id="wrapper">
 
-		<ul class="nav justify-content-between" style="width: 100%; margin-bottom: 25px; margin-top: 0px;background: #eaeaea;box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.06) 0px 2px 4px -1px; !important;">
-   
-            <li class="nav-item" style="width: 80%;margin-left: 6px;">
-                <a class="navbar-brand" href="/admin/admincenter.php">
-        		            <img src="/admin/images/logo.png" style="width: 230px;margin-top: 7px; margin-bottom: 7px;" alt="setting">
-        		        </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link nav-link-2"><?= $languageService->module['welcome'] ?> </a>
-            </li>
-            <li class="nav-item">
-                <?php echo @$username ?>
-            </li>
-            <li class="nav-item dropdown" style="margin-right: 18px;">
-                <a class="nav-link nav-link-3 dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <?php echo $languageService->module['logout'] ?>
-                </a>
-                <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" href="../index.php"><i class="bi bi-arrow-clockwise text-success"></i> <?php echo $languageService->module['back_to_website'] ?></a></li>
-                    <li><a class="dropdown-item" href="/admin/admincenter.php?site=logout"><i class="bi bi-x-lg text-danger"></i> <?php echo $languageService->module['logout'] ?></a></li>
-                </ul>
-            </li>
-        </ul>
+<!-- SIDEBAR -->
+<nav class="sidebar">
+    <div class="sidebar-logo-wrap">
+        <div class="sidebar-logo">
+            <a href="/admin/admincenter.php">
+                <img src="/admin/images/logo_dark.png">
+            </a>
+        </div>
+    </div>
+        <div class="accordion ac-sidebar-accordion" id="sidebarAccordion">
+            <?php
+            $userID = (int)($_SESSION['userID'] ?? 0);
 
+            $unreadCount = 0;
+            $hasMessengerTable = false;
 
+            if ($userID > 0 && isset($_database) && $_database instanceof mysqli) {
 
-		<!-- /.navbar-top-links -->
-		<!-- sidebar-links -->
-		<nav class="navbar-default sidebar navbar-dark" role="navigation" style="margin-top: 5px;">
-		    <div style="padding: 0 0 10px 0;" id="ws-image">
-		        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown" aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-		            <span class="navbar-toggler-icon"></span>
-		        </button>
-                <?php
-                $avatar_url = getavatar($userID);
-                $username = getusername($userID);
-                ?>
-                <img id="avatar-big"
-                     src="../<?php echo $avatar_url ?>"
-                     class="rounded-circle profile_img"
-                     style="height: 90px; margin-top: 9px; margin-bottom: 9px; -webkit-box-shadow: 2px 2px 15px 3px rgba(0,0,0,0.54); box-shadow: 2px 2px 15px 3px rgba(0,0,0,0.54); border: 3px solid #fe821d; border-radius: 25px; --bs-tooltip-bg: #fe821d;"
-                     data-bs-toggle="tooltip"
-                     data-bs-placement="right"
-                     title="<?php echo $username ?>"
-                     data-bs-html="true">
-		        <div class="sidebar-nav col1lapse navbar-collapse" id="navbarNavDropdown">
-                    <a class="link-head" href="admincenter.php">Dashboard</a>
-		            <ul class="nav metismenu text-start navbar-nav" id="side-bar">
-		                <?php echo dashnavi(); ?>
-		            </ul>
-		        </div>
-		        <div class="copy">
-                    <em>Admin Template powered by <a href="https://www.nexpell.de" target="_blank" rel="noopener">nexpell</a></em>
+                // Prüfen ob Tabelle existiert
+                $res = $_database->query("SHOW TABLES LIKE 'plugins_messages'");
+                $hasMessengerTable = ($res && $res->num_rows > 0);
+
+                // Nur wenn Plugin Messages existiert -> ungelesene zählen
+                if ($hasMessengerTable) {
+                    $uid = $_database->real_escape_string((string)$userID);
+
+                    $res2 = $_database->query("
+                        SELECT COUNT(*) AS cnt
+                        FROM plugins_messages
+                        WHERE receiver_id = '{$uid}'
+                        AND is_read = 0
+                    ");
+
+                    if ($res2 && ($row = $res2->fetch_assoc())) {
+                        $unreadCount = (int)$row['cnt'];
+                    }
+                }
+            }
+            $profileID = $userID;
+            $avatar    = getavatar($userID);
+            $username  = trim(strip_tags(getusername($userID)));
+            ?>
+
+            <!-- User-Panel -->
+            <div class="accordion-item ac-user-item">
+            <h2 class="accordion-header" id="userHeading">
+                <button class="accordion-button collapsed ac-user-button" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#userCollapse"
+                        aria-expanded="false" aria-controls="userCollapse">
+                <img src="../<?= $avatar ?>" class="ac-user-avatar" alt="">
+                <span class="ac-user-name"><?= htmlspecialchars($username) ?></span>
+                </button>
+            </h2>
+
+            <div id="userCollapse" class="accordion-collapse collapse"
+                aria-labelledby="userHeading" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <ul class="nav flex-column ac-user-links">
+                        <li class="nav-item">
+                            <a class="nav-link" href="../index.php?site=profile&userID=<?= $profileID ?>" target="_blank">
+                                <?= $languageService->get('profile') ?>
+                            </a>
+                        </li>
+                        <?php if ($hasMessengerTable): ?>
+                            <a class="nav-link" href="../index.php?site=messenger" target="_blank">
+                                <?= $languageService->get('messages') ?>
+                                <?php if ($unreadCount > 0): ?>
+                                    <span class="badge bg-danger ms-1"><?= (int)$unreadCount ?></span>
+                                <?php endif; ?>
+                            </a>
+                        <?php endif; ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="../index.php?site=edit_profile" target="_blank">
+                                <?= $languageService->get('settings') ?>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link link-danger" href="/admin/admincenter.php?site=logout">
+                                <?= $languageService->get('logout') ?>
+                            </a>
+                        </li>
+                    </ul>
                 </div>
-		    </div>
-		</nav>
+            </div>
+            <hr>
+            </div>
+            <div class="sidebar-nav navbar-collapse">
+                <div class="accordion-item">
+                <h2 class="accordion-header" id="sidebarDashboard">
+                    <?php
+                        $isDashboard = !isset($_GET['site']) || $_GET['site'] === 'dashboard';
+                    ?>
+                    <a href="/admin/admincenter.php" id="sidebarDashboard" class="ac-sidebar-link <?= $isDashboard ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i>
+                        <span class="ac-sidebar-link-text">Dashboard</span>
+                    </a>
+                </h2>
+                <!-- Accordion Sidebar Navigation -->
+                    <?= dashnavi() ?>
+                </div>
+            </div>
+    </div>
+    <!-- Sidebar Footer -->
+    <div class="sidebar-footer">
+        Admin Template powered by <a href="https://www.nexpell.de">Nexpell</a>
+    </div>
+</nav>
 
-		<!-- /.navbar-static-side -->
+<!-- CONTENT -->
+<div id="page-wrapper">
+    <div class="container-fluid p-4">
+<?php
+// Impressum/Datenschutz
+$impressumOk = false;
+$datenschutzOk = false;
 
-		<div id="page-wrapper">
-			<?php
-			if (isset($site) && $site != "news") {
-    $invalide = array('\\', '/', '//', ':', '.');
-    $site = str_replace($invalide, ' ', $site); // Entferne ungültige Zeichen
+/* -----------------------------
+ * Impressum (Disclaimer)
+ * ----------------------------- */
+$res = $_database->query("
+    SELECT 1
+    FROM settings_content_lang
+    WHERE content_key = 'imprint'
+    LIMIT 1
+");
+if ($res && $res->num_rows > 0) {
+    $impressumOk = true;
+}
 
-    if (file_exists($site . '.php')) {
-        include($site . '.php');
+/* -----------------------------
+ * Datenschutz
+ * ----------------------------- */
+$res = $_database->query("
+    SELECT 1
+    FROM settings_content_lang
+    WHERE content_key = 'privacy_policy'
+    LIMIT 1
+");
+if ($res && $res->num_rows > 0) {
+    $datenschutzOk = true;
+}
+
+/* -----------------------------
+ * Ausgabe
+ * ----------------------------- */
+if (!$impressumOk || !$datenschutzOk): ?>
+    <div class="alert alert-warning">
+        <?= !$impressumOk ? "Impressum fehlt. " : "" ?>
+        <?= !$datenschutzOk ? "Datenschutzerklärung fehlt." : "" ?>
+    </div>
+<?php endif; ?>
+<?php
+$subParamName = '';
+$subParamVal  = '';
+foreach (['action', 'tab', 'step'] as $p) {
+    if (!empty($_GET[$p])) {
+        $subParamName = $p;
+        $subParamVal  = preg_replace('/[^a-z0-9_]/i', '', (string)$_GET[$p]);
+        break;
+    }
+}
+
+ob_start();
+
+$local = __DIR__ . '/' . $site . '.php';
+if (file_exists($local)) {
+    include $local;
+} else {
+    // Plugins
+    chdir("../");
+    $plugin = $pluginManager->plugin_data($site, 0, true);
+    if (!$plugin && str_starts_with((string)$site, 'admin_')) {
+        // Compatibility fallback: map site=admin_x to admin_file=x when needed.
+        $plugin = $pluginManager->plugin_data(substr((string)$site, 6), 0, true);
+    }
+    $path   = (string)($plugin['path'] ?? "");
+    $baseAdminPath = rtrim($path, "/\\") . "/admin/";
+    $pFile  = $baseAdminPath . $site . ".php";
+    $pFileAlt = $baseAdminPath . "admin_" . $site . ".php";
+
+    // Normalize plugin include path to absolute path when a relative plugin path is stored.
+    if (!preg_match('~^([a-zA-Z]:[\\\\/]|/)~', $pFile)) {
+        $pFile = dirname(__DIR__) . '/' . ltrim($pFile, "/\\");
+    }
+    if (!preg_match('~^([a-zA-Z]:[\\\\/]|/)~', $pFileAlt)) {
+        $pFileAlt = dirname(__DIR__) . '/' . ltrim($pFileAlt, "/\\");
+    }
+
+    if (file_exists($pFile)) {
+        include $pFile;
+    } elseif (file_exists($pFileAlt)) {
+        include $pFileAlt;
     } else {
-        chdir("../"); // <<< WICHTIG: Hier wechselst du ins Elternverzeichnis (aus admin/ raus)
-        
-        $plugin = $load->plugin_data($site, 0, true);
-        $plugin_path = @$plugin['path'];  // z.B. "includes/plugins/news/"
-        @$ifiles = $plugin['admin_file']; // z.B. "news.php"
-        @$tfiles = explode(",", $ifiles);
-
-        if (file_exists($plugin_path . "admin/" . $site . ".php")) {
-            include($plugin_path . "admin/" . $site . ".php");
+        $errorPage = __DIR__ . '/error_page.php';
+        if (file_exists($errorPage)) {
+            include $errorPage;
         } else {
-            #echo '<div class="alert alert-danger" role="alert">' . $languageService->module['plugin_not_found'] . '</div>';
-            include('info.php');
+            echo "<div class='alert alert-danger'>Admin page not found: " . htmlspecialchars((string)$site, ENT_QUOTES) . "</div>";
         }
     }
-} else {
-    include('info.php');
 }
-			?>
-		</div><!-- /#wrapper -->
-		
-		<?php
-		
 
-		#$roleID = RoleManager::getUserRoleID($userID);
+$pageHtml = ob_get_clean();
+$subTitle = null;
 
-        #if ($roleID !== null && RoleManager::roleHasPermission($roleID, 'ckeditor_full')) {
-            echo '<script src="../components/ckeditor/ckeditor.js"></script>';
-            echo '<script src="../components/ckeditor/config.js"></script>';
-        #} else {
-        #    echo '<script src="../components/ckeditor/ckeditor.js"></script>';
-        #    echo '<script src="../components/ckeditor/user_config.js"></script>';
-        #}
-		?>
+// dynamische Titelausgabe
+if ($subParamName !== '' && $subParamVal !== '') {
+    $patternLinks = '~<a\b([^>]*?)href="[^\"]*' . preg_quote($subParamName, '~') . '=' . preg_quote($subParamVal, '~') . '[^\"]*"([^>]*)>(.*?)</a>~is';
+    if (preg_match_all($patternLinks, $pageHtml, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $attrs = trim(($match[1] ?? '') . ' ' . ($match[2] ?? ''));
+            $text  = trim(strip_tags(html_entity_decode($match[3] ?? '', ENT_QUOTES, 'UTF-8')));
 
-		<!-- jQuery -->
-		<script src="/admin/js/jquery.min.js"></script>
+            if ($text === '') continue;
+            if (preg_match('~\bclass\s*=\s*"[^\"]*\b(btn|text-danger|link-danger)\b[^\"]*"~i', $attrs)) continue;
+            if (stripos($attrs, 'data-delete-url') !== false) continue;
+            if (preg_match('~^\[[a-z0-9_]+\]$~i', $text)) continue;
 
-		<script src="/admin/js/page.js"></script>
+            $subTitle = $text;
+            break;
+        }
+    }
 
-		<!-- colorpicker -->
-		<script src="/admin/js/bootstrap-colorpicker.min.js"></script>
-		<script src="/admin/js/colorpicker-rm.js"></script>
+    if (empty($subTitle)) {
+        $patternSmall = '~<div\b[^>]*class="[^\"]*card-title[^\"]*"[^>]*>.*?<small\b[^>]*>(.*?)</small>~is';
+        if (preg_match($patternSmall, $pageHtml, $m2)) {
+            $candidate = trim(strip_tags(html_entity_decode($m2[1], ENT_QUOTES, 'UTF-8')));
+            if ($candidate !== '') {
+                $subTitle = $candidate;
+            }
+        }
+    }
 
-		<!-- Bootstrap -->
-		<script src="/admin/js/bootstrap.bundle.min.js"></script>
-		<script src="/admin/js/bootstrap-switch.js"></script>
+    if (empty($subTitle)) {
+        $patternSmall2 = '~<small\b[^>]*class="[^\"]*small-muted[^\"]*"[^>]*>(.*?)</small>~is';
+        if (preg_match($patternSmall2, $pageHtml, $m3)) {
+            $candidate = trim(strip_tags(html_entity_decode($m3[1], ENT_QUOTES, 'UTF-8')));
+            if ($candidate !== '') {
+                $subTitle = $candidate;
+            }
+        }
+    }
+}
 
-		<!-- Menu Plugin JavaScript -->
-		<script src="/admin/js/metisMenu.min.js"></script>
-		<script src="/admin/js/side-bar.js"></script>
+if (empty($subTitle) && $subParamVal !== '') {
+    $subTitle = ucwords(str_replace('_', ' ', $subParamVal));
+}
 
-		<script>
-			var calledfrom = 'admin';
-		</script>
-		<!-- dataTables -->
-		<!--<script type="text/javascript" src="/admin/js/jquery.dataTables.min.js"></script>
-		<script type="text/javascript" src="/admin/js/dataTables.bootstrap5.min.js"></script>-->
-		
+$baseTitle = $GLOBALS['__pageTitle'] ?? ucwords(str_replace('_', ' ', $site));
+$cat       = $GLOBALS['__pageCategory'] ?? null;
+$GLOBALS['__pageCategoryUrl'] = 'admincenter.php?site=' . rawurlencode($qs['site'] ?? $current_site);
+$h1Title = $baseTitle;
 
-		<script type="text/javascript">
-            // setup tooltips trigger
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                return new bootstrap.Tooltip(tooltipTriggerEl, {
-                    html: true // erlaubt HTML-Inhalt
-                })
-            });
-        </script>
-        
+if (!empty($subTitle) && $subParamName !== 'action') {
+    $h1Title = $subTitle;
+}
+
+// Fallback: falls baseTitle leer ist
+if (empty($h1Title) && !empty($subTitle)) {
+    $h1Title = $subTitle;
+}
+echo '<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-2">
+        <h1 class="h3 mb-0">' . htmlspecialchars($h1Title) . '</h1>
+            <div class="position-relative me-4" style="min-width:260px;max-width:380px; width: 100%;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input id="globalAdminSearch" type="search" class="form-control" autocomplete="off" placeholder="' . htmlspecialchars($languageService->get('search')) . '">
+                <div id="globalAdminSearchResults" class="list-group shadow-sm" style="display:none; position:absolute; z-index:1050; left:0; right:0; top: calc(100% + 6px); max-height: 320px; overflow:auto;"></div>
+            </div>
+        </div>
+    </div>';
+
+// Breadcrumb: nur wenn Kategorie vorhanden (Dashboard bleibt ohne Breadcrumb)
+if (!empty($cat)) {
+    echo '<nav aria-label="breadcrumb" class="mb-2">';
+    echo '  <ol class="breadcrumb mb-0 mt-0 small">';
+    echo '    <li class="breadcrumb-item">' . htmlspecialchars($cat) . '</li>';
+
+    if (!empty($subTitle) && mb_strtolower(trim($subTitle)) !== mb_strtolower(trim($baseTitle))) {
+        echo '    <li class="breadcrumb-item"><a href="admincenter.php?site=' . urlencode($_GET['site'] ?? $site) . '">' . htmlspecialchars($baseTitle) . '</a></li>';
+
+        echo '    <li class="breadcrumb-item active" aria-current="page">' . htmlspecialchars($subTitle) . '</li>';
+    } else {
+        echo '    <li class="breadcrumb-item active" aria-current="page">' . htmlspecialchars($baseTitle) . '</li>';
+    }
+
+    echo '  </ol>';
+    echo '</nav>';
+}
+
+// Content der Seite
+echo nx_render_alerts();
+echo $pageHtml;
+?>
+        </div>
+    </div>
+</div>
+
+<!-- zentrales Modal -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <?= $languageService->get('delete_entry') ?>
+                </h5>
+                <button type="button"
+                class="btn-close btn-close-white"
+                data-bs-dismiss="modal"
+                aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body text-center">
+                <p class="mb-0">
+                    <?= $languageService->get('confirm_delete') ?><br><br>
+                    <small class="text-muted"><?= $languageService->get('confirm_undone') ?></small>
+                </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= $languageService->get('cancel') ?></button>
+                <a href="#" class="btn btn-danger" id="confirmDeleteBtn"><?= $languageService->get('delete') ?></a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast für Messages (ungelesene) -->
+<?php if (!empty($hasMessengerTable) && (int)$unreadCount > 0): ?>
+    <div class="toast-container position-fixed top-0 end-0 p-5" style="z-index: 1100;">
+        <div id="unreadMessagesToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="10000">
+            <div class="toast-header">
+                <strong class="me-auto"><i class="bi bi-bell-fill"></i> <?= $languageService->get('toast_notification') ?></strong>
+                <button type="button" class="btn-close me-1" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                <?php
+                    $count = (int)$unreadCount;
+                    $key = ($count === 1) ? 'toast_unread_messages_one' : 'toast_unread_messages_other';
+                ?>
+                <?= sprintf($languageService->get($key), $count) ?>
+                <br>
+                <a href="../index.php?site=messenger" target="_blank">
+                    <?= $languageService->get('toast_goto_messenger') ?>
+                </a>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+<script src="../components/js/nx_editor.js"></script>
+<script src="../components/js/nx-lang-editor.js"></script>
+<?php if (!empty($_SESSION['userID'])): ?>
+<script>
+window.nexpellPresence = {
+    enabled: true,
+    endpoint: "/system/user_presence.php",
+    heartbeatMs: 60000
+};
+</script>
+<script src="/components/js/user_presence.js"></script>
+<?php endif; ?>
+<script src="/admin/js/jquery.min.js"></script>
+<script src="/admin/js/bootstrap.bundle.min.js"></script>
+<script src="/admin/js/page.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
 </body>
-
 </html>

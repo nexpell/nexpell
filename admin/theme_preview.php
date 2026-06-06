@@ -7,14 +7,21 @@ if (session_status() == PHP_SESSION_NONE) {
 // Konfigurationsdatei laden
 $configPath = __DIR__ . '/../system/config.inc.php';
 if (!file_exists($configPath)) {
-    die("Fehler: Konfigurationsdatei nicht gefunden.");
+    die(
+        $languageService->get('error') . ': ' .
+        $languageService->get('config_not_found')
+    );
 }
 require_once $configPath;
 
 // Datenbankverbindung
 $_database = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
 if ($_database->connect_error) {
-    die("Verbindung zur Datenbank fehlgeschlagen: " . $_database->connect_error);
+    die(
+        $languageService->get('error') . ': ' .
+        $languageService->get('db_connection_failed') . ' ' .
+        $_database->connect_error
+    );
 }
 
 // Aktives Theme ermitteln
@@ -109,7 +116,6 @@ while ($row = $result->fetch_assoc()) {
   </style>
 </head>
 <body class="p-4">
-  <div class="container">
     <h1 class="mb-4">Theme-Wechsler (Vorschau)</h1>
 
     <!-- Theme-Auswahl -->
@@ -362,7 +368,6 @@ HTML;
       <button class="btn btn-success" id="saveBtn">Übernehmen</button>
       <span id="saveMsg"></span>
     </div>
-  </div>
 
   <script>
     const themes = <?= json_encode($availableThemes) ?>;
@@ -458,14 +463,17 @@ HTML;
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params.toString()
       })
-      .then(res => res.text())
-      .then(msg => {
-        console.log("Antwort vom Server:", msg);
-        if (msg.trim() === "OK") {
+      .then(async (res) => {
+        const msg = await res.text();
+        return { ok: res.ok, status: res.status, msg: msg.trim() };
+      })
+      .then(({ ok, status, msg }) => {
+        console.log("Antwort vom Server:", status, msg);
+        if (ok && msg === "OK") {
           saveMsg.textContent = "Theme & Navbar gespeichert!";
           saveMsg.className = "text-success";
         } else {
-          saveMsg.textContent = msg;
+          saveMsg.textContent = msg !== "" ? msg : `Speichern fehlgeschlagen (HTTP ${status}).`;
           saveMsg.className = "text-danger";
         }
       })

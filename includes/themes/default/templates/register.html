@@ -46,32 +46,82 @@
                                 <form action="{form_action}" method="POST" novalidate>
                                     <input type="hidden" name="csrf_token" value="{csrf_token}">
 
+                                    <!-- ✅ Autofill-Fänger (verhindert E-Mail im Username) -->
+                                    <input
+                                        type="email"
+                                        name="email_autofill"
+                                        autocomplete="email"
+                                        tabindex="-1"
+                                        aria-hidden="true"
+                                        style="position:absolute; left:-9999px; height:0; width:0;"
+                                    >
+
+                                    <!-- PATCH: Honeypot (unsichtbar, MUSS leer bleiben) -->
+                                    <div style="position:absolute; left:-9999px; height:0; overflow:hidden;">
+                                        <label for="company">Company</label>
+                                        <input type="text" name="company" id="company" autocomplete="off">
+                                    </div>
+                                    <!-- PATCH END -->
+
+                                    <!-- Username -->
                                     <div class="mb-3">
                                         <label for="username" class="form-label">{username_label}</label>
-                                        <input type="text" name="username" class="form-control" id="username" required
-                                               pattern="[a-zA-Z0-9_-]{3,20}" placeholder="{enter_your_name}">
+                                        <input
+                                            type="text"
+                                            name="username"
+                                            class="form-control"
+                                            id="username"
+                                            required
+                                            pattern="[a-zA-Z0-9_-]{3,20}"
+                                            placeholder="{enter_your_name}"
+                                            autocomplete="off"
+                                        >
                                     </div>
 
+                                    <!-- E-Mail -->
                                     <div class="mb-3">
                                         <label for="email" class="form-label">{email_address_label}</label>
-                                        <input type="email" name="email" class="form-control" id="email" required
-                                               placeholder="{enter_your_email}">
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            class="form-control"
+                                            id="email"
+                                            required
+                                            placeholder="{enter_your_email}"
+                                            autocomplete="email"
+                                        >
                                     </div>
 
+                                    <!-- Passwort -->
                                     <div class="mb-3">
                                         <label for="password" class="form-label">{password_label}</label>
-                                        <input type="password" name="password" class="form-control" id="password"
-                                               placeholder="{enter_password}" required>                                        
-                                        <!--<div id="passwordStrength" class="mt-2 bg-secondary"></div>-->
+                                        <input
+                                            type="password"
+                                            name="password"
+                                            class="form-control"
+                                            id="password"
+                                            placeholder="{enter_password}"
+                                            required
+                                            autocomplete="new-password"
+                                        >
                                     </div>
+
                                     <div class="progress mt-1" style="height:6px;">
                                         <div id="pw-strength-bar" class="progress-bar"></div>
                                     </div>
 
+                                    <!-- Passwort wiederholen -->
                                     <div class="mb-3">
                                         <label for="password_repeat" class="form-label">{password_repeat_label}</label>
-                                        <input type="password" name="password_repeat" class="form-control"
-                                               id="password_repeat" placeholder="{enter_password_repeat}" required>
+                                        <input
+                                            type="password"
+                                            name="password_repeat"
+                                            class="form-control"
+                                            id="password_repeat"
+                                            placeholder="{enter_password_repeat}"
+                                            required
+                                            autocomplete="new-password"
+                                        >
                                     </div>
 
                                     <div class="alert alert-info small mt-2" role="alert">
@@ -79,29 +129,40 @@
                                         {password_hint}
                                     </div>
 
+                                    <!-- Nutzungsbedingungen -->
                                     <div class="form-check mb-3">
-                                        <input type="checkbox" name="terms" class="form-check-input" id="terms" required>
+                                        <input
+                                            type="checkbox"
+                                            name="terms"
+                                            class="form-check-input"
+                                            id="terms"
+                                            required
+                                        >
                                         <label for="terms" class="form-check-label">
                                             {terms_of_use_text}
                                         </label>
                                     </div>
 
-                                    <!-- Optional reCAPTCHA -->
+                                    <!-- reCAPTCHA -->
                                     <div class="form-group">
-                                        <label for="input-security-code" class="control-label">{security_code}:</label>
+                                        <label for="input-security-code" class="control-label">
+                                            {security_code}:
+                                        </label>
                                         <div class="input-group">
                                             {recaptcha_site_key}
                                         </div>
                                     </div>
 
-                                    <button type="submit" class="btn btn-primary w-100">{register}</button>
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        {register}
+                                    </button>
                                 </form>
-                                 <hr>
+
+                                <hr>
                                 {reg_info_text}
 
                                 {endif}
 
-                               
                             </div>
                         </div>
                         <!-- Ende Rechte Inhaltshälfte -->
@@ -111,6 +172,8 @@
         </div>
     </div>
 </div>
+
+
 <script>
 const pwInput = document.querySelector('input[name="password"]');
 const bar  = document.getElementById('pw-strength-bar');

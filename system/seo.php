@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use nexpell\LanguageService;
 
@@ -21,7 +21,7 @@ function getPageTitle($url = null, $prefix = true)
         return $prefix ? settitle('') : '';
     }
 
-    // Metatags zusammenführen
+    // Metatags zusammenfÃ¼hren
     if (isset($data['metatags']) && is_array($data['metatags'])) {
         if (isset($GLOBALS['metatags']) && is_array($GLOBALS['metatags'])) {
             $GLOBALS['metatags'] = array_merge($GLOBALS['metatags'], $data['metatags']);
@@ -67,18 +67,48 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
         switch ($parameters['site']) {
 
             case 'about':
-                $result = safe_query("SELECT title, intro FROM plugins_about ORDER BY id ASC LIMIT 1");
-                $about = mysqli_fetch_assoc($result);
+                $aboutTitle = '';
+                $aboutIntro = '';
 
-                if ($about && !empty($about['title'])) {
+                $hasModernAbout = false;
+                $colCheck = safe_query("SHOW COLUMNS FROM plugins_about LIKE 'content_key'");
+                if ($colCheck && mysqli_num_rows($colCheck) > 0) {
+                    $hasModernAbout = true;
+                }
+
+                if ($hasModernAbout) {
+                    $currentLang = strtolower((string)($languageService->detectLanguage() ?: ($_SESSION['language'] ?? 'en')));
+                    $map = [];
+                    $resAbout = safe_query("SELECT content_key, language, content FROM plugins_about WHERE content_key IN ('title','intro')");
+                    while ($row = mysqli_fetch_assoc($resAbout)) {
+                        $k = (string)$row['content_key'];
+                        $l = strtolower((string)$row['language']);
+                        $map[$k][$l] = (string)$row['content'];
+                    }
+                    foreach ([$currentLang, 'de', 'en', 'it'] as $iso) {
+                        if ($aboutTitle === '' && !empty($map['title'][$iso])) {
+                            $aboutTitle = (string)$map['title'][$iso];
+                        }
+                        if ($aboutIntro === '' && !empty($map['intro'][$iso])) {
+                            $aboutIntro = (string)$map['intro'][$iso];
+                        }
+                    }
+                } else {
+                    $result = safe_query("SELECT title, intro FROM plugins_about ORDER BY id ASC LIMIT 1");
+                    $about = mysqli_fetch_assoc($result);
+                    $aboutTitle = (string)($about['title'] ?? '');
+                    $aboutIntro = (string)($about['intro'] ?? '');
+                }
+
+                if ($aboutTitle !== '') {
                     $returned_title[] = [
                         $languageService->get('about'),
                         'index.php?site=about'
                     ];
-                    $returned_title[] = [$about['title']];
+                    $returned_title[] = [$aboutTitle];
 
-                    // Meta Description aus Intro (auf ~160 Zeichen beschränken)
-                    $intro_excerpt = strip_tags($about['intro']);
+                    // Meta Description aus Intro (auf ~160 Zeichen beschrÃ¤nken)
+                    $intro_excerpt = strip_tags($aboutIntro);
                     if (strlen($intro_excerpt) > 160) {
                         $intro_excerpt = substr($intro_excerpt, 0, 157) . '...';
                     }
@@ -149,11 +179,11 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
             case 'pricing':
                 $planID = isset($parameters['planID']) ? (int)$parameters['planID'] : 0;
 
-                // Alle Pläne holen (für Übersichtsseite)
+                // Alle PlÃ¤ne holen (fÃ¼r Ãœbersichtsseite)
                 if ($planID === 0) {
                     $returned_title[] = [$languageService->get('pricing')];
                 }
-                // Einzelnen Plan mit Features holen (für Detailseite)
+                // Einzelnen Plan mit Features holen (fÃ¼r Detailseite)
                 else {
                     $plan = null;
                     $features = [];
@@ -502,7 +532,7 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                         $returned_title[] = [$link_title];
                     }
 
-                    // Meta Description aus Beschreibung, gekürzt auf 160 Zeichen
+                    // Meta Description aus Beschreibung, gekÃ¼rzt auf 160 Zeichen
                     if ($link_description !== '') {
                         $desc_excerpt = strip_tags($link_description);
                         if (mb_strlen($desc_excerpt) > 160) {
@@ -642,7 +672,7 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                     // Partner-Daten aus DB holen
                     $res = safe_query("SELECT name, description FROM plugins_partners WHERE id = " . $partnerID . " AND active = 1");
                     if ($partner = mysqli_fetch_assoc($res)) {
-                        // Title für Breadcrumb / Navigation
+                        // Title fÃ¼r Breadcrumb / Navigation
                         $returned_title[] = [
                             $languageService->get('partners'),
                             'index.php?site=partners'
@@ -668,7 +698,7 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                         $returned_title[] = [$languageService->get('partners')];
                     }
                 } else {
-                    // Startseite oder Übersicht Partners
+                    // Startseite oder Ãœbersicht Partners
                     $returned_title[] = [$languageService->get('partners')];
                 }
                 break;
@@ -687,14 +717,14 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                     }
                 }
 
-                // Titel fürs Breadcrumb oder so
+                // Titel fÃ¼rs Breadcrumb oder so
                 if ($title) {
                     $returned_title[] = [$title];
                 } else {
                     $returned_title[] = ['Startseite'];
                 }
 
-                // Meta Description aus Text (HTML-Tags entfernen, auf max 160 Zeichen kürzen)
+                // Meta Description aus Text (HTML-Tags entfernen, auf max 160 Zeichen kÃ¼rzen)
                 if ($startpage_text) {
                     $desc = strip_tags($startpage_text);
                     if (mb_strlen($desc) > 160) {
@@ -845,7 +875,7 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                 }
 
                 if (!empty($get['content'])) {
-                    // Meta Description aus content (HTML-Tags entfernen, Länge begrenzen)
+                    // Meta Description aus content (HTML-Tags entfernen, LÃ¤nge begrenzen)
                     $desc = strip_tags($get['content']);
                     $desc = trim(preg_replace('/\s+/', ' ', $desc)); // Whitespace reduzieren
                     if (strlen($desc) > 160) {
@@ -874,15 +904,67 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
             case 'privacy_policy':
                 $privacyPolicyID = isset($parameters['privacy_policyID']) ? (int)$parameters['privacy_policyID'] : 0;
 
-                $get = mysqli_fetch_assoc(
-                    safe_query("SELECT privacy_policy_text FROM settings_privacy_policy WHERE privacy_policyID = " . $privacyPolicyID)
-                );
+                $get = [];
+                $privacyText = '';
+                $currentLang = strtolower((string)$languageService->detectLanguage());
+                if ($currentLang === '') {
+                    $currentLang = 'de';
+                }
+
+                $hasSettingsContentLang = false;
+                $resContentLang = $_database->query("SHOW TABLES LIKE 'settings_content_lang'");
+                if ($resContentLang && $resContentLang->num_rows > 0) {
+                    $hasSettingsContentLang = true;
+                }
+
+                if ($hasSettingsContentLang) {
+                    $langOrder = array_values(array_unique([$currentLang, 'en', 'de', 'it']));
+                    foreach ($langOrder as $langIso) {
+                        $stmt = $_database->prepare("
+                            SELECT content
+                            FROM settings_content_lang
+                            WHERE content_key = 'privacy_policy' AND language = ?
+                            LIMIT 1
+                        ");
+                        if ($stmt) {
+                            $stmt->bind_param('s', $langIso);
+                            $stmt->execute();
+                            $stmt->bind_result($privacyText);
+                            $stmt->fetch();
+                            $stmt->close();
+                        }
+                        $privacyText = trim((string)$privacyText);
+                        if ($privacyText !== '') {
+                            break;
+                        }
+                    }
+                } else {
+                    $hasLegacyPrivacyTable = false;
+                    $resLegacy = $_database->query("SHOW TABLES LIKE 'settings_privacy_policy'");
+                    if ($resLegacy && $resLegacy->num_rows > 0) {
+                        $hasLegacyPrivacyTable = true;
+                    }
+
+                    if ($hasLegacyPrivacyTable) {
+                        if ($privacyPolicyID > 0) {
+                            $get = mysqli_fetch_assoc(
+                                safe_query("SELECT privacy_policy_text FROM settings_privacy_policy WHERE privacy_policyID = " . $privacyPolicyID . " LIMIT 1")
+                            ) ?: [];
+                        }
+                        if (empty($get['privacy_policy_text'])) {
+                            $get = mysqli_fetch_assoc(
+                                safe_query("SELECT privacy_policy_text FROM settings_privacy_policy ORDER BY privacy_policyID DESC LIMIT 1")
+                            ) ?: [];
+                        }
+                        $privacyText = trim((string)($get['privacy_policy_text'] ?? ''));
+                    }
+                }
 
                 $returned_title[] = [$languageService->get('privacy_policy')];
 
-                if (!empty($get['privacy_policy_text'])) {
+                if ($privacyText !== '') {
                     // Meta Description aus Datenschutztext (HTML entfernen, auf max. 160 Zeichen kürzen)
-                    $desc = strip_tags($get['privacy_policy_text']);
+                    $desc = strip_tags($privacyText);
                     $desc = trim(preg_replace('/\s+/', ' ', $desc));
                     if (strlen($desc) > 160) {
                         $desc = substr($desc, 0, 157) . '...';
@@ -933,7 +1015,7 @@ if (!isset($languageService) || !$languageService instanceof LanguageService) {
                 }
 
                 if (!empty($get['text'])) {
-                    // Meta Description aus dem Text (HTML entfernen, auf max. 160 Zeichen kürzen)
+                    // Meta Description aus dem Text (HTML entfernen, auf max. 160 Zeichen kÃ¼rzen)
                     $desc = strip_tags($get['text']);
                     $desc = trim(preg_replace('/\s+/', ' ', $desc));
                     if (strlen($desc) > 160) {

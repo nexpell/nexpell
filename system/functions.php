@@ -123,11 +123,11 @@ function systeminc($file) {
     $path = BASE_PATH . '/system/' . $file . '.php';
 
     if (file_exists($path)) {
-        include $path;
+        include_once $path;
     } else {
         $corePath = BASE_PATH . '/system/core/' . $file . '.php';
         if (file_exists($corePath)) {
-            include $corePath;
+            include_once $corePath;
         } else {
             if (defined('DEBUG') && DEBUG == "OFF") {
                 system_error('Could not get system file for <mark>' . $file . '</mark>');
@@ -195,6 +195,8 @@ function percent($sub, $total, $dec = 2)
 // Funktion, die eine Seite im Wartungsmodus anzeigt
 function showlock(string $reason, int $time)
 {
+    $reason = htmlspecialchars_decode($reason, ENT_QUOTES | ENT_HTML5);
+
     // Holen des Seitentitels aus der Datenbank
     $gettitle = mysqli_fetch_array(safe_query("SELECT `hptitle` FROM `settings`"));
     $pagetitle = $gettitle['hptitle'];

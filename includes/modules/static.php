@@ -7,71 +7,100 @@ if (session_status() === PHP_SESSION_NONE) {
 use nexpell\AccessControl;
 use nexpell\LanguageService;
 
-global $languageService;
+global $languageService, $_database, $tpl;
 
 $lang = $languageService->detectLanguage();
 $languageService->readModule('static');
 
 $staticID = isset($_GET['staticID']) ? (int)$_GET['staticID'] : 0;
 
-$ds = mysqli_fetch_array(safe_query("SELECT * FROM `settings_static` WHERE `staticID`='" . $staticID . "'"));
+/* =========================================================
+   BASIS-DATENSATZ (NUR META)
+========================================================= */
+$ds = mysqli_fetch_array(
+    safe_query("SELECT * FROM settings_static WHERE staticID = '$staticID'")
+);
 
-// Prüfen, ob Datensatz gefunden wurde
 if (!$ds) {
     echo '<div class="alert alert-warning">Der angeforderte Inhalt wurde nicht gefunden.</div>';
-    exit;
+    return;
 }
 
-// Titel übersetzen
-$title = $ds['title'] ?? '';
-$translate = new multiLanguage($lang);
+/* =========================================================
+   ZUGRIFFSRECHTE PRÜFEN
+========================================================= */
+$accessGranted = AccessControl::canViewStatic($ds);
 
-// Nur wenn $title nicht leer ist, Sprachen erkennen
-if (!empty($title)) {
-    $translate->detectLanguages($title);
-} else {
-    $translate->detectLanguages('');
+/* =========================================================
+   TITEL AUS settings_content_lang
+========================================================= */
+$title = '';
+$safeLang = mysqli_real_escape_string($_database, $lang);
+
+$resTitle = safe_query("
+    SELECT content, language
+    FROM settings_content_lang
+    WHERE content_key = 'static_title_$staticID'
+      AND language IN ('$safeLang', 'de')
+    ORDER BY FIELD(language, '$safeLang', 'de')
+    LIMIT 1
+");
+
+if ($row = mysqli_fetch_assoc($resTitle)) {
+    $title = $row['content'];
 }
-$title = $translate->getTextByLanguage($title);
 
-$config = mysqli_fetch_array(safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id=1"));
+/* =========================================================
+   HEADER RENDERN
+========================================================= */
+$config = mysqli_fetch_array(
+    safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id = 1")
+);
 $class = htmlspecialchars($config['selected_style'] ?? '');
 
-// Header-Daten
-$data_array = [
-    'class'    => $class,
-    'title' => $title,
-    'subtitle' => $title
-];
-echo $tpl->loadTemplate("static", "head", $data_array, 'theme');
+echo $tpl->loadTemplate(
+    "static",
+    "head",
+    [
+        'class'    => $class,
+        'title'    => $title,
+        'subtitle' => $title
+    ],
+    'theme'
+);
 
-// Rollen aus der DB (JSON-Feld) lesen
-$allowedRoles = [];
-if (!empty($ds['access_roles'])) {
-    $allowedRoles = json_decode($ds['access_roles'], true);
-}
-
-if (empty($allowedRoles)) {
-    $accessGranted = true; // Jeder darf sehen
-} else {
-    $accessGranted = AccessControl::hasAnyRole($allowedRoles);
-}
-
+/* =========================================================
+   CONTENT AUS settings_content_lang + RECHTE
+========================================================= */
 if ($accessGranted) {
-    // Inhalt übersetzen
-    $content = $ds['content'] ?? '';
 
-    if (!empty($content)) {
-        $translate->detectLanguages($content);
-    } else {
-        $translate->detectLanguages('');
+    $content = '';
+
+    $resContent = safe_query("
+        SELECT content, language
+        FROM settings_content_lang
+        WHERE content_key = 'static_$staticID'
+          AND language IN ('$safeLang', 'de')
+        ORDER BY FIELD(language, '$safeLang', 'de')
+        LIMIT 1
+    ");
+
+    if ($row = mysqli_fetch_assoc($resContent)) {
+        $content = $row['content'];
     }
-    $content = $translate->getTextByLanguage($content);
 
-    $data_array = [
-        'content' => $content
-    ];
-    echo $tpl->loadTemplate("static", "content", $data_array, 'theme');
+    echo $tpl->loadTemplate(
+        "static",
+        "content",
+        ['content' => $content],
+        'theme'
+    );
+
 } else {
-    echo '<div class="alert alert-danger" role="alert">' . $languageService->get('no_access') . '</div>';
+
+    echo '<div class="container mt-4">
+            <div class="alert alert-danger" role="alert">
+                <i class="bi bi-lock-fill me-2"></i> ' . $languageService->get('no_access') . '
+            </div>
+          </div>';
 }

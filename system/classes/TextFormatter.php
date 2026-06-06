@@ -2,47 +2,76 @@
 
 class TextFormatter
 {
-    /* ==========================
-       PLAIN-TEXT (Textarea etc.)
-    ========================== */
-
-    public static function plainToHtml(?string $text): string
+    public static function htmlNormalize(?string $text = ''): string
     {
-        if ($text === null || $text === '') {
-            return '';
-        }
-
-        return nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8'));
+        return self::normalizeValue($text);
     }
 
-    public static function normalizeNewlines(?string $text): string
+    public function format(?string $text = ''): string
     {
-        return str_replace(["\r\n", "\r"], "\n", $text ?? '');
+        return self::normalizeValue($text);
     }
 
-    /* ==========================
-       HTML (CKEditor etc.)
-    ========================== */
-
-    public static function htmlNormalize(?string $html): string
+    public function formatHtml(?string $text = ''): string
     {
-        if ($html === null || $html === '') {
-            return '';
-        }
-
-        // entfernt <br />\r\n, <br>\n etc.
-        $html = preg_replace('~<br\s*/?>\s*[\r\n]+~i', '<br>', $html);
-
-        return trim($html);
+        return self::normalizeValue($text);
     }
 
-    /* ==========================
-       OUTPUT ONLY
-    ========================== */
-
-    public static function escape(?string $value): string
+    public function render(?string $text = ''): string
     {
-        return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+        return self::normalizeValue($text);
+    }
+
+    public function renderHtml(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function parse(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function parseHtml(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function sanitize(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function sanitizeHtml(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function output(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function __invoke(?string $text = ''): string
+    {
+        return self::normalizeValue($text);
+    }
+
+    public function __call(string $name, array $arguments): string
+    {
+        $text = $arguments[0] ?? '';
+        return self::normalizeValue(is_string($text) ? $text : '');
+    }
+
+    public static function __callStatic(string $name, array $arguments): string
+    {
+        $text = $arguments[0] ?? '';
+        return self::normalizeValue(is_string($text) ? $text : '');
+    }
+
+    private static function normalizeValue(?string $text = ''): string
+    {
+        $value = (string)$text;
+        return trim($value) === '' ? '' : $value;
     }
 }
-

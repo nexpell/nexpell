@@ -7,17 +7,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard setzen, wenn nicht vorhanden
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// Initialisieren
-global $languageService;
-$languageService = new LanguageService($_database);
-
-// Admin-Modul laden
-$languageService->readModule('db_stats', true);
-
 use nexpell\AccessControl;
+
 // Admin-Zugriff prüfen
 AccessControl::checkAdminAccess('ac_db_stats');
 
@@ -25,7 +16,7 @@ global $_database;
 $count_array = array();
 
 // Tabellenliste (ohne Präfixe)
-$tables_array = array(
+$tables_array = array (
     "plugins_about_us",
     "plugins_articles",
     "plugins_awards",
@@ -64,7 +55,7 @@ $tables_array = array(
     "plugins_sponsors",
     "squads",
     "static",
-    "users", // angepasst von `user` auf `users`
+    "users",
     "plugins_videos",
     "plugins_videos_categories",
     "plugins_videos_comments",
@@ -106,10 +97,6 @@ foreach ($tables_array as $table) {
     }
 }
 ?>
-
-
-
-
 <?php
 $table_names = [];
 $table_sizes = [];
@@ -147,26 +134,29 @@ function format_size($size) {
         return round($size / 1073741824, 2) . ' GB';
     }
 }
-
-
-
 ?>
 
 <!-- Datenbankinformationen -->
-<div class="card">
-    <div class="card-header">
-        <?php echo $languageService->get('database'); ?>
-    </div>
-    <div class="card-body">
-        <div class="container py-5">
-            <h4 class="mb-3"><?php echo $languageService->get('database'); ?></h4>
+    <div class="row g-4">
 
-            <!-- Erste Reihe für MySQL Version und Größe -->
+        <!-- Datenbank -->
+        <div class="col-12 col-lg-3">
+            <div class="card shadow-sm border-0 mb-4 mt-3 h-100">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="bi bi-database"></i>
+                        <span><?php echo $languageService->get('database'); ?></span>
+                    </div>
+                </div>
+                <div class="card-body">
+
+
+            <!-- Erste Reihe für MySQL Version, Größe und Tabellen -->
             <div class="row">
-                <!-- Erste Tabelle: MySQL Version und Größe -->
-                <div class="col-md-6">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-light">
+                <!-- Erste Tabelle: MySQL Version, Größe und Tabellen -->
+                <div class="col-md-12">
+                    <table class="table">
+                        <thead>
                             <tr>
                                 <th><?php echo $languageService->get('property'); ?></th>
                                 <th><?php echo $languageService->get('value'); ?></th>
@@ -189,20 +179,6 @@ function format_size($size) {
                                     </span>
                                 </td>
                             </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Zweite Tabelle: Overhead und Tabellenanzahl -->
-                <div class="col-md-6">
-                    <table class="table table-bordered table-striped">
-                        <thead class="table-light">
-                            <tr>
-                                <th><?php echo $languageService->get('property'); ?></th>
-                                <th><?php echo $languageService->get('value'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
                             <tr>
                                 <td><?php echo $languageService->get('overhead'); ?>:</td>
                                 <td>
@@ -230,11 +206,23 @@ function format_size($size) {
                     </table>
                 </div>
             </div>
+            </div>
+        </div>
+    </div>
 
-            <!-- Statistiken für Tabellenzeilen -->
-            <h4 class="mb-3"><?php echo $languageService->get('page_stats'); ?></h4>
-            <table class="table table-bordered table-striped">
-                <thead class="table-light">
+        <!-- Tabellenzeilen / Page Stats -->
+        <div class="col-12 col-lg-3">
+            <div class="card shadow-sm border-0 mb-4 mt-4 h-100">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="bi bi-table"></i>
+                        <span><?php echo $languageService->get('page_stats'); ?></span>
+                    </div>
+                </div>
+                <div class="card-body">
+
+            <table class="table">
+                <thead>
                     <tr>
                         <th><?php echo $languageService->get('property'); ?></th>
                         <th><?php echo $languageService->get('value'); ?></th>
@@ -247,14 +235,14 @@ function format_size($size) {
                             ?>
                             <td class="col-md-6">
                                 <div class="d-flex justify-content-between">
-                                    <div><strong><?php echo $count_array[$i][0]; ?>:</strong></div>
+                                    <div class="fw-semibold"><?php echo $count_array[$i][0]; ?>:</div>
                                     <div class="text-muted small"><em><?php echo $count_array[$i][1]; ?></em></div>
                                 </div>
                             </td>
                             <?php if (isset($count_array[$i + 1])) { ?>
                                 <td class="col-md-6">
                                     <div class="d-flex justify-content-between">
-                                        <strong><?php echo $count_array[$i + 1][0]; ?>:</strong>
+                                        <span class="fw-semibold"><?php echo $count_array[$i + 1][0]; ?>:</span>
                                         <span class="text-muted small"><em><?php echo $count_array[$i + 1][1]; ?></em></span>
                                     </div>
                                 </td>
@@ -268,11 +256,23 @@ function format_size($size) {
                     </tr>
                 </tbody>
             </table>
+                </div>
+            </div>
+        </div>
 
-            <!-- Diagramm zur Anzeige der Tabellen-Größe -->
-            <h4 class="mb-3"><?php echo $languageService->get('table_size_chart'); ?></h4>
-            <table class="table table-bordered table-striped">
-                <thead class="table-light">
+        <!-- Diagramm: Tabellen-Größe -->
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm border-0 mb-4 mt-4 h-100">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span><?php echo $languageService->get('table_size_chart'); ?></span>
+                    </div>
+                </div>
+                <div class="card-body">
+
+            <table class="table">
+                <thead>
                     <tr>
                         <th><?php echo $languageService->get('table_size_chart'); ?></th>
                     </tr>
@@ -281,62 +281,153 @@ function format_size($size) {
                     <tr>
                         <td>
                             <!-- Canvas für das Diagramm -->
-                            <canvas id="tableSizeChart" width="400" height="200"></canvas>
+                            <div id="tableSizeChart" style="height:320px;"></div>
                         </td>
                     </tr>
                 </tbody>
             </table>
 
+                </div>
+            </div>
         </div>
+
     </div>
-</div>
-
-
-
-
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Die Daten aus PHP in JavaScript übergeben
-    var tableNames = <?php echo json_encode($table_names); ?>;
-    var tableSizes = <?php echo json_encode($table_sizes); ?>;
+document.addEventListener('DOMContentLoaded', () => {
+    // Daten aus PHP
+    const tableNames = <?php echo json_encode($table_names); ?>;
+    const tableSizesBytes = <?php echo json_encode($table_sizes); ?>;
 
-    // Funktion zur Generierung einer zufälligen Farbe
-    function getRandomColor() {
-        var letters = '0123456789ABCDEF';
-        var color = '#';
-        for (var i = 0; i < 6; i++) {
-            color += letters[Math.floor(Math.random() * 16)];
-        }
-        return color;
+    // In MB umrechnen (2 Nachkommastellen, als Number)
+    const tableSizesMB = (Array.isArray(tableSizesBytes) ? tableSizesBytes : []).map(v => {
+        const mb = (Number(v) || 0) / 1024 / 1024;
+        return Math.round(mb * 100) / 100;
+    });
+
+    // Primärfarbe (optional; wird sonst aus CSS / Fallback gezogen)
+    const UI_PRIMARY = '';
+
+function cssVar(name, fallback = '') {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
     }
 
-    // Generiere zufällige Farben für jedes Balken
-    var colors = tableSizes.map(function() {
-        return getRandomColor();
-    });
+    if (UI_PRIMARY) {
+        document.documentElement.style.setProperty('--ac-primary', UI_PRIMARY);
+    }
 
-    var ctx = document.getElementById('tableSizeChart').getContext('2d');
-    var tableSizeChart = new Chart(ctx, {
-        type: 'bar', // Diagrammtyp: Balkendiagramm
-        data: {
-            labels: tableNames, // Tabellen-Namen
-            datasets: [{
-                label: 'Tabellen-Größe (in Bytes)',
-                data: tableSizes, // Tabellen-Größen
-                backgroundColor: colors, // Zufällige Farben für Balken
-                borderColor: 'rgba(75, 192, 192, 1)', // Rahmenfarbe für alle Balken
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
+    const AC_PRIMARY   = cssVar('--ac-primary', UI_PRIMARY || '#fe821d');
+    const AC_SECONDARY = cssVar('--ac-secondary', '#6B7280');
+    const AC_SUCCESS   = cssVar('--ac-success', '#25B88B');
+    const AC_DANGER    = cssVar('--ac-danger',  '#DC434C');
+    const AC_INFO      = cssVar('--ac-info',    '#3A7CA5');
+    const AC_WARNING   = cssVar('--ac-warning', '#E69E53');
+
+    function hexToRgb(hex) {
+        const h = (hex || '').replace('#','').trim();
+        const full = h.length === 3 ? h.split('').map(c=>c+c).join('') : h;
+        if (full.length !== 6) return null;
+        const n = parseInt(full, 16);
+        return { r: (n>>16)&255, g: (n>>8)&255, b: n&255 };
+    }
+    function rgbToHex(r,g,b){
+        const to = (x)=>Math.max(0,Math.min(255,Math.round(x))).toString(16).padStart(2,'0');
+        return `#${to(r)}${to(g)}${to(b)}`;
+    }
+    function mix(hexA, hexB, t){
+        const a = hexToRgb(hexA), b = hexToRgb(hexB);
+        if (!a || !b) return hexA || hexB || '#999999';
+        return rgbToHex(a.r + (b.r-a.r)*t, a.g + (b.g-a.g)*t, a.b + (b.b-a.b)*t);
+    }
+    function makeMonochromePalette(baseHex, count){
+        const out = [];
+        for (let i=0;i<count;i++){
+            const t = (i+1)/(count+2);
+            out.push(mix(baseHex, '#ffffff', Math.min(0.75, 0.18 + t*0.55)));
+        }
+        return out;
+    }
+
+    function donutColorsMaxPrimary(series){
+        const base = [AC_PRIMARY, AC_SECONDARY, AC_SUCCESS, AC_DANGER, AC_INFO, AC_WARNING].filter(Boolean);
+        const n = series.length;
+        if (n === 0) return base;
+
+        let maxIdx = 0;
+        for (let i=1;i<n;i++){
+            if ((series[i] ?? 0) > (series[maxIdx] ?? 0)) maxIdx = i;
+        }
+
+        const colors = new Array(n);
+        colors[maxIdx] = AC_PRIMARY;
+
+        const pool = [AC_SECONDARY, AC_SUCCESS, AC_DANGER, AC_INFO, AC_WARNING].filter(Boolean);
+        let poolIdx = 0;
+
+        const overflow = makeMonochromePalette(AC_PRIMARY, Math.max(0, n - 1 - pool.length));
+        let overflowIdx = 0;
+
+        for (let i=0;i<n;i++){
+            if (i === maxIdx) continue;
+            if (poolIdx < pool.length) {
+                colors[i] = pool[poolIdx++];
+            } else {
+                colors[i] = overflow[overflowIdx++] || AC_PRIMARY;
             }
         }
-    });
-</script>
+        return colors;
+    }
 
+    // --- Helper: Balken-Chart ---
+    function buildBarOptions(categories, data, seriesName, showDataLabels) {
+        return {
+            chart: {
+                type: 'bar',
+                height: '100%',
+                toolbar: { show: false }
+            },
+            colors: [AC_PRIMARY],
+            series: [{
+                name: seriesName,
+                data: data
+            }],
+            xaxis: {
+                categories: categories,
+                labels: {
+                    rotate: -35,
+                    trim: true,
+                    hideOverlappingLabels: true
+                }
+            },
+            yaxis: {
+                min: 0,
+                title: { text: seriesName }
+            },
+            plotOptions: {
+                bar: {
+                    columnWidth: '55%',
+                    borderRadius: 3
+                }
+            },
+            dataLabels: {
+                enabled: false,
+                offsetY: -10
+            },
+            tooltip: {
+                y: { formatter: (val) => val }
+            },
+            grid: {
+                show: false
+            }};
+    }
+
+    const chartEl = document.querySelector('#tableSizeChart');
+    if (chartEl) {
+        new ApexCharts(
+            chartEl,
+            buildBarOptions(tableNames, tableSizesMB, 'MB', false)
+        ).render();
+    }
+});
+</script>

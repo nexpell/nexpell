@@ -29,8 +29,22 @@
     <!-- Description -->
     <p>{description}</p>
     
-    <form action="index.php?site=contact" method="post" role="form" onsubmit="return validate()" class="form-horizontal needs-validation" novalidate>
+    <form action="index.php?site=contact"
+          method="post"
+          role="form"
+          onsubmit="return validate()"
+          class="form-horizontal needs-validation"
+          novalidate>
+
       <input type="hidden" name="action" value="send">
+
+      <!-- PATCH: Honeypot -->
+      <div style="position:absolute; left:-9999px; height:0; overflow:hidden;">
+          <label for="company">Company</label>
+          <input type="text" name="company" id="company" autocomplete="off">
+      </div>
+      <!-- PATCH END -->
+
       <div class="row">
         <div class="col-sm-5">
           <!-- Receiver -->

@@ -30,6 +30,10 @@ global $_database, $languageService;
 
 $lang = $languageService->detectLanguage();
 
+$viewerIsRegistered = !empty($_SESSION['userID']);
+$privacyNotice = $languageService->get('private_profile_notice');
+
+
 // Style aus settings holen
 $config = mysqli_fetch_array(safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id=1"));
 $class = htmlspecialchars($config['selected_style']);
@@ -163,6 +167,14 @@ $twitter_url   = !empty($user_socials['twitter'])   ? htmlspecialchars($user_soc
 $instagram_url = !empty($user_socials['instagram']) ? htmlspecialchars($user_socials['instagram']) : '';
 $website_url   = !empty($user_socials['website'])   ? htmlspecialchars($user_socials['website'])   : '';
 $github_url    = !empty($user_socials['github'])    ? htmlspecialchars($user_socials['github'])    : '';
+
+if (!$viewerIsRegistered) {
+    $facebook_url = '';
+    $twitter_url = '';
+    $instagram_url = '';
+    $website_url = '';
+    $github_url = '';
+}
 
 $is_own_profile = (int)($_SESSION['userID'] ?? 0) === (int)$userID;
 
@@ -413,6 +425,8 @@ if ($isLocked == 1 ) {
 }
 
 $data_array = [
+    'viewer_is_registered' => $viewerIsRegistered ? 1 : 0,
+    'private_profile_notice' => htmlspecialchars($privacyNotice, ENT_QUOTES, 'UTF-8'),
     'user_gender' => $gender_display,
     'username'        => $username,
     'avatar'          => $avatar,

@@ -1,458 +1,541 @@
-/* ============================================
-   ROOT / LIGHT MODE
-============================================ */
-
-:root {
-    --nav-height: 82px;
+/* ROOT / DEFAULTS */
+:root{
+  --nav-height: 80px;
+  --nx-item-gap: .75rem;
+  --nx-dropdown-gap: 0px;
 }
+
+:root[data-bs-theme="light"]{
+  --nx-surface-0: #f6f7f9;  /* page */
+  --nx-surface-1: #ffffff;  /* cards / sections */
+  --nx-surface-2: #f1f3f6;  /* nav / panels */
+  --nx-surface-3: #ffffff;  /* menus / popovers */
+
+  /* Body */
+  --nx-body-bg: var(--nx-surface-0);
+  --nx-body-fg: rgba(0,0,0,.88);
+  --nx-body-fg-muted: rgba(0,0,0,.60);
+
+  /* Borders / dividers */
+  --nx-border-subtle: rgba(0,0,0,.10);
+  --nx-border-strong: rgba(0,0,0,.16);
+
+  /* Shadows */
+  --nx-shadow-sm: 0 6px 18px rgba(0,0,0,.08);
+  --nx-shadow-md: 0 12px 32px rgba(0,0,0,.10);
+  --nx-shadow-lg: 0 18px 44px rgba(0,0,0,.12);
+
+  /* Status (hover/focus/press/selected) */
+  --nx-state-hover: rgba(0,0,0,.04);
+  --nx-state-focus: rgba(0,0,0,.08);
+  --nx-state-press: rgba(0,0,0,.10);
+  --nx-state-selected: rgba(0,0,0,.08);
+
+  /* Bootstrap Original Vars */
+  --bs-body-bg: var(--nx-body-bg);
+  --bs-body-color: rgba(0,0,0,.88);
+
+  /* Komponenenten */
+  --nx-card-bg: var(--nx-surface-1);
+  --nx-popover-bg: var(--nx-surface-3);
+}
+
+/* LIGHT */
+#mainNavbar{
+  /* Navbar */
+  --nx-body-bg: #ffffff;
+  --nx-body-fg: #212529;
+  --nx-nav-muted: rgba(0,0,0,.60);
+  --nx-nav-border: rgba(0,0,0,.08);
+  --nx-nav-hover-bg: rgba(0,0,0,.03);
+  --nx-nav-active-bg: rgba(0,0,0,.08);
+
+  /* Dropdown */
+  --nx-dd-bg: #ffffff;
+  --nx-dd-fg: rgba(0,0,0,.78);
+  --nx-dd-border: rgba(0,0,0,.08);
+  --nx-dd-hover-bg: rgba(0,0,0,.06);
+  --nx-dd-hover-fg: rgba(0,0,0,.90);
+  --nx-dd-active-bg: rgba(0,0,0,.10);
+  --nx-dd-active-fg: rgba(0,0,0,.95);
+
+  --nx-dd-glass-bg: rgba(255,255,255,.72);
+
+  --nx-toggle-fg: rgba(0,0,0,.70);
+  --nx-toggle-hover: rgba(0,0,0,.92);
+}
+
+/* DARK */
+#mainNavbar[data-bs-theme="light"] {
+  /* Navbar */
+  --nx-nav-bg: var(--nx-surface-1);
+  --nx-nav-fg: rgba(0,0,0,.88);
+  --nx-nav-muted: rgba(0,0,0,.60);
+  --nx-nav-border: var(--nx-border-subtle);
+
+  --nx-nav-hover-bg: var(--nx-state-hover);
+  --nx-nav-active-bg: var(--nx-state-selected);
+
+  /* Bootstrap Hintergrund überschreiben */
+  background-color: var(--nx-nav-bg);
+  background-image: none;
+
+  /* Bootstrap Original Vars */
+  --bs-navbar-bg: var(--nx-nav-bg);
+  --bs-navbar-color: var(--nx-nav-fg);
+
+  /* Dropdown */
+  --nx-dd-bg: var(--nx-surface-3);
+  --nx-dd-fg: rgba(0,0,0,.82);
+  --nx-dd-border: var(--nx-border-subtle);
+
+  --nx-dd-hover-bg: var(--nx-state-hover);
+  --nx-dd-hover-fg: rgba(0,0,0,.92);
+
+  --nx-dd-active-bg: var(--nx-state-press);
+  --nx-dd-active-fg: rgba(0,0,0,.96);
+
+  --nx-dd-shadow: var(--nx-shadow-md);
+
+  /* Glass */
+  --nx-dd-glass-bg: rgba(255,255,255,.84);
+
+  /* Theme toggle */
+  --nx-toggle-fg: rgba(0,0,0,.62);
+  --nx-toggle-hover: rgba(0,0,0,.88);
+}
+
+:root[data-bs-theme="dark"]{
+
+  --nx-surface-0: #121418;  /* page */
+  --nx-surface-1: #16181d;  /* cards / sections */
+  --nx-surface-2: #1b1e24;  /* nav / panels */
+  --nx-surface-3: #21252c;  /* menus / popovers */
+
+  /* Body */
+  --nx-body-bg: var(--nx-surface-0);
+  --nx-body-fg: rgba(255,255,255,.92);
+  --nx-body-fg-muted: rgba(255,255,255,.66);
+
+  /* Borders / dividers */
+  --nx-border-subtle: rgba(255,255,255,.08);
+  --nx-border-strong: rgba(255,255,255,.14);
+
+  /* Shadow */
+  --nx-shadow-sm: 0 6px 18px rgba(0,0,0,.45);
+  --nx-shadow-md: 0 12px 32px rgba(0,0,0,.55);
+  --nx-shadow-lg: 0 18px 44px rgba(0,0,0,.60);
+
+  /* Komponenten */
+  --nx-card-bg: var(--nx-surface-1);
+  --nx-popover-bg: var(--nx-surface-3);
+
+  /* Status (hover/focus/press/selected) */
+  --nx-state-hover: rgba(255,255,255,.06);
+  --nx-state-focus: rgba(255,255,255,.10);
+  --nx-state-press: rgba(255,255,255,.12);
+  --nx-state-selected: rgba(255,255,255,.10);
+}
+
+#mainNavbar[data-bs-theme="dark"] {
+  /* Navbar */
+  --nx-nav-bg: var(--nx-surface-2);
+  --nx-nav-fg: rgba(255,255,255,.90);
+  --nx-nav-muted: rgba(255,255,255,.66);
+  --nx-nav-border: var(--nx-border-subtle);
+
+  --nx-nav-hover-bg: var(--nx-state-hover);
+  --nx-nav-active-bg: var(--nx-state-selected);
+
+  /* Bootstrap Hintergrund überschreiben */
+  background-color: var(--nx-nav-bg);
+  background-image: none;
+
+  /* Bootstrap originale Vars */
+  --bs-navbar-bg: var(--nx-nav-bg);
+  --bs-navbar-color: var(--nx-nav-fg);
+
+  /* Dropdown */
+  --nx-dd-bg: var(--nx-surface-3);
+  --nx-dd-fg: rgba(255,255,255,.88);
+
+  --nx-dd-hover-bg: var(--nx-state-hover);
+  --nx-dd-hover-fg: rgba(255,255,255,.96);
+
+  --nx-dd-active-bg: var(--nx-state-press);
+  --nx-dd-active-fg: #ffffff;
+
+  --nx-dd-shadow: var(--nx-shadow-md);
+
+  /* Glass */
+  --nx-dd-glass-bg: rgba(33,37,44,.78);
+
+  /* Theme toggle */
+  --nx-toggle-fg: rgba(255,255,255,.75);
+  --nx-toggle-hover: rgba(0,0,0,.25);
+}
+
 /* ============================================
    NAVBAR BASE
 ============================================ */
+.dropdown-menu { z-index: 2000; }
 
-
-.dropdown-menu {
-    z-index: 2000;
+#mainNavbar.navbar {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  min-height: var(--nav-height);
 }
 
-.navbar-nav .nav-link {
-    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
-    padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
-    padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
-    transition: background .25s ease, color .25s ease;
-
-    border-inline-end: 0px solid var(--bs-border-color-translucent);
+#mainNavbar > .container {
+  min-height: inherit;
+  align-items: stretch !important;
 }
 
-.nav-link:hover,
-.nav-link.active {
-    /*background: var(--bs-nav-hover-bg) !important;*/
+#mainNavbar .navbar-nav {
+  gap: 0 !important;
+  align-self: stretch;
+  height: 100%;
 }
 
-/* ============================================
-   LOGO
-============================================ */
+#mainNavbar .navbar-nav > .nav-item {
+  display: flex;
+  align-items: stretch;
+  min-height: var(--nav-height);
+}
+
+#mainNavbar .navbar-nav > .nav-item > .nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* LOGO */
 .navbar-logo {
-    /*max-height: calc(var(--nav-height, 82px) - 20px);
-    width: auto;
-    transition: opacity .25s ease, transform .25s ease;*/
-
-
-max-height: clamp(50px, 8vw, 65px);
+  max-height: clamp(50px, 8vw, 65px);
   height: auto;
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform .3s ease;
 }
-.navbar-logo:hover {
-    transform: scale(1.06);
-}
+.navbar-logo:hover{ transform: scale(1.06); }
 
-/* LOGO STEUERUNG */
-.navbar-brand {
-    position: relative;
-    margin-right: auto;
-    border-inline-end: 0px solid #000;
+/* Logo positioning helpers */
+.navbar-brand{
+  position: relative;
 }
-
-.navbar-brand.logo-center {
-    position: absolute !important;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    margin: 0 !important;
-    z-index: 10;
+.navbar-brand.logo-center{
+  position: absolute !important;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0 !important;
+  z-index: 10;
 }
 
-/* Left menu */
-.navbar-left {
-    position: relative;
+/* Left menu alignment */
+.navbar-left{ position: relative; }
+.navbar-left.left-fixed{ margin-right: auto; margin-left: 0 !important; }
+.navbar-left.right-of-logo{ margin-left: auto; margin-right: 0 !important; }
+
+/* DROPDOWN BASE + ANIMATION (HOVER + CLICK) */
+#mainNavbar .nav-item.dropdown {
+  position: relative;
 }
 
-.navbar-left.left-fixed {
-    margin-right: auto;
-    margin-left: 0 !important;
+#mainNavbar .nav-item.dropdown::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 8px;
 }
 
-.navbar-left.right-of-logo {
-    margin-left: auto;
-    margin-right: 0 !important;
+#mainNavbar .dropdown-menu {
+  box-shadow: var(--nx-dd-shadow, none);
+  overflow: hidden;
+  padding-top: 0 !important;
+
+  left: 0 !important;
+  top: 100% !important;
+  margin-top: var(--nx-dropdown-gap) !important;
+  transform: none !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+
+  display: block;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+
+  translate: 0 0;
+  scale: 1;
+  filter: blur(0);
+
+  transition:
+    opacity .20s ease,
+    translate .20s ease,
+    scale .20s ease,
+    filter .20s ease,
+    visibility 0s linear .20s;
+
+  will-change: opacity, translate, scale, filter;
 }
 
-.navbar-collapse {
-    flex-grow: 0 !important;
+#mainNavbar .dropdown-menu.dropdown-menu-end {
+  left: auto !important;
+  right: 0 !important;
 }
 
-/* NAVBAR HEIGHT FIX */
-#mainNavbar.navbar {
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
+/* Visible: Bootstrap click (.show) */
+#mainNavbar .dropdown-menu.show {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  translate: 0 0;
+  scale: 1;
+  filter: blur(0);
+  transition-delay: 0s;
 }
 
-/* NAV-LINK genau höhengleich */
-.navbar-nav .nav-link {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    height: var(--nav-height);
-    line-height: var(--nav-height);
-
-    padding-top: calc((var(--nav-height, 82px) - 22px) / 2);
-    padding-bottom: calc((var(--nav-height, 82px) - 22px) / 2);
-
-    margin-inline-start: -7px;
-    
-
-    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
-    z-index: 1;
+/* DROPDOWN STYLE (solid / glass / auto) */
+/* solid + auto */
+#mainNavbar.nx-dd-style-solid .dropdown-menu,
+#mainNavbar.nx-dd-style-auto .dropdown-menu{
+  background: var(--nx-dd-bg) !important;
+  backdrop-filter: none;
 }
 
-.navbar-nav .nav-link::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-
-    width: 100%;
-    height: 100%;
-
-    /*background: var(--bs-nav-hover-bg);*/
-    opacity: 0;
-    border-radius: 6px;
-
-    transition: opacity .25s ease;
-    z-index: -1;
+/* glass */
+#mainNavbar.nx-dd-style-glass .dropdown-menu{
+  background: var(--nx-dd-glass-bg) !important;
+  backdrop-filter: blur(14px);
 }
 
-.navbar-nav .nav-link:hover::before,
-.navbar-nav .nav-link.active::before {
-    opacity: 1;
+/* ACTIVE ITEM STYLES (.active / aria-current) */
+#mainNavbar.nx-active-bg .dropdown-item.active,
+#mainNavbar.nx-active-bg .dropdown-item[aria-current="page"]{
+  background: var(--nx-dd-active-bg, var(--nx-dd-hover-bg));
+  color: var(--nx-dd-active-fg, var(--nx-dd-hover-fg));
+  font-weight: 600;
 }
 
-/* ============================================
-   DROPDOWN BASE (FIXED VERSION)
-============================================ */
-.dropdown-menu {
-    /*background: var(--bs-dd-bg) !important;
-    border-color: var(--bs-dd-border) !important;*/
-    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;*/
-    padding: 0;
-    overflow: hidden;
-
-    top: var(--nav-height) !important;
-    margin-top: 0 !important;
-
-    /* Fix: KEIN display:block !important */
-    display: none;
-    visibility: hidden;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all .25s ease;
+#mainNavbar.nx-active-bar .dropdown-item.active,
+#mainNavbar.nx-active-bar .dropdown-item[aria-current="page"]{
+  position: relative;
+  font-weight: 600;
 }
 
-.dropdown-menu.show {
-    display: block;
-    visibility: visible;
-    opacity: 1;
-    transform: translateY(0);
+#mainNavbar.nx-active-bar .dropdown-item.active::before,
+#mainNavbar.nx-active-bar .dropdown-item[aria-current="page"]::before{
+  content: "";
+  position: absolute;
+  left: .45rem;
+  top: .55rem;
+  bottom: .55rem;
+  width: 3px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: .7;
 }
 
-.dropdown-item {
-    
-    /*color: var(--bs-nav-text, var(--bs-body-color)) !important;/*
+#mainNavbar.nx-active-underline .dropdown-item.active,
+#mainNavbar.nx-active-underline .dropdown-item[aria-current="page"]{
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 600;
 }
 
-.dropdown-item:hover,
-.dropdown-item.active {
-    background: var(--bs-nav-hover-bg) !important;
+/* CHEVRON ROTATION (nur wenn aktiv) */
+#mainNavbar.nx-chevron-rotate .nav-item.dropdown [data-bs-toggle="dropdown"] i{
+  transition: transform .35s cubic-bezier(.25,.46,.45,1);
+  display: inline-block;
+}
+#mainNavbar.nx-chevron-rotate .nav-item.dropdown.show [data-bs-toggle="dropdown"] i{
+  transform: rotate(180deg) scale(1.05);
 }
 
+/* DROPDOWN ANIMATIONS durch nx-anim-* auf navbar */
+#mainNavbar.nx-anim-fade .dropdown-menu{ translate: 0 0; }
+#mainNavbar.nx-anim-slide .dropdown-menu{ translate: 0 12px; }
+#mainNavbar.nx-anim-slidefade .dropdown-menu{ translate: 0 12px; }
 
-
-
-/* Dein Icon */
-.nx-chevron {
-    font-size: 0.75rem;
-    transition: transform .25s ease;
+#mainNavbar.nx-anim-zoom .dropdown-menu{
+  translate: 0 0;
+  scale: .92;
+  transform-origin: top;
 }
+#mainNavbar.nx-anim-zoom .nav-item.dropdown:hover > .dropdown-menu,
+#mainNavbar.nx-anim-zoom .dropdown-menu.show{ scale: 1; }
 
-.dropdown.show .nx-chevron {
-    transform: rotate(180deg);
+#mainNavbar.nx-anim-fadeup .dropdown-menu{ opacity: 0; translate: 0 6px; }
+#mainNavbar.nx-anim-fadeup .nav-item.dropdown:hover > .dropdown-menu,
+#mainNavbar.nx-anim-fadeup .dropdown-menu.show{ opacity: 1; translate: 0 0; }
+
+#mainNavbar.nx-anim-scalefade .dropdown-menu{ opacity: 0; scale: .96; transform-origin: top; }
+#mainNavbar.nx-anim-scalefade .nav-item.dropdown:hover > .dropdown-menu,
+#mainNavbar.nx-anim-scalefade .dropdown-menu.show{ opacity: 1; scale: 1; }
+
+#mainNavbar.nx-anim-slideblur .dropdown-menu{ opacity: 0; translate: 0 10px; filter: blur(6px); }
+#mainNavbar.nx-anim-slideblur .nav-item.dropdown:hover > .dropdown-menu,
+#mainNavbar.nx-anim-slideblur .dropdown-menu.show{ opacity: 1; translate: 0 0; filter: blur(0); }
+
+#mainNavbar.nx-anim-tilt .dropdown-menu{
+  opacity: 0;
+  rotate: x -10deg;
+  translate: 0 10px;
+  scale: .98;
+  transform-origin: top;
+  backface-visibility: hidden;
 }
-
-    /* Grundzustand */
-.nx-chevron {
-   
-    transition: transform .25s ease;
-    font-size: 0.85rem;
+#mainNavbar.nx-anim-tilt .nav-item.dropdown:hover > .dropdown-menu,
+#mainNavbar.nx-anim-tilt .dropdown-menu.show{
+  opacity: 1;
+  rotate: x 0deg;
+  translate: 0 0;
+  scale: 1;
+  filter: blur(0);
 }
-
-/* Wenn Dropdown offen → Pfeil dreht sich */
-.dropdown.show .nx-chevron {
-    transform: rotate(180deg);
-}
-
-#mainNavbar .dropdown:hover .nx-chevron {
-    transform: rotate(180deg);
-}
-
-
-
-
-
-/* LOGO (FINAL FIX) */
-/* Dynamisches Logo abhängig von Navigation */
-/* Haupt-Logo */
-.nx-nav-logo {
-    height: calc(var(--nav-height) - 30px);
-    object-fit: contain;
-
-    /* Animation */
-    transition: transform 0.25s ease, height 0.25s ease;
-    will-change: transform, height;
-
-    display: inline-block; /* WICHTIG für Scale! */
-    transform-origin: center center; /* WICHTIG! */
-}
-
-/* Hover Effekt */
-.navbar-brand:hover .nx-nav-logo {
-    transform: scale(1.06);
-}
-
-
-/* ============================================
-   ANIMATIONS
-============================================ */
-/* Basis-Animation für alle Dropdowns */
-.dropdown-menu {
-    transition: 
-        transform 0.25s ease,
-        opacity 0.25s ease !important;
-    will-change: transform, opacity;
-}
-
-/* ================================
-   FADE
-================================ */
-.nx-fade .dropdown-menu {
-    opacity: 0;
-    transform: none;
-}
-.nx-fade .dropdown-menu.show {
-    opacity: 1;
-    transform: none;
-}
-
-/* ================================
-   SLIDE
-================================ */
-.nx-slide .dropdown-menu {
-    opacity: 0;
-    transform: translateY(12px);
-}
-.nx-slide .dropdown-menu.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-/* ================================
-   ZOOM
-================================ */
-.nx-zoom .dropdown-menu {
-    opacity: 0;
-    transform: scale(0.92);
-    transform-origin: top;
-}
-.nx-zoom .dropdown-menu.show {
-    opacity: 1;
-    transform: scale(1);
-}
-
-/* ================================
-   SLIDE + FADE
-================================ */
-.nx-slidefade .dropdown-menu {
-    opacity: 0;
-    transform: translateY(12px);
-}
-.nx-slidefade .dropdown-menu.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-
-
-
-.dropdown-menu {
-    transition:
-        opacity .25s ease,
-        transform .25s ease !important;
-    will-change: opacity, transform;
-}
-
-
-.nx-fade.dropdown-menu {
-    opacity: 0;
-    transform: none !important;
-}
-.nx-fade.show {
-    opacity: 1;
-}
-
-.nx-slide.dropdown-menu {
-    opacity: 0;
-    transform: translateY(15px);
-}
-.nx-slide.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.nx-zoom.dropdown-menu {
-    opacity: 0;
-    transform: scale(.9);
-    transform-origin: top;
-}
-.nx-zoom.show {
-    opacity: 1;
-    transform: scale(1);
-}
-
-.nx-slidefade.dropdown-menu {
-    opacity: 0;
-    transform: translateY(12px);
-}
-.nx-slidefade.show {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* MOBILE */
-@media (max-width: 576px) {
-    .navbar-logo {
-        max-height: 40px;
-    }
+@media (max-width: 576px){
+  .navbar-logo{ max-height: 40px; }
+}
+
+@media (max-width: 991.98px){
+  #mainNavbar.navbar{
+    min-height: auto;
+  }
+
+  #mainNavbar > .container{
+    min-height: auto;
+    align-items: center !important;
+  }
+
+  #mainNavbar .navbar-collapse{
+    width: 100%;
+    flex-basis: 100%;
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+  }
+
+  #mainNavbar .navbar-nav{
+    width: 100%;
+    align-items: stretch !important;
+    gap: 0 !important;
+    height: auto;
+    align-self: auto;
+  }
+
+  #mainNavbar .navbar-nav > .nav-item{
+    width: 100%;
+    min-height: 0;
+    display: block;
+  }
+
+  #mainNavbar .navbar-nav > .nav-item::before {
+    display: none;
+  }
+
+  #mainNavbar .navbar-nav > .nav-item > .nav-link{
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    text-align: left;
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+    border-left: 0 !important;
+    border-right: 0 !important;
+  }
+
+  #mainNavbar .navbar-nav .nav-item.dropdown > .nav-link{
+    justify-content: space-between;
+  }
+
+  #mainNavbar .dropdown-menu{
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    margin-top: .25rem !important;
+    min-width: 100%;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    translate: none;
+    scale: 1;
+    filter: none;
+    display: none;
+    transition: none;
+  }
+
+  #mainNavbar .dropdown-menu.show{
+    display: block;
+  }
+
+  #mainNavbar .dropdown-item{
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+  }
+
+  #mainNavbar .nav-icon-badge{
+    justify-content: flex-start !important;
+  }
 }
 
 /* ICON BADGE */
-.nav-icon-badge .icon-wrapper {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 24px;
-    height: 24px;
+.nav-icon-badge .icon-wrapper{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
-
-.nav-icon-badge .badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-
-    padding: 3px 6px;
-    font-size: 0.6rem;
-    line-height: 1;
-    border-radius: 50%;
-    z-index: 5;
+.nav-icon-badge .badge{
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  padding: 3px 6px;
+  font-size: .6rem;
+  line-height: 1;
+  border-radius: 50%;
+  z-index: 5;
 }
 
 /* AVATAR */
-.navbar-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 5px;
-    object-fit: cover;
-    display: inline-block;
-    vertical-align: middle;
-    margin-right: 6px;
+.navbar-avatar{
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: cover;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* ICON – Grundzustand */
-.nav-item.dropdown .dropdown-toggle i {
-    transition: transform .35s cubic-bezier(.25, .46, .45, 1); /* weich */
-    display: inline-block;
+/* GLOBAL (site-level) */
+body{
+  background: var(--nx-body-bg) !important;
+  color: var(--nx-body-fg) !important;
+}
+.card{
+  background: var(--nx-card-bg, var(--nx-body-bg)) !important;
+  color: var(--nx-body-fg) !important;
+}
+.card p, .card h1, .card h2, .card h3, .card h4{
+  color: var(--bs-body-color) !important;
 }
 
-/* ICON – Animation beim Öffnen */
-.nav-item.dropdown.show .dropdown-toggle i {
-    transform: rotate(180deg) scale(1.1);
+/* Theme toggle button in navbar */
+#themeToggle{
+  transition: opacity .25s ease;
+  color: var(--nx-toggle-fg) !important;
 }
-
-/* ICON – Rebound-Effekt */
-.nav-item.dropdown.show .dropdown-toggle i {
-    animation: dropdownBounce 0.35s ease-out;
-}
-
-@keyframes dropdownBounce {
-    0%   { transform: rotate(0deg) scale(1); }
-    35%  { transform: rotate(180deg) scale(1.15); }
-    100% { transform: rotate(180deg) scale(1); }
-}
-
-
-
-
-/* GLOBAL */
-body {
-    background: var(--bs-bg) !important;
-    color: var(--bs-text) !important;
-    transition: background .3s ease, color .3s ease;
-}
-
-.card {
-    background: var(--bs-secondary-bg, var(--bs-bg)) !important;
-    border-color: var(--bs-border) !important;
-    box-shadow: 0 2px 4px var(--bs-shadow);
-}
-
-.card p, .card h1, .card h2, .card h3, .card h4 {
-    color: var(--bs-text) !important;
-}
-
-#themeToggle {
-    transition: opacity .25s ease;
-    color: var(--bs-nav-text, var(--bs-body-color)) !important;
-}
-
-#themeToggle:hover {
-    opacity: .7;
+#themeToggle:hover{
+  opacity: .75;
+  color: var(--nx-toggle-hover) !important;
 }

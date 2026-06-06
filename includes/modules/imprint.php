@@ -9,13 +9,14 @@ use nexpell\LanguageService;
 global $_database, $languageService, $hp_title;
 
 $lang = $languageService->detectLanguage();
+$languageService->readModule('imprint');
 
 $config = mysqli_fetch_array(safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id=1"));
 $class = htmlspecialchars($config['selected_style']);
 
 $data_array = [
     'class' => $class,
-    'title' => $languageService->get('title'),
+    'title' => $languageService->module['title'],
     'subtitle' => 'Imprint'
 ];
 
@@ -28,25 +29,22 @@ $result = $stmt->get_result();
 $imprint_data = $result->fetch_assoc();
 
 $type_labels = [
-    'private' => $languageService->get('private_option') ?? 'Privat',
-    'association' => $languageService->get('association_option') ?? 'Verein',
-    'small_business' => $languageService->get('small_business_option') ?? 'Kleinunternehmer',
-    'company' => $languageService->get('company_option') ?? 'Unternehmen',
+    'private' => $languageService->module['private_option'] ?? 'Privat',
+    'association' => $languageService->module['association_option'] ?? 'Verein',
+    'small_business' => $languageService->module['small_business_option'] ?? 'Kleinunternehmer',
+    'company' => $languageService->module['company_option'] ?? 'Unternehmen',
     'unknown' => 'Unbekannt'
 ];
-
-$translate = new multiLanguage($lang);
-$translate->detectLanguages($imprint_data['disclaimer']);
 
 $type = $imprint_data['type'] ?? 'unknown';
 
 // Dynamisches Name-Label vorab definieren
 if ($type === 'association') {
-    $name_label = $languageService->get('association_label') ?? 'Vereinsname';
+    $name_label = $languageService->module['association_label'] ?? 'Vereinsname';
 } elseif ($type === 'company' || $type === 'small_business') {
-    $name_label = $languageService->get('company_name_label') ?? 'Firmenname';
+    $name_label = $languageService->module['company_name_label'] ?? 'Firmenname';
 } else {
-    $name_label = $languageService->get('name_label') ?? 'Name';
+    $name_label = $languageService->module['name_label'] ?? 'Name';
 }
 
 $core_version_file = __DIR__ . '/system/version.php';
@@ -60,25 +58,57 @@ $core_version = file_exists($core_version_file) ? include $core_version_file : n
 $core_version_text = $core_version ?? 'Bitte Core-Version bei Supportanfragen angeben';
 
 // Language-Text mit Platzhalter laden und ersetzen
-$imprint_info_template = $languageService->get('imprint_info') ?? '';
+$imprint_info_template = $languageService->module['imprint_info'] ?? '';
 $imprint_info_filled = str_replace('{core_version}', $core_version_text, $imprint_info_template);
 
+$content = '';
+$contentKey = 'imprint';
+
+// 1. Wunsch-Sprache laden
+$stmt = $_database->prepare("
+    SELECT content
+    FROM settings_content_lang
+    WHERE content_key = ? AND language = ?
+    LIMIT 1
+");
+$stmt->bind_param('ss', $contentKey, $lang);
+$stmt->execute();
+$stmt->bind_result($content);
+$stmt->fetch();
+$stmt->close();
+
+// 2. Fallback DE
+if (empty($content) && $lang !== 'de') {
+    $stmt = $_database->prepare("
+        SELECT content
+        FROM settings_content_lang
+        WHERE content_key = ? AND language = 'de'
+        LIMIT 1
+    ");
+    $stmt->bind_param('s', $contentKey);
+    $stmt->execute();
+    $stmt->bind_result($content);
+    $stmt->fetch();
+    $stmt->close();
+}
+
+
 $data_array = [
-    'impressum_type_label' => $languageService->get('impressum_type_label') ?? 'Typ',
-    'represented_by_label' => $languageService->get('represented_by_company_label') ?? $languageService->get('represented_by_label') ?? 'Vertreten durch',
-    'tax_id_label' => $languageService->get('tax_id_company_label') ?? $languageService->get('tax_id_label') ?? 'Steuernummer',
-    'vat_id_label' => $languageService->get('vat_id_label') ?? 'USt-ID',
-    'register_office_label' => $languageService->get('register_office_label') ?? 'Registergericht',
-    'register_number_label' => $languageService->get('register_number_label') ?? 'Handelsregister-Nr.',
-    'supervisory_authority_label' => $languageService->get('supervisory_authority_label') ?? 'Aufsichtsbehörde',
-    'address_label' => $languageService->get('address_label') ?? 'Adresse',
-    'postal_code_label' => $languageService->get('postal_code_label') ?? 'PLZ',
-    'city_label' => $languageService->get('city_label') ?? 'Ort',
-    'email_label' => $languageService->get('email_label') ?? 'E-Mail',
-    'website_label' => $languageService->get('website_label') ?? 'Webseite',
-    'phone_label' => $languageService->get('phone_label') ?? 'Telefon',
-    'disclaimer_label' => $languageService->get('disclaimer_label') ?? 'Haftungsausschluss',
-    'association_label' => $languageService->get('association_label') ?? 'Vereinsname',
+    'impressum_type_label' => $languageService->module['impressum_type_label'] ?? 'Typ',
+    'represented_by_label' => $languageService->module['represented_by_company_label'] ?? $languageService->module['represented_by_label'] ?? 'Vertreten durch',
+    'tax_id_label' => $languageService->module['tax_id_company_label'] ?? $languageService->module['tax_id_label'] ?? 'Steuernummer',
+    'vat_id_label' => $languageService->module['vat_id_label'] ?? 'USt-ID',
+    'register_office_label' => $languageService->module['register_office_label'] ?? 'Registergericht',
+    'register_number_label' => $languageService->module['register_number_label'] ?? 'Handelsregister-Nr.',
+    'supervisory_authority_label' => $languageService->module['supervisory_authority_label'] ?? 'Aufsichtsbehörde',
+    'address_label' => $languageService->module['address_label'] ?? 'Adresse',
+    'postal_code_label' => $languageService->module['postal_code_label'] ?? 'PLZ',
+    'city_label' => $languageService->module['city_label'] ?? 'Ort',
+    'email_label' => $languageService->module['email_label'] ?? 'E-Mail',
+    'website_label' => $languageService->module['website_label'] ?? 'Webseite',
+    'phone_label' => $languageService->module['phone_label'] ?? 'Telefon',
+    'disclaimer_label' => $languageService->module['disclaimer_label'] ?? 'Haftungsausschluss',
+    'association_label' => $languageService->module['association_label'] ?? 'Vereinsname',
 
     // Hier kommt der **fertig ersetzte** Text
     'imprint_info' => $imprint_info_filled,
@@ -104,8 +134,7 @@ $data_array = [
 
     // Core-Version nur den Wert
     'core_version' => $core_version_text,
-    'disclaimer' => $translate->getTextByLanguage($imprint_data['disclaimer'] ?? '')
+    'disclaimer' => $content
 ];
 
-// Template rendern
 echo $tpl->loadTemplate("imprint", "content", $data_array, 'theme');

@@ -12,8 +12,8 @@ $_SESSION['language'] = $_SESSION['language'] ?? 'de';
 
 // Initialisieren
 global $_database,$languageService;
-$lang = $languageService->detectLanguage();
 $languageService = new LanguageService($_database);
+$lang = $languageService->detectLanguage();
 
 // Admin-Modul laden
 $languageService->readModule('startpage', false);
@@ -29,29 +29,96 @@ $data_array = [
 
 echo $tpl->loadTemplate("startpage", "head", $data_array, 'theme');
 
-// DB-Abfrage
-$ergebnis = safe_query("SELECT * FROM `settings_startpage`");
-if (mysqli_num_rows($ergebnis)) {
-    $ds = mysqli_fetch_array($ergebnis);
+/* =====================================================
+   STARTPAGE LADEN (settings_content_lang)
+===================================================== */
 
-    $title = $ds['title'];
+$content = '';
+$titleText = '';
+$contentKeyText  = 'startpage';
+$contentKeyTitle = 'startpage_title';
 
-    // Übersetzung mit multiLanguage
-    $translate = new multiLanguage($lang);
-    $translate->detectLanguages($title);
-    $title = $translate->getTextByLanguage($title);
-    
-    $startpage_text = $ds['startpage_text'];
+/* ---------- Titel ---------- */
 
-    $translate->detectLanguages($startpage_text);
-    $startpage_text = $translate->getTextByLanguage($startpage_text);
+// 1. Wunsch-Sprache
+$stmt = $_database->prepare("
+    SELECT content
+    FROM settings_content_lang
+    WHERE content_key = ? AND language = ?
+    LIMIT 1
+");
+$stmt->bind_param('ss', $contentKeyTitle, $lang);
+$stmt->execute();
+$stmt->bind_result($titleText);
+$stmt->fetch();
+$stmt->close();
+
+// 2. Fallback DE
+if (empty($titleText) && $lang !== 'de') {
+    $stmt = $_database->prepare("
+        SELECT content
+        FROM settings_content_lang
+        WHERE content_key = ? AND language = 'de'
+        LIMIT 1
+    ");
+    $stmt->bind_param('s', $contentKeyTitle);
+    $stmt->execute();
+    $stmt->bind_result($titleText);
+    $stmt->fetch();
+    $stmt->close();
+}
+
+/* ---------- Inhalt ---------- */
+
+// 1. Wunsch-Sprache
+$stmt = $_database->prepare("
+    SELECT content
+    FROM settings_content_lang
+    WHERE content_key = ? AND language = ?
+    LIMIT 1
+");
+$stmt->bind_param('ss', $contentKeyText, $lang);
+$stmt->execute();
+$stmt->bind_result($content);
+$stmt->fetch();
+$stmt->close();
+
+// 2. Fallback DE
+if (empty($content) && $lang !== 'de') {
+    $stmt = $_database->prepare("
+        SELECT content
+        FROM settings_content_lang
+        WHERE content_key = ? AND language = 'de'
+        LIMIT 1
+    ");
+    $stmt->bind_param('s', $contentKeyText);
+    $stmt->execute();
+    $stmt->bind_result($content);
+    $stmt->fetch();
+    $stmt->close();
+}
+
+/* ---------- Ausgabe ---------- */
+
+if (!empty($content)) {
 
     $data_array = [
-        'startpage_text' => $startpage_text,
+        'startpage_title' => $titleText,
+        'startpage_text'  => $content,
     ];
 
-    echo $tpl->loadTemplate("startpage", "content", $data_array, 'theme');
+    echo $tpl->loadTemplate(
+        "startpage",
+        "content",
+        $data_array,
+        'theme'
+    );
 
 } else {
-    echo generateAlert($languageService->get('no_startpage') ?? 'Keine Startseite vorhanden', 'alert-info');
+
+    echo generateAlert(
+        $languageService->get('no_startpage') ?? 'Keine Startseite vorhanden.',
+        'alert-info'
+    );
 }
+

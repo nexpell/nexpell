@@ -1,157 +1,195 @@
 <?php
 
-// Session absichern
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+
+// ==================================================
+// SESSION
+// ==================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-use nexpell\LoginSecurity;
-
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-global $_database;
-
-// Absolute Pfade definieren (anpassen falls nötig)
+// ==================================================
+// PFADE
+// ==================================================
 define('BASE_PATH', __DIR__ . '/../');
 define('SYSTEM_PATH', BASE_PATH . 'system/');
 
-// Wichtige Systemdateien einbinden
-include SYSTEM_PATH . 'config.inc.php';
-include SYSTEM_PATH . 'settings.php';
-include SYSTEM_PATH . 'functions.php';
-include SYSTEM_PATH . 'plugin.php';
-include SYSTEM_PATH . 'widget.php';
-include SYSTEM_PATH . 'multi_language.php';
+// ==================================================
+// CORE (LÄDT LanguageService + AccessControl BEREITS)
+// ==================================================
+require SYSTEM_PATH . 'config.inc.php';
+require SYSTEM_PATH . 'settings.php';
+require SYSTEM_PATH . 'functions.php';
+require SYSTEM_PATH . 'multi_language.php';
 
-// Sprachmodul laden
+// ==================================================
+// NAMESPACES (KLASSEN SIND SCHON GELADEN)
+// ==================================================
+use nexpell\LoginSecurity;
 use nexpell\LanguageService;
+use nexpell\AccessControl;
 
-// Sprachauswahl setzen (falls noch nicht)
+// ==================================================
+// SPRACHE
+// ==================================================
 if (!isset($_SESSION['language'])) {
     $_SESSION['language'] = 'de';
 }
 
-// Objekt erstellen (ggf. $database übergeben)
+global $_database, $languageService;
 $languageService = new LanguageService($_database);
 $languageService->readModule('login', true);
 
-$ip = $_SERVER['REMOTE_ADDR'];
-$message = '';
-$isIpBanned = false;
-$email = '';
+// ==================================================
+// BEREITS EINGELOGGT?
+// ==================================================
+$userID = (int)($_SESSION['userID'] ?? 0);
 
-// Login-Handling
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-    $password_hash = $_POST['password'];
+if ($userID > 0) {
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $_SESSION['error_message'] = "❌ Ungültige E-Mail-Adresse.";
-        header("Location: login.php");
+    // ✅ Admin → direkt ins Admincenter
+    if (AccessControl::canAccessAdmin($_database, $userID)) {
+        header('Location: admincenter.php');
         exit;
     }
-    $is_active = isset($is_active) ? $is_active : null; // oder ein Standardwert, je nach Bedarf
-    $is_locked = isset($is_locked) ? $is_locked : null; // oder ein Standardwert
 
-    $loginResult = LoginSecurity::verifyLogin($email, $password_hash, $ip, $is_active, $is_locked);
+    // ❌ Eingeloggt, aber kein Admin
+    http_response_code(403);
+    echo '
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>' . htmlspecialchars($languageService->get('access-denied-title'), ENT_QUOTES, 'UTF-8') . '</title>
+        <link href="/admin/css/bootstrap.min.css" rel="stylesheet">
+        <link href="/admin/css/page.css" rel="stylesheet">
+    </head>
+    <body>
 
-    if ($loginResult['success']) {
-        if (LoginSecurity::isIpBanned($ip)) {
-            $message = 'Diese IP-Adresse wurde gesperrt. Bitte kontaktiere den Support.';
-            $isIpBanned = true;
-        }
+    <div class="login-page">
+        <div class="login-wrap">
+            <div class="card login-card">
+                <div class="login-card-header access">
+                    <div class="brand">
+                        <img src="/admin/images/logo.png" alt="Logo">
+                    </div>
+                    <h4 class="mb-1">
+                        ' . $languageService->get('access-denied-title') . '
+                    </h4>
+                </div>
 
-        $stmt = $_database->prepare("SELECT userID, username, email, is_locked FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
+                <div class="card-body text-center">
+                    <p class="py-4">
+                        ' . $languageService->get('access-denied-desc') . '
+                    </p>
 
-        if ($user) {
-            if (!empty($user['is_locked']) && (int)$user['is_locked'] === 1) {
-                $message = '<div class="alert alert-danger" role="alert">' . $languageService->get('error_account_locked') . '</div>';
-                $isIpBanned = true;
-            } else {
-                $_SESSION['userID'] = (int)$user['userID'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['email'] = $user['email'];
+                    <p class="text-muted small">
+                        ' . $languageService->get('error_support_admin') . '
+                    </p>
 
-                // Rolle auslesen (Beispiel mit Tabelle user_role_assignments)
-                $stmtRole = $_database->prepare("SELECT roleID FROM user_role_assignments WHERE userID = ? LIMIT 1");
-                $stmtRole->bind_param("i", $user['userID']);
-                $stmtRole->execute();
-                $resultRole = $stmtRole->get_result();
-                if ($resultRole && $rowRole = $resultRole->fetch_assoc()) {
-                    $_SESSION['roleID'] = (int)$rowRole['roleID'];
-                } else {
-                    // Keine Rolle gefunden, evtl. default Rolle setzen oder null
-                    $_SESSION['roleID'] = null;
-                }
+                    <div class="d-grid">
+                        <a href="/" class="btn btn-secondary mt-2">
+                            ' . $languageService->get('back_to_website') . '
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-                LoginSecurity::saveSession($user['userID']);
-
-                $now = date('Y-m-d H:i:s');
-                $updateStmt = $_database->prepare("UPDATE users SET lastlogin = ? WHERE userID = ?");
-                $updateStmt->bind_param("si", $now, $user['userID']);
-                $updateStmt->execute();
-
-                $_SESSION['success_message'] = "Login erfolgreich!";
-                header("Location: admincenter.php");
-                exit;
-            }
-        } else {
-            $message = 'Benutzer nicht gefunden oder falsche E-Mail-Adresse.';
-        }
-    } else {
-        $stmt = $_database->prepare("SELECT userID, is_active FROM users WHERE email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $res = $stmt->get_result();
-
-        if ($res && $res->num_rows > 0) {
-            $row = $res->fetch_assoc();
-            $userID = (int)$row['userID'];
-
-            if ((int)$row['is_active'] === 0) {
-                $message = 'Dein Konto wurde noch nicht aktiviert. Bitte überprüfe deine E-Mail.';
-                $isIpBanned = true;
-            } else {
-                if (!LoginSecurity::isEmailOrIpBanned($email, $ip)) {
-                    LoginSecurity::trackFailedLogin($userID, $email, $ip);
-                    $failCount = LoginSecurity::getFailCount($ip, $email);
-
-                    if ($failCount >= 5) {
-                        LoginSecurity::banIp($ip, $userID, "Zu viele Fehlversuche", $email);
-                        $_SESSION['error_message'] = "Zu viele Fehlversuche – Deine IP wurde gesperrt.";
-                    } else {
-                        $_SESSION['error_message'] = "Falsche E-Mail oder Passwort. Versuche: $failCount / 5";
-                    }
-                } else {
-                    $message = 'Diese E-Mail-Adresse oder IP wurde gesperrt. Bitte kontaktiere den Support.';
-                    $isIpBanned = true;
-                }
-            }
-        } else {
-            $message = 'Benutzer nicht gefunden oder falsche E-Mail.';
-            $isIpBanned = true;
-        }
-    }
-
-    if (isset($_SESSION['error_message'])) {
-        $message = $_SESSION['error_message'];
-        unset($_SESSION['error_message']);
-    }
+    </body>
+    </html>';
+    exit;
 }
 
-// Letzte Prüfung auf gebannte E-Mail
-if (!empty($email) && LoginSecurity::isEmailBanned($ip, $email)) {
-    $message = 'Diese E-Mail-Adresse wurde gesperrt. Bitte kontaktiere den Support.';
-    $isIpBanned = true;
+// ==================================================
+// LOGIN
+// ==================================================
+$ip      = $_SERVER['REMOTE_ADDR'] ?? '';
+$message = '';
+$email   = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    $email    = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
+    $password = $_POST['password'] ?? '';
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $message = $languageService->get('error_invalid_email');
+        goto render;
+    }
+
+    $loginResult = LoginSecurity::verifyLogin($email, $password, $ip, null, null);
+
+    if (!$loginResult['success']) {
+        $message = $loginResult['error'] ?? $languageService->get('error_invalid_login');
+        goto render;
+    }
+
+    $stmt = $_database->prepare("
+        SELECT userID, username, email, is_locked
+        FROM users
+        WHERE email = ?
+        LIMIT 1
+    ");
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+
+    if (!$user || !empty($user['is_locked'])) {
+        $message = $languageService->get('error_account_locked');
+        goto render;
+    }
+
+    // Session setzen
+/*    $_SESSION['userID']   = (int)$user['userID'];
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['email']    = $user['email'];
+
+    // 🔐 ADMIN-RECHT PRÜFEN
+    if (!AccessControl::canAccessAdmin($_database, $_SESSION['userID'])) {
+
+        session_unset();
+        session_destroy();
+        session_start();
+
+        $message = 
+            $languageService->get('access-denied-desc') . '<br><small>' .
+            $languageService->get('error_support_admin') .
+            '</small>';
+        goto render;
+    }*/
+
+    // Session setzen
+$_SESSION['userID']   = (int)$user['userID'];
+$_SESSION['username'] = $user['username'];
+$_SESSION['email']    = $user['email'];
+
+LoginSecurity::saveSession($user['userID']);
+
+header('Location: admincenter.php');
+exit;
+
+    LoginSecurity::saveSession($user['userID']);
+
+    $now = date('Y-m-d H:i:s');
+    $upd = $_database->prepare("
+        UPDATE users SET lastlogin = ? WHERE userID = ?
+    ");
+    $upd->bind_param('si', $now, $user['userID']);
+    $upd->execute();
+    $upd->close();
+
+    header('Location: admincenter.php');
+    exit;
 }
 
+render:
 ?>
-
 <!DOCTYPE html>
 <html lang="<?= $languageService->language ?>">
 <head>
@@ -161,65 +199,85 @@ if (!empty($email) && LoginSecurity::isEmailBanned($ip, $email)) {
     <title>nexpell - Admin Login</title>
 
     <link href="/admin/css/bootstrap.min.css" rel="stylesheet">
-    <link href="/admin/css/style.css" rel="stylesheet">
+    <link href="/admin/css/page.css" rel="stylesheet">
 </head>
 <body>
+<div class="login-page">
+    <div class="login-wrap">
 
-<div class="container-fluid">
-  <div class="row no-gutter">
-    <div class="d-none d-md-flex col-md-4 col-lg-6 bg-image position-relative">
-        <!-- Overlay für Nebel -->
-        <div class="fog-overlay position-absolute top-0 start-0 w-100 h-100"></div>
+        <div class="card login-card">
 
-        <div class="logo position-relative z-1">
-            <img class="mw-100 mh-100" src="/admin/images/logo.png" alt="Logo">
-            <p class="text1">ne<span>x</span>pell – Dein System. Deine Kontrolle.</p>
-        </div>
-    </div>
-    <div class="col-md-8 col-lg-6 no-bg">
-      <div class="login d-flex align-items-center py-5">
-        <div class="container">
-          <div class="row">
-            <div class="col-md-9 col-lg-8 mx-auto">
-                <h2 class="login-heading mb-4"><span><?= $languageService->module['login'] ?></span></h2>
-                <div>
-                    <h5><?= $languageService->module['dashboard'] ?></h5><br />
-                    <div class="alert alert-info">
-                        <?= $languageService->module['welcome2'] ?> Login<br><br>
-                        <?= $languageService->module['insertmail'] ?>
-                    </div>
-                    <?php if ($closed === 1): ?>
-                        <div class="alert alert-warning">
-                            Die Seite ist derzeit gesperrt. Nur Administratoren können sich anmelden.
-                        </div>
-                    <?php endif; ?>
+            <div class="login-card-header">
+                <div class="brand">
+                    <img src="/admin/images/logo.png" alt="Logo">
                 </div>
 
-                <form method="POST" action="">
-                    <div class="mb-3">
-                        <label for="email"><?= $languageService->module['email_address'] ?></label>
-                        <input class="form-control" name="email" type="email" placeholder="Email" required>
-                    </div>
+                <h4 class="mb-1">
+                    <?= $languageService->get('login'); ?>
+                </h4>
 
-                    <div class="mb-3">
-                        <label for="password">Passwort</label>
-                        <input class="form-control" name="password" type="password" placeholder="Passwort" required>
-                    </div>
+                <div class="text-muted-small">
+                    <?= $languageService->get('login_info'); ?>
+                </div>
+            </div>
 
-                    <input type="submit" name="submit" value="<?= $languageService->module['login'] ?>" class="btn btn-primary btn-block">
-                </form>
+            <div class="card-body">
 
                 <?php if (!empty($message)) : ?>
-                    <div class="alert alert-danger mt-3"><?= htmlspecialchars($message) ?></div>
+                    <div class="alert alert-danger text-center" role="alert">
+                        <?= $message; ?>
+                    </div>
                 <?php endif; ?>
 
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+                <form method="POST" action="" novalidate>
 
+                    <div class="mb-3">
+                        <label class="form-label" for="email">
+                            <?= $languageService->get('email_address'); ?>
+                        </label>
+                        <input
+                            id="email"
+                            class="form-control"
+                            name="email"
+                            type="email"
+                            placeholder="name@example.com"
+                            required
+                            autocomplete="username"
+                        >
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="password">
+                            <?= $languageService->get('password'); ?>
+                        </label>
+                        <input
+                            id="password"
+                            class="form-control"
+                            name="password"
+                            type="password"
+                            placeholder="••••••••"
+                            required
+                            autocomplete="current-password"
+                        >
+                    </div>
+
+                    <div class="d-grid">
+                        <button
+                            type="submit"
+                            name="submit"
+                            value="1"
+                            class="btn btn-primary mt-3"
+                        >
+                            <?= $languageService->get('login'); ?>
+                        </button>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+
+    </div>
+</div>
 </body>
 </html>

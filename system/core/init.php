@@ -9,17 +9,6 @@ if (session_status() === PHP_SESSION_NONE) {
 // ==========================================================
 // Sprache per ?setlang=xx wechseln → in Session speichern
 // ==========================================================
-if (isset($_GET['setlang'])) {
-    $lang = preg_replace('/[^a-z]/', '', $_GET['setlang']); // Sicherheitsfilter
-    $_SESSION['language'] = $lang;
-
-    if (isset($languageService)) {
-        $languageService->setLanguage($lang);
-    }
-
-    header("Location: " . strtok($_SERVER['REQUEST_URI'], '?'));
-    exit;
-}
 
 use webspell\LanguageService;
 use nexpell\SeoUrlHandler;
@@ -40,39 +29,9 @@ $currentSite = $_GET['site'] ?? 'start';
 // Sprache erneut für Redirect-Variante ?setlang setzen
 // (Erhalt der URL-Parameter ohne setlang)
 // ==========================================================
-if (isset($_GET['setlang'])) {
 
-    $lang = strtolower(preg_replace('/[^a-z]/', '', $_GET['setlang']));
-    $_SESSION['language'] = $lang;
 
-    if (isset($languageService) && method_exists($languageService, 'setLanguage')) {
-        $languageService->setLanguage($lang);
-    }
 
-    $params = $_GET;
-    unset($params['setlang']);
-
-    $target = $_SERVER['PHP_SELF'];
-    if (!empty($params)) {
-        $target .= '?' . http_build_query($params);
-    }
-
-    header("Location: $target", true, 302);
-    exit;
-}
-
-// ==========================================================
-// LanguageService initialisieren + aktive Sprache ermitteln
-// ==========================================================
-if (!isset($languageService)) {
-    $languageService = new LanguageService($_database);
-}
-
-$currentLang = $_SESSION['language'] ?? $languageService->detectLanguage();
-$languageService->setLanguage($currentLang);
-
-// Alte Variable für Kompatibilität
-$_language = $languageService;
 
 // Aktuelle Seite für Widgets
 $page = $_GET['site'] ?? 'index';

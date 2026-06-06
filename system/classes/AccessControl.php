@@ -4,6 +4,9 @@ namespace nexpell;
 
 class AccessControl
 {
+    /* =====================================================
+       ADMIN ACCESS
+    ===================================================== */
 
     public static function hasAdminAccess($modulname)
     {
@@ -15,10 +18,10 @@ class AccessControl
 
         $query = "
             SELECT COUNT(*) AS access_count
-            FROM `user_role_admin_navi_rights` ar
-            JOIN `user_role_assignments` ur ON ar.`roleID` = ur.`roleID`
-            WHERE ur.`userID` = '" . (int)$userID . "'
-            AND ar.`modulname` = '" . escape($modulname) . "'
+            FROM user_role_admin_navi_rights ar
+            JOIN user_role_assignments ur ON ar.roleID = ur.roleID
+            WHERE ur.userID = " . (int)$userID . "
+              AND ar.modulname = '" . escape($modulname) . "'
         ";
 
         $result = safe_query($query);
@@ -28,11 +31,12 @@ class AccessControl
 
 public static function checkAdminAccess($modulname, bool $apiMode = false)
 {
-    global $userID, $languageService;
+    global $languageService;
 
+    $userID = $_SESSION['userID'] ?? 0;
     $logFile = __DIR__ . '/../../admin/logs/access_control.log';
 
-    // 🔒 Zugriff verweigern, wenn kein Benutzer oder keine Rolle das Modul hat
+    // 🔒 Zugriff verweigern
     if (!$userID || !self::hasAnyRoleAccess($modulname, (int)$userID)) {
         http_response_code(403);
 
@@ -43,44 +47,72 @@ public static function checkAdminAccess($modulname, bool $apiMode = false)
 
         $modulnameDisplay = htmlspecialchars($modulname);
 
-        // --- Alle Rollen holen, die Zugriff auf dieses Modul haben ---
+        /* ===============================
+           ROLLEN DES USERS (IMMER!)
+        =============================== */
         $roleNames = [];
-        $query = "
-            SELECT DISTINCT r.`role_name`
-            FROM `user_role_admin_navi_rights` ar
-            JOIN `user_role_assignments` ur ON ar.`roleID` = ur.`roleID`
-            JOIN `user_roles` r ON ur.`roleID` = r.`roleID`
-            WHERE ur.`userID` = '" . (int)$userID . "'
-              AND ar.`modulname` = '" . self::escape($modulname) . "'
+
+        $roleQuery = "
+            SELECT r.role_name
+            FROM user_role_assignments ur
+            JOIN user_roles r ON ur.roleID = r.roleID
+            WHERE ur.userID = " . (int)$userID . "
         ";
-        $result = safe_query($query);
-        while ($row = mysqli_fetch_assoc($result)) {
+        $roleResult = safe_query($roleQuery);
+
+        while ($row = mysqli_fetch_assoc($roleResult)) {
             $roleNames[] = htmlspecialchars($row['role_name']);
         }
 
-        $roleName = !empty($roleNames) ? implode(', ', $roleNames) : 'Keine Rolle';
+        $roleName = !empty($roleNames)
+            ? implode(', ', $roleNames)
+            : 'Keine Rolle';
 
-        // Linkname aus DB holen
+            
+
+        /* ===============================
+           LINKNAME
+        =============================== */
         $linkName = 'Unbekannter Link';
         $linkQuery = "
-            SELECT `name`
-            FROM `navigation_dashboard_links`
-            WHERE `modulname` = '" . self::escape($modulname) . "'
+            SELECT *
+            FROM navigation_dashboard_links
+            WHERE modulname = '" . self::escape($modulname) . "'
             LIMIT 1
         ";
         $linkResult = safe_query($linkQuery);
         if ($linkRow = mysqli_fetch_assoc($linkResult)) {
-            $lang = $languageService->detectLanguage();
-            $linkName = self::extractTextByLanguage($linkRow['name'], $lang);
+            $lang = method_exists($languageService, 'detectLanguage')
+                ? $languageService->detectLanguage()
+                : ($_SESSION['language'] ?? 'de');
+
+            if (!empty($linkRow['name'])) {
+                $linkName = self::extractTextByLanguage((string)$linkRow['name'], $lang);
+            } elseif (!empty($linkRow['content_key'])) {
+                $contentKey = self::escape((string)$linkRow['content_key']);
+                $langEsc = self::escape((string)$lang);
+                $langResult = safe_query("
+                    SELECT content
+                    FROM navigation_dashboard_lang
+                    WHERE content_key = '{$contentKey}'
+                      AND language = '{$langEsc}'
+                    LIMIT 1
+                ");
+                if ($langRow = mysqli_fetch_assoc($langResult)) {
+                    if (!empty($langRow['content'])) {
+                        $linkName = $langRow['content'];
+                    }
+                }
+            } elseif (!empty($linkRow['modulname'])) {
+                $linkName = (string)$linkRow['modulname'];
+            }
         }
 
-        // ⛔ DEIN ORIGINALER FEHLERTEXT UNVERÄNDERT ⛔
-        $errorMessage = "<link href='/admin/css/bootstrap.min.css' rel='stylesheet'>
-    <link href='/admin/css/bootstrap-icons.min.css' rel='stylesheet'>
-    <link href='/admin/css/page.css' rel='stylesheet'>
-    <link href='/admin/css/metisMenu.css' rel='stylesheet'>
-    
-            <div class='alert alert-danger text-center mt-5'>
+        /* ===============================
+           AUSGABE
+        =============================== */
+        $errorMessage = "
+        <div class='alert alert-danger text-center mt-5'>
                 <i class='bi bi-shield-lock-fill fs-4'></i><br>
                 <strong>Zugriff verweigert</strong><br>
                 Du hast keine Berechtigung, diesen Bereich (Modul '<i>$modulnameDisplay</i>') zu bearbeiten.<br>
@@ -99,246 +131,142 @@ public static function checkAdminAccess($modulname, bool $apiMode = false)
                         wende dich bitte an einen Administrator mit der entsprechenden Rolle 
                         oder prüfe deine Rechte in der Benutzerverwaltung.
                     </small>
-                </div>
-            </div>";
-
-        if ($roleName !== '') {
-            $errorMessage .= "<b>Ihre Rolle(n):</b> $roleName<br>";
-        }
+                </div>    
+            <b>Ihre Rolle(n):</b> " . $roleName . "
+        </div>";
 
         // Logging
         $logEntry = sprintf(
             "[%s] Zugriff verweigert: Modul='%s', UserID=%s, Rollen='%s', IP=%s\n",
             date('Y-m-d H:i:s'),
             $modulname,
-            $userID ?? 'nicht angemeldet',
-            $roleName ?: 'Keine Rolle',
+            $userID,
+            $roleName,
             $_SERVER['REMOTE_ADDR'] ?? 'Unbekannt'
         );
 
         @file_put_contents($logFile, $logEntry, FILE_APPEND | LOCK_EX);
         error_log($logEntry);
 
-        echo "<div class='alert alert-danger' role='alert'>$errorMessage</div>";
+        echo $errorMessage;
         exit;
     }
 }
 
-/**
- * ✅ Prüft, ob irgendeine der Benutzerrollen Zugriff auf das Modul hat
- */
-private static function hasAnyRoleAccess(string $modulname, int $userID): bool
-{
-    $query = "
-        SELECT 1
-        FROM `user_role_admin_navi_rights` ar
-        JOIN `user_role_assignments` ur ON ar.`roleID` = ur.`roleID`
-        WHERE ur.`userID` = {$userID}
-          AND ar.`modulname` = '" . self::escape($modulname) . "'
-        LIMIT 1
-    ";
-    $result = safe_query($query);
-    return (mysqli_num_rows($result) > 0);
-}
-
-
-
-
-    // Hilfsfunktion zum Extrahieren des Texts der aktuellen Sprache
-    private static function extractTextByLanguage(string $multiLangString, string $lang): string
+    private static function hasAnyRoleAccess(string $modulname, int $userID): bool
     {
-        preg_match_all('/\[\[lang:(\w{2})\]\](.*?)(?=(\[\[lang:\w{2}\]\])|$)/s', $multiLangString, $matches, PREG_SET_ORDER);
-
-        foreach ($matches as $match) {
-            if ($match[1] === $lang) {
-                return trim($match[2]);
-            }
-        }
-
-        // Fallback: Wenn Sprache nicht gefunden, gesamten String zurückgeben
-        return $multiLangString;
-    }
-
-    // Escape-Funktion, falls noch nicht definiert
-    private static function escape(string $str): string
-    {
-        global $dbConnection; // Falls du eine DB-Verbindung hast
-
-        if (function_exists('mysqli_real_escape_string') && isset($dbConnection)) {
-            return mysqli_real_escape_string($dbConnection, $str);
-        }
-
-        return addslashes($str);
-    }
-
-
-/*    public static function checkAdminAccess($modulname)
-    {
-        global $userID, $languageService;
-
-        // Wenn kein Login vorhanden → Weiterleitung wie bisher
-        if (!$userID) {
-            header('Location: login.php');
-            exit;
-        }
-
-        // Berechtigungsprüfung
-        if (!self::hasAdminAccess($modulname)) {
-            // HTTP-Status 403 senden
-            http_response_code(403);
-
-            $modulnameDisplay = htmlspecialchars($modulname);
-            $errorMessage = "<b>Zugriff verweigert:</b> Keine Berechtigung für das Modul '<i>$modulnameDisplay</i>'.<br>";
-
-            // Protokoll ins PHP-Errorlog
-            error_log("AccessControl Fehler: Modul '$modulnameDisplay' nicht erlaubt für userID $userID | IP: " . $_SERVER['REMOTE_ADDR']);
-
-            // Versuche, den Linknamen zu holen
-            $linkQuery = "
-                SELECT `name`
-                FROM `navigation_dashboard_links`
-                WHERE `modulname` = '" . escape($modulname) . "'
-            ";
-            $linkResult = safe_query($linkQuery);
-            $linkRow = mysqli_fetch_assoc($linkResult);
-            $linkName = $linkRow ? htmlspecialchars($linkRow['name']) : 'Unbekannter Link';
-
-            try {
-                $languageService->detectLanguages($linkName);
-            } catch (\Error $e) {
-                error_log("Fehler in detectLanguages(): " . $e->getMessage());
-                echo "<div class='alert alert-danger'>Ein interner Fehler ist aufgetreten. Bitte wende dich an den Administrator.</div>";
-                exit;
-            }
-
-            $translatedName = $languageService->getTextByLanguage($linkName);
-            $errorMessage .= "<b>Linkname:</b> $translatedName<br>";
-
-            echo "<div class='alert alert-danger' role='alert'>$errorMessage</div>";
-            exit;
-        }
-    }
-*/
-
-
-/*
-    public static function checkAdminAccess($modulname)
-    {
-        global $userID, $languageService;
-
-        // Überprüfen, ob der Benutzer angemeldet ist
-        if (!$userID) {
-            header('Location: login.php'); // Umleitung zur Login-Seite
-            exit;
-        }
-
-        // Prüfen, ob der Benutzer Zugriff auf das Modul hat und den Rollennamen holen
         $query = "
-            SELECT r.`role_name`, ar.`modulname`, COUNT(*) AS access_count
-            FROM `user_role_admin_navi_rights` ar
-            JOIN `user_role_assignments` ur ON ar.`roleID` = ur.`roleID`
-            JOIN `user_roles` r ON ur.`roleID` = r.`roleID`
-            WHERE ur.`userID` = '" . (int)$userID . "'
-            AND ar.`modulname` = '" . $modulname . "'
-            GROUP BY r.`role_name`, ar.`modulname`
+            SELECT 1
+            FROM user_role_admin_navi_rights ar
+            JOIN user_role_assignments ur ON ar.roleID = ur.roleID
+            WHERE ur.userID = {$userID}
+              AND ar.modulname = '" . self::escape($modulname) . "'
+            LIMIT 1
         ";
-
         $result = safe_query($query);
-        $row = mysqli_fetch_assoc($result);
-
-        // Wenn keine Zeilen zurückgegeben werden oder keine Berechtigung für das Modul besteht
-        if ($row === null || $row['access_count'] == 0) {
-            $modulnameDisplay = $row ? htmlspecialchars($row['modulname']) : 'Unbekanntes Modul';
-            $errorMessage = "<b>Zugriff verweigert:</b> Keine Berechtigung für das Modul '<i>$modulnameDisplay</i>'.<br>";
-
-            // Protokolliere zur Fehlerdiagnose
-            error_log("AccessControl Fehler: Modul '$modulnameDisplay' nicht erlaubt für userID $userID");
-
-            // Versuche, den Linknamen aus der Navigations-Tabelle zu laden
-            $linkQuery = "
-                SELECT `name`
-                FROM `navigation_dashboard_links`
-                WHERE `modulname` = '" . $modulname . "'
-            ";
-            $linkResult = safe_query($linkQuery);
-            $linkRow = mysqli_fetch_assoc($linkResult);
-            $linkName = $linkRow ? htmlspecialchars($linkRow['name']) : 'Unbekannter Link';
-
-            // Verwende den globalen $languageService statt multiLanguage
-            try {
-                $languageService->detectLanguages($linkName);
-            } catch (\Error $e) {
-                error_log("Methodenfehler in detectLanguages(): " . $e->getMessage());
-                echo "<div class='alert alert-danger'>Ein interner Fehler ist aufgetreten. Bitte wende dich an den Administrator.</div>";
-                exit;
-            }
-
-            $translatedName = $languageService->getTextByLanguage($linkName);
-
-            $errorMessage .= "<b>Linkname:</b> $translatedName<br>";
-
-            if (!empty($row['role_name'])) {
-                $errorMessage .= "<b>Ihre Rolle:</b> " . htmlspecialchars($row['role_name']);
-            }
-
-            echo "<div class='alert alert-danger' role='alert'>$errorMessage</div>";
-            exit;
-        }
-
-
+        return mysqli_num_rows($result) > 0;
     }
-*/
-    public static function hasAnyRole(array $roleNames): bool
+
+    /* =====================================================
+       FRONTEND / CONTENT ROLLEN
+    ===================================================== */
+
+public static function hasAnyRole(array $roleNames): bool
 {
-    // Kein Zugriff, wenn keine Rollen erlaubt sind
-    if (empty($roleNames)) return false;
-
-    // Gast-Zugriff prüfen, wenn kein User eingeloggt ist
-    if (!isset($_SESSION['userID']) || $_SESSION['userID'] <= 0) {
-        return in_array('gast', array_map('strtolower', $roleNames));
+    if (empty($roleNames)) {
+        return false;
     }
 
-    $userID = (int)$_SESSION['userID'];
-    global $_database;
+    // Gast
+    if (!isset($_SESSION['userID']) || $_SESSION['userID'] <= 0) {
+        return in_array('ac_guest', array_map('strtolower', $roleNames), true);
+    }
 
-    // Erzeuge Platzhalter (?, ?, ...)
+    global $_database;
+    $userID = (int)$_SESSION['userID'];
+
+    // Platzhalter für Rollen
     $placeholders = implode(',', array_fill(0, count($roleNames), '?'));
 
-    // Datentypen: i für userID, danach s für jeden Rollennamen
-    $types = 'i' . str_repeat('s', count($roleNames));
-    $params = array_merge([$types, $userID], $roleNames);
+    // 🔧 WICHTIG: Rollen doppelt binden (wegen OR … IN)
+    $allRoles = array_merge($roleNames, $roleNames);
 
-    // SQL vorbereiten
+    // Typen: i + s * (Rollen * 2)
+    $types = 'i' . str_repeat('s', count($allRoles));
+    $params = array_merge([$types, $userID], $allRoles);
+
     $stmt = $_database->prepare("
         SELECT 1
         FROM user_role_assignments a
         JOIN user_roles r ON a.roleID = r.roleID
-        WHERE a.userID = ? AND r.role_name IN ($placeholders)
+        WHERE a.userID = ?
+          AND (
+                r.role_name IN ($placeholders)
+             OR CONCAT('ac_', LOWER(r.role_name)) IN ($placeholders)
+          )
         LIMIT 1
     ");
 
-    if ($stmt === false) {
-        error_log("Fehler beim Prepare in hasAnyRole(): " . $_database->error);
+    if (!$stmt) {
+        error_log('hasAnyRole prepare failed: ' . $_database->error);
         return false;
     }
 
-    // Bindung und Ausführung
     $stmt->bind_param(...self::refValues($params));
     $stmt->execute();
-    $res = $stmt->get_result();
 
-    return $res->num_rows > 0;
+    return $stmt->get_result()->num_rows > 0;
 }
 
 
+
+public static function hasRoleAccess(?string $accessRolesJson): bool
+{
+    // Öffentlich
+    if (empty($accessRolesJson) || $accessRolesJson === '[]') {
+        return true;
+    }
+
+    $roles = json_decode($accessRolesJson, true);
+    if (!is_array($roles) || empty($roles)) {
+        return true;
+    }
+
+    // Gast explizit erlaubt
+    if (in_array('ac_guest', $roles, true)) {
+        return true;
+    }
+
+    // Nicht eingeloggt → kein Zugriff
+    if (empty($_SESSION['userID'])) {
+        return false;
+    }
+
+    // ✅ REGISTRIERTER USER = eingeloggt
+    if (in_array('ac_registered', $roles, true)) {
+        return true;
+    }
+
+    // Rollenprüfung (Admin, Techniker, etc.)
+    return self::hasAnyRole($roles);
+}
+
+
+    public static function canViewStatic(array $staticRow): bool
+    {
+        return self::hasRoleAccess($staticRow['access_roles'] ?? null);
+    }
+
+    /* =====================================================
+       HELPERS
+    ===================================================== */
+
     private static function refValues(array $arr)
     {
-        // Ab PHP 8 sind keine Referenzen mehr nötig
         if (version_compare(PHP_VERSION, '8.0.0', '>=')) {
             return $arr;
         }
 
-        // Für PHP < 8: Referenzen für bind_param
         $refs = [];
         foreach ($arr as $key => $value) {
             $refs[$key] = &$arr[$key];
@@ -346,23 +274,80 @@ private static function hasAnyRoleAccess(string $modulname, int $userID): bool
         return $refs;
     }
 
-public static function userHasRoleID(int $userID, int $roleID): bool
-{
-    global $_database;
+    private static function extractTextByLanguage(string $multiLangString, string $lang): string
+    {
+        preg_match_all(
+            '/\[\[lang:(\w{2})\]\](.*?)(?=(\[\[lang:\w{2}\]\])|$)/s',
+            $multiLangString,
+            $matches,
+            PREG_SET_ORDER
+        );
 
-    $stmt = $_database->prepare("
-        SELECT 1
-        FROM user_role_assignments
-        WHERE userID = ?
-          AND roleID = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param("ii", $userID, $roleID);
-    $stmt->execute();
-    $stmt->store_result();
+        foreach ($matches as $match) {
+            if ($match[1] === $lang) {
+                return trim($match[2]);
+            }
+        }
 
-    return $stmt->num_rows > 0;
-}
+        return $multiLangString;
+    }
 
+    private static function escape(string $str): string
+    {
+        global $_database;
 
+        if ($_database instanceof \mysqli) {
+            return mysqli_real_escape_string($_database, $str);
+        }
+
+        return addslashes($str);
+    }
+
+    /* =====================================================
+       LEGACY / PATCH WRAPPER
+    ===================================================== */
+
+    public static function userHasRoleID(int $userID, int $roleID): bool
+    {
+        global $_database;
+
+        $stmt = $_database->prepare("
+            SELECT 1
+            FROM user_role_assignments
+            WHERE userID = ?
+              AND roleID = ?
+            LIMIT 1
+        ");
+        $stmt->bind_param("ii", $userID, $roleID);
+        $stmt->execute();
+        $stmt->store_result();
+
+        return $stmt->num_rows > 0;
+    }
+
+/* --- FINALER FIX --- */
+    public static function canAccessAdmin($db, int $userID): bool
+    {
+        if (!($db instanceof \mysqli) || $userID <= 0) {
+            return false;
+        }
+        return self::canAccessAdminInternal($db, $userID);
+    }
+
+    private static function canAccessAdminInternal(\mysqli $db, int $userID): bool
+    {
+        $stmt = $db->prepare("
+            SELECT 1
+            FROM user_role_assignments ura
+            JOIN user_role_admin_navi_rights arn ON arn.roleID = ura.roleID
+            WHERE ura.userID = ?
+            LIMIT 1
+        ");
+        if (!$stmt) return false;
+        $stmt->bind_param('i', $userID);
+        $stmt->execute();
+        $stmt->store_result();
+        return $stmt->num_rows > 0;
+    }
+    
 }

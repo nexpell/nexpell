@@ -10,12 +10,32 @@ $action = $_GET['action'] ?? '';
 
 // Seitenliste aufbauen
 $pages = ['index' => 'Startseite'];
-$res = safe_query("SELECT modulname, name FROM settings_plugins ORDER BY name ASC");
-$exclude = ['navigation','carousel','error_404','footer_easy','login','register','lostpassword','profile','edit_profile','lastlogin'];
+$res = safe_query("SELECT modulname FROM settings_plugins ORDER BY modulname ASC");
+$exclude = ['navigation','carousel','error_404','footer','login','register','lostpassword','profile','edit_profile','lastlogin'];
+$currentLang = strtolower((string)$languageService->detectLanguage());
 while ($row = mysqli_fetch_assoc($res)) {
-  if (!in_array($row['modulname'], $exclude, true)) {
-    $pages[$row['modulname']] = $row['name'];
+  $module = (string)($row['modulname'] ?? '');
+  if ($module === '' || in_array($module, $exclude, true)) {
+    continue;
   }
+
+  $name = $module;
+  $candidates = [$module];
+
+  foreach (array_unique($candidates) as $candidate) {
+    $candidateEsc = escape($candidate);
+    $nameRes = safe_query("SELECT content FROM settings_plugins_lang WHERE content_key = 'plugin_name_" . $candidateEsc . "' AND language = '" . escape($currentLang) . "' LIMIT 1");
+    if ($nameRes && mysqli_num_rows($nameRes) > 0) {
+      $nameRow = mysqli_fetch_assoc($nameRes);
+      $translated = trim((string)($nameRow['content'] ?? ''));
+      if ($translated !== '') {
+        $name = $translated;
+        break;
+      }
+    }
+  }
+
+  $pages[$module] = $name;
 }
 
 /* === Zonen-Restriktions-Logik START === */
@@ -72,7 +92,7 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_widget'])) {
         if (isset($_POST['csrf_token'])) {
             if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-                nxb_redirect_back('Ungültiges CSRF-Token.');
+                nxb_redirect_back('UngÃ¼ltiges CSRF-Token.');
             }
         }
 
@@ -167,7 +187,7 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
 
                 <div class="alert alert-info d-flex align-items-center gap-3 py-2" role="alert">
                   <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0"></i>
-                  <div><strong>Hinweis:</strong> Änderungen auf eigene Gefahr – falsche Einstellungen können das Layout beschädigen.</div>
+                  <div><strong>Hinweis:</strong> Ã„nderungen auf eigene Gefahr â€“ falsche Einstellungen kÃ¶nnen das Layout beschÃ¤digen.</div>
                 </div>
 
                 <div class="d-flex flex-wrap gap-3">';
@@ -185,10 +205,10 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
 
               <div class="d-flex justify-content-between align-items-center">
                 <button type="submit" name="save_widget" class="btn btn-success">
-                  <i class="bi bi-save"></i> Änderungen speichern
+                  <i class="bi bi-save"></i> Ã„nderungen speichern
                 </button>
                 <a href="admincenter.php?site=plugin_widgets&action=list" class="btn btn-outline-secondary">
-                  <i class="bi bi-arrow-left"></i> Zurück
+                  <i class="bi bi-arrow-left"></i> ZurÃ¼ck
                 </a>
               </div>
             </form>
@@ -196,14 +216,14 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
           </div>
         </div>';
 }elseif (($action ?? '') === 'list') {
-        // === Übersicht ===
+        // === Ãœbersicht ===
         echo '<div class="card">
-          <div class="card-header"><i class="bi bi-journal-text"></i> Widget Übersicht</div>
+          <div class="card-header"><i class="bi bi-journal-text"></i> Widget Ãœbersicht</div>
 
           <nav aria-label="breadcrumb">
             <ol class="breadcrumb t-5 p-2 bg-light">
               <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_widgets">Widgets verwalten</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Widgets – Übersicht</li>
+              <li class="breadcrumb-item active" aria-current="page">Widgets â€“ Ãœbersicht</li>
             </ol>
           </nav>
 
@@ -309,8 +329,8 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
 
   <div class="card-footer small text-muted">
     <ul class="mb-0">
-      <li><strong>Live:</strong> lädt die echte Seite mit <code>?builder=1</code>.</li>
-      <li><strong>Preview:</strong> lädt <code>/plugin_widgets_preview.php?page=…</code> (Sandbox mit Drop-Zonen).</li>
+      <li><strong>Live:</strong> lÃ¤dt die echte Seite mit <code>?builder=1</code>.</li>
+      <li><strong>Preview:</strong> lÃ¤dt <code>/plugin_widgets_preview.php?page=â€¦</code> (Sandbox mit Drop-Zonen).</li>
     </ul>
   </div>
 </div>
@@ -396,3 +416,4 @@ updateFrameSrc();
 <?php
 } // Ende else
 ?>
+

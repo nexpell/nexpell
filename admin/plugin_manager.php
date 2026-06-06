@@ -7,19 +7,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard setzen, wenn nicht vorhanden
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// Initialisieren
-global $languageService;
-$lang = $languageService->detectLanguage();
-$languageService = new LanguageService($_database);
-
-// Admin-Modul laden
-$languageService->readModule('plugin_manager', true);
-
 use nexpell\AccessControl;
-// Den Admin-Zugriff für das Modul überprüfen
+// Den Admin-Zugriff fÃ¼r das Modul Ã¼berprÃ¼fen
 AccessControl::checkAdminAccess('ac_plugin_manager');
 
 if (isset($_GET['action'])) {
@@ -28,714 +17,1152 @@ if (isset($_GET['action'])) {
     $action = '';
 }
 
-$theme_active = safe_query("SELECT * FROM settings_themes WHERE active = '1'");
-$db = mysqli_fetch_array($theme_active);
-
-if (!empty(@$db['active'] == 1) !== false) {
-
-
-    #Aktive und Deaktivieren vom Plugin START
-
-    if (isset($_GET['do'])) {
-        $do = $_GET['do'];
-    } else {
-        $do = "";
+if (!function_exists('normalize_plugin_modulname')) {
+    function normalize_plugin_modulname(string $value): string
+    {
+        $value = trim($value);
+        $value = trim($value, ',');
+        $value = preg_replace('/\s+/', '', $value);
+        $value = preg_replace('/[^a-zA-Z0-9_-]/', '', $value);
+        return strtolower((string)$value);
     }
-    if (isset($_GET['id'])) {
-        $id = $_GET['id'];
-    } else {
-        $id = "";
-    }
-    if (isset($_GET['modulname'])) {
-        $modulname = $_GET['modulname'];
-    } else {
-        $modulname = "";
-    }
+}
 
-    if ($id != "" && $do === "dea") {
+
+
+    $do = $_GET['do'] ?? '';
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+    if ($id > 0 && ($do === 'dea' || $do === 'act')) {
+
+        $res = safe_query("SELECT `modulname` FROM `settings_plugins` WHERE `pluginID` = '" . (int)$id . "'");
+        if (!$res || mysqli_num_rows($res) === 0) nx_redirect('admincenter.php?site=plugin_manager','danger','alert_plugin_not_found',false);
+
+        $row = mysqli_fetch_assoc($res);
+        $modulname = normalize_plugin_modulname((string)($row['modulname'] ?? ''));
+
         try {
-            // Zuerst den modulname aus settings_plugins holen
-            $res = safe_query("SELECT `modulname` FROM `settings_plugins` WHERE `pluginID` = '" . (int)$id . "'");
-            if ($res && mysqli_num_rows($res) > 0) {
-                $row = mysqli_fetch_assoc($res);
-                $modulname = $row['modulname'];
 
-                // Plugin deaktivieren
+            if ($do === 'dea') {
                 safe_query("UPDATE `settings_plugins` SET `activate` = '0' WHERE `pluginID` = '" . (int)$id . "'");
-
-                // Navigationseintrag anpassen
                 safe_query("UPDATE `navigation_website_sub` SET `indropdown` = '0' WHERE `modulname` = '" . escape($modulname) . "'");
 
-                echo $languageService->get('success_deactivated');
-                redirect("admincenter.php?site=plugin_manager", "", 1);
-                return false;
+                nx_audit_update('settings_plugins',(string)$id,true,$modulname,'admincenter.php?site=plugin_manager',['state' => 'deactivated']);
+                nx_redirect('admincenter.php?site=plugin_manager','success',sprintf($languageService->get('alert_plugin_deactivated'),htmlspecialchars($modulname,ENT_QUOTES,'UTF-8')),false,true);
             } else {
-                echo "Plugin nicht gefunden.";
-                redirect("admincenter.php?site=plugin_manager", "", 3);
-                return false;
-            }
-        } catch (Exception $e) {
-            echo $languageService->get('success_deactivated') . "<br><br>" . $e->getMessage();
-            redirect("admincenter.php?site=plugin_manager", "", 5);
-            return false;
-        }
-    }
-
-    if ($id != "" && $do === "act") {
-        try {
-            // Modulname aus settings_plugins holen
-            $res = safe_query("SELECT `modulname` FROM `settings_plugins` WHERE `pluginID` = '" . (int)$id . "'");
-            if ($res && mysqli_num_rows($res) > 0) {
-                $row = mysqli_fetch_assoc($res);
-                $modulname = $row['modulname'];
-
-                // Plugin aktivieren
                 safe_query("UPDATE `settings_plugins` SET `activate` = '1' WHERE `pluginID` = '" . (int)$id . "'");
-
-                // Navigationseintrag anpassen
                 safe_query("UPDATE `navigation_website_sub` SET `indropdown` = '1' WHERE `modulname` = '" . escape($modulname) . "'");
 
-                echo $languageService->get('success_activated');
-                redirect("admincenter.php?site=plugin_manager", "", 1);
-                return false;
-            } else {
-                echo "Plugin nicht gefunden.";
-                redirect("admincenter.php?site=plugin_manager", "", 3);
-                return false;
+                nx_audit_update('settings_plugins',(string)$id,true,$modulname,'admincenter.php?site=plugin_manager',['state' => 'activated']);
+                nx_redirect('admincenter.php?site=plugin_manager','success',sprintf($languageService->get('alert_plugin_activated'),htmlspecialchars($modulname,ENT_QUOTES,'UTF-8')),false,true);
             }
+
         } catch (Exception $e) {
-            echo $languageService->get('failed_activated') . "<br><br>" . $e->getMessage();
-            redirect("admincenter.php?site=plugin_manager", "", 5);
-            return false;
+            nx_redirect('admincenter.php?site=plugin_manager','danger','alert_plugin_action_failed',false);
         }
     }
 
-    #Aktive und Deaktivieren vom Plugin END
+/* ==========================================================================
+    PLUGIN MANAGER - SAVE LOGIC (ADD & EDIT)
+   ========================================================================== */
 
-    #Erstellt eine neue Plugin-Einstellung START
-if (isset($_POST['add']) && empty($_POST['id'])) {
-    $acti = isset($_POST['activate']) ? 1 : 0;
+if ((isset($_POST['add']) || isset($_POST['edit'])) && isset($_POST['modulname'])) {
+    
+    // 1. Grunddaten initialisieren
+    $pluginID    = isset($_POST['id']) && is_numeric($_POST['id']) ? (int)$_POST['id'] : 0;
+    $isEdit      = ($pluginID > 0);
+    $acti        = isset($_POST['activate']) ? 1 : 0;
+    $currentLang = strtolower($languageService->detectLanguage());
 
-    $name           = escape($_POST['name']);
-    $modulname      = escape($_POST['modulname']);
-    $info           = escape($_POST['info']);
-    $admin_file     = escape($_POST['admin_file']);
-    $author         = escape($_POST['author']);
-    $website        = escape($_POST['website']);
-    $index_file     = escape($_POST['index']);
-    $hiddenfiles    = escape($_POST['hiddenfiles']);
-    $version        = escape($_POST['version']);
-    $path           = escape($_POST['path']);
+    // Fix: Fallback-Werte (direkter Zugriff auf Array-Keys der aktuellen Sprache)
+    $name        = escape($_POST['plugin_name'][$currentLang] ?? '');
+    $info        = escape($_POST['plugin_info'][$currentLang] ?? '');
+    $modulnameRaw = normalize_plugin_modulname((string)($_POST['modulname'] ?? ''));
+    $modulname   = escape($modulnameRaw);
+    $admin_file  = escape($_POST['admin_file'] ?? '');
+    $index_file  = escape($_POST['index_link'] ?? '');
+    $author      = escape($_POST['author'] ?? '');
+    $website     = escape($_POST['website'] ?? '');
+    $version     = escape($_POST['version'] ?? '1.0.0');
+    $path        = escape($_POST['path'] ?? '');
+    $hiddenfiles = escape($_POST['hiddenfiles'] ?? '');
 
-    $admin_cat_id       = (int)($_POST['nav_admin_cat'] ?? 0);
-    $website_cat_id     = (int)($_POST['nav_website_cat'] ?? 0);
-    $admin_title        = escape($_POST['nav_admin_title']);
-    $website_title      = escape($_POST['nav_website_title']);
-    $admin_file_url     = escape($_POST['nav_admin_link']);
-    $index_file_url     = escape($_POST['nav_website_link']);
+    // Admin Navigation bleibt (vorerst) einzeln
+    $admin_cat_id    = (int)($_POST['nav_admin_cat'] ?? 0);
+    $admin_file_url  = escape($_POST['nav_admin_link'] ?? '');
 
     try {
-        // Plugin speichern
-        safe_query("
-            INSERT INTO `settings_plugins` (
-                `pluginID`, `name`, `modulname`, `info`, `activate`, `admin_file`, `author`, `website`, `index_link`,
+        // 2. Plugin Hauptdaten
+        if ($isEdit) {
+            safe_query("UPDATE `settings_plugins` SET 
+                `activate` = '$acti', 
+                `admin_file` = '$admin_file', `index_link` = '$index_file', `hiddenfiles` = '$hiddenfiles'
+                WHERE pluginID = $pluginID");
+
+            safe_query("UPDATE `settings_plugins_installed` SET 
+                `name` = '$name', `description` = '$info' 
+                WHERE modulname = '$modulname'");
+        } else {
+            safe_query("INSERT INTO `settings_plugins` (
+                `modulname`, `activate`, `admin_file`, `author`, `website`, `index_link`,
                 `hiddenfiles`, `version`, `path`, `status_display`, `plugin_display`, `widget_display`, `delete_display`, `sidebar`
             ) VALUES (
-                NULL, '$name', '$modulname', '$info', '1', '$admin_file', '$author', '$website', '$index_file',
+                '$modulname', '1', '$admin_file', '$author', '$website', '$index_file',
                 '$hiddenfiles', '$version', '$path', '1', '1', '1', '1', 'deactivated'
-            )
-        ");
+            )");
+            $pluginID = mysqli_insert_id($GLOBALS['up_db']);
 
-        safe_query("
-            INSERT INTO `settings_plugins_installed` 
+            safe_query("INSERT INTO `settings_plugins_installed` 
                 (`name`, `modulname`, `description`, `version`, `author`, `url`, `folder`, `installed_date`)
-            VALUES
-                ('$name', '$modulname', '$info', '$version', '$author', '$website', '$modulname', NOW())
+                VALUES ('$name', '$modulname', '$info', '$version', '$author', '$website', '$modulname', NOW())");
+            
+            safe_query("INSERT INTO `user_role_admin_navi_rights` (`roleID`, `type`, `modulname`) VALUES (1, 'link', '$modulname')");
+        }
+
+
+
+// =====================================================
+// SETTINGS_PLUGINS_LANG â€“ PLUGIN NAME + INFO
+// =====================================================
+foreach ($_POST['plugin_name'] ?? [] as $iso => $value) {
+
+    $iso  = escape(strtolower($iso));
+    $name = escape($value ?? '');
+    $info = escape($_POST['plugin_info'][$iso] ?? '');
+
+    if ($name !== '') {
+        safe_query("
+            INSERT INTO settings_plugins_lang (content_key, language, content)
+            VALUES ('plugin_name_$modulname', '$iso', '$name')
+            ON DUPLICATE KEY UPDATE content = '$name'
         ");
+    }
 
-
-        // Admin-Navigation
-        if ($admin_title && $admin_file_url && $admin_cat_id > 0) {
-            safe_query("
-                INSERT INTO navigation_dashboard_links (catID, modulname, name, url, sort) VALUES (
-                    $admin_cat_id,
-                    '$modulname',
-                    '$admin_title',
-                    '$admin_file_url',
-                    1
-                )
-            ");
-        }
-
-        // Website-Navigation
-        if ($website_title && $index_file_url && $website_cat_id > 0) {
-            safe_query("
-                INSERT INTO navigation_website_sub (mnavID, name, modulname, url, sort, indropdown) VALUES (
-                    $website_cat_id,
-                    '$website_title',
-                    '$modulname',
-                    '$index_file_url',
-                    1,
-                    1
-                )
-            ");
-        }
-
-        safe_query("INSERT INTO `user_role_admin_navi_rights` (`roleID`, `type`, `modulname`) VALUES (1, 'link', '$modulname')");
-
-
-        function sanitizeFilename(string $filename): string {
-            return preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $filename);
-        }
-
-
-        // Nach safe_query(...) für Plugin-Insert
-
-        // Hole den Pfad aus POST, z.B. "test" oder auch "includes/plugins/test"
-        $path = $_POST['path'] ?? '';
-
-        // Entferne vorangestellte includes/plugins, falls vorhanden
-        $path = str_replace(['includes/plugins/', '/includes/plugins/'], '', $path);
-
-        // Entferne führende und abschließende Slashes
-        $path = trim($path, "/");
-
-        // Absoluter Basisordner: includes/plugins (muss existieren)
-        $basePluginsDir = realpath(__DIR__ . '/../includes/plugins');
-        if ($basePluginsDir === false) {
-            die('Der Ordner includes/plugins existiert nicht!');
-        }
-
-        // Vollständiger Plugin-Ordner-Pfad
-        $pluginDir = $basePluginsDir . '/' . $path;
-
-        echo "Pfad zum Plugin-Ordner: $pluginDir<br>";
-
-        // Ordner erstellen, falls nicht existent
-        if (!is_dir($pluginDir)) {
-            if (!mkdir($pluginDir, 0755, true)) {
-                die('Ordner konnte nicht erstellt werden!');
-            } else {
-                echo 'Ordner erfolgreich erstellt.<br>';
-            }
-        } else {
-            echo 'Ordner existiert bereits.<br>';
-        }
-
-        // Admin-Unterordner anlegen
-        $adminDir = $pluginDir . '/admin';
-        if (!is_dir($adminDir)) {
-            mkdir($adminDir, 0755, true);
-        }
-
-        // Dateinamen aus POST absichern (escape und sanitizeFilename müssen definiert sein)
-        $adminFileName = sanitizeFilename(escape($_POST['admin_file'])) . '.php';
-        $indexFileName = sanitizeFilename(escape($_POST['index'])) . '.php';
-
-        // Pfade zu den Dateien
-        $adminFilePath = $adminDir . '/' . $adminFileName;
-        $indexFilePath = $pluginDir . '/' . $indexFileName;
-
-        // Beispielinhalt Admin-Datei anlegen, falls noch nicht existent
-        if (!file_exists($adminFilePath)) {
-            $adminContent = "<?php\n// Beispiel Admin-Seite\n echo 'Admin-Seite vom Plugin $path';\n";
-            file_put_contents($adminFilePath, $adminContent);
-            echo "Admin-Datei $adminFileName erstellt.<br>";
-        } else {
-            echo "Admin-Datei $adminFileName existiert bereits.<br>";
-        }
-
-        // Beispielinhalt Index-Datei anlegen, falls noch nicht existent
-        if (!file_exists($indexFilePath)) {
-            $indexContent = "<?php\n// Beispiel Index-Seite\n echo 'Index-Seite vom Plugin $path';\n";
-            file_put_contents($indexFilePath, $indexContent);
-            echo "Index-Datei $indexFileName erstellt.<br>";
-        } else {
-            echo "Index-Datei $indexFileName existiert bereits.<br>";
-        }
-
-
-        echo $languageService->get('success_save') . "<br /><br />";
-        redirect("admincenter.php?site=plugin_manager", "", 5);
-        return false;
-
-    } catch (Exception $e) {
-        echo $languageService->get('failed_save') . "<br /><br />" . $e->getMessage();
-        redirect("admincenter.php?site=plugin_manager", "", 5);
-        return false;
+    if ($info !== '') {
+        safe_query("
+            INSERT INTO settings_plugins_lang (content_key, language, content)
+            VALUES ('plugin_info_$modulname', '$iso', '$info')
+            ON DUPLICATE KEY UPDATE content = '$info'
+        ");
     }
 }
 
+// =====================================================
+// SETTINGS_PLUGINS_LANG â€“ WEBSITE NAV TITLES (1â€“3)
+// =====================================================
+for ($i = 1; $i <= 3; $i++) {
 
-if (isset($_POST['edit']) && isset($_POST['id']) && is_numeric($_POST['id'])) {
-    $pluginID = (int)$_POST['id'];
-    $acti = isset($_POST['activate']) ? 1 : 0;
+    if (!isset($_POST['nav_website_title_lang'][$i])) {
+        continue;
+    }
 
-    $name           = escape($_POST['name']);
-    $modulname      = escape($_POST['modulname']);
-    $info           = escape($_POST['info']);
-    $admin_file     = escape($_POST['admin_file']);
-    $author         = escape($_POST['author']);
-    $website        = escape($_POST['website']);
-    $index_file     = escape($_POST['index']);
-    $hiddenfiles    = escape($_POST['hiddenfiles']);
-    $version        = escape($_POST['version']);
-    $path           = escape($_POST['path']);
+    foreach ($_POST['nav_website_title_lang'][$i] as $iso => $title) {
 
-    $admin_cat_id       = (int)($_POST['nav_admin_cat'] ?? 0);
-    $website_cat_id     = (int)($_POST['nav_website_cat'] ?? 0);
-    $admin_title        = escape($_POST['nav_admin_title']);
-    $website_title      = escape($_POST['nav_website_title']);
-    $admin_file_url     = escape($_POST['nav_admin_link']);
-    $index_file_url     = escape($_POST['nav_website_link']);
+        $isoTitle = escape($title ?? '');
+        $iso      = escape(strtolower($iso));
 
-    try {
-        // Plugin aktualisieren
-        safe_query("
-            UPDATE `settings_plugins` SET
-                `name` = '$name',
-                `modulname` = '$modulname',
-                `info` = '$info',
-                `activate` = '1',
-                `admin_file` = '$admin_file',
-                `author` = '$author',
-                `website` = '$website',
-                `index_link` = '$index_file',
-                `hiddenfiles` = '$hiddenfiles',
-                `version` = '$version',
-                `path` = '$path'
-            WHERE pluginID = $pluginID
-        ");
+        if ($isoTitle === '') {
+            continue;
+        }
+
+        // eindeutiger Key pro Modul + Slot
+        $key = 'nav_website_' . $modulname . '_' . $i;
 
         safe_query("
-            UPDATE `settings_plugins_installed`
-            SET
-                `name` = '$name',
-                `modulname` = '$modulname',
-                `description` = '$info',
-                `version` = '$version',
-                `author` = '$author',
-                `url` = '$website',
-                `folder` = '$modulname'
-            WHERE modulname = '$modulname'"
-        );
-
-
-        // Admin-Navigation
-        $adminNavExists = mysqli_num_rows(safe_query("SELECT * FROM navigation_dashboard_links WHERE modulname = '$modulname'"));
-        if ($admin_title && $admin_cat_id > 0) {
-            if ($adminNavExists) {
-                safe_query("
-                    UPDATE navigation_dashboard_links SET
-                        catID = $admin_cat_id,
-                        name = '$admin_title',
-                        url = '$admin_file_url'
-                    WHERE modulname = '$modulname'
-                ");
-            } else {
-                safe_query("
-                    INSERT INTO navigation_dashboard_links (catID, modulname, name, url, sort) VALUES (
-                        $admin_cat_id,
-                        '$modulname',
-                        '$admin_title',
-                        '$admin_file_url',
-                        1
-                    )
-                ");
-            }
-        }
-
-        // Website-Navigation
-        $websiteNavExists = mysqli_num_rows(safe_query("SELECT * FROM navigation_website_sub WHERE modulname = '$modulname'"));
-        if ($website_title && $website_cat_id > 0) {
-            if ($websiteNavExists) {
-                safe_query("
-                    UPDATE navigation_website_sub SET
-                        mnavID = $website_cat_id,
-                        name = '$website_title',
-                        url = '$index_file_url'
-                    WHERE modulname = '$modulname'
-                ");
-            } else {
-                safe_query("
-                    INSERT INTO navigation_website_sub (mnavID, name, modulname, url, sort, indropdown) VALUES (
-                        $website_cat_id,
-                        '$website_title',
-                        '$modulname',
-                        '$index_file_url',
-                        1,
-                        1
-                    )
-                ");
-            }
-        }
-
-        echo $languageService->get('success_save') . "<br /><br />";
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $pluginID . "&do=edit", "", 1);
-        return false;
-
-    } catch (Exception $e) {
-        echo $languageService->get('failed_save') . "<br /><br />" . $e->getMessage();
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $pluginID . "&do=edit", "", 1);
-        return false;
+            INSERT INTO settings_plugins_lang (content_key, language, content)
+            VALUES ('$key', '$iso', '$isoTitle')
+            ON DUPLICATE KEY UPDATE content = '$isoTitle'
+        ");
     }
 }
 
 
 
-    #Erstellt eine neue Plugin-Einstellung END
+        // 3. Admin-Navigation
+        if ($admin_cat_id > 0) {
 
+    // ---------------------------------------------
+    // 1. PrÃ¼fen, ob Admin-Navi-Eintrag existiert
+    // ---------------------------------------------
+    $res = safe_query("
+        SELECT linkID
+        FROM navigation_dashboard_links
+        WHERE modulname = '$modulname'
+        LIMIT 1
+    ");
 
-    if (isset($_GET['action']) && $_GET['action'] == "delete_plugin" && isset($_GET['modulname'])) {
-        $modulname = $_GET['modulname']; // ACHTUNG: Idealerweise per prepared statement, aber hier:
-        $modulname_safe = mysqli_real_escape_string($_database, $modulname);
+    if ($row = mysqli_fetch_assoc($res)) {
 
-        // Prüfe, ob Plugin existiert
-        $plugin_name_query = safe_query("SELECT modulname FROM settings_plugins WHERE modulname = '" . $modulname_safe . "'");
+        // ---------- UPDATE ----------
+        $linkID = (int)$row['linkID'];
 
-        if (mysqli_num_rows($plugin_name_query) > 0) {
-            $plugin_name = mysqli_fetch_assoc($plugin_name_query)['modulname'];
-
-            echo '<div class="alert alert-info"><strong><i class="bi bi-trash3"></i> ' . $languageService->get('delete_plugin') . ':</strong> ' . htmlspecialchars($plugin_name, ENT_QUOTES, 'UTF-8') . '</div>';
-
-            // 1) Entferne aus globaler Widget-Tabelle
-            safe_query("DELETE FROM `settings_widgets` WHERE `modulname` = '" . $plugin_name . "'");
-
-            // 2) Entferne genau die plugins_[modulname]_settings_widgets Tabelle
-            safe_query("DELETE FROM `settings_widgets_positions` WHERE `modulname` = '" . $plugin_name . "'");
-
-            // 3) Entferne Plugin aus settings_plugins
-            safe_query("DELETE FROM `settings_plugins` WHERE `modulname` = '" . $plugin_name . "'");
-
-            safe_query("DELETE FROM `navigation_dashboard_links` WHERE `modulname` = '" . $plugin_name . "'");
-            safe_query("DELETE FROM `navigation_website_sub` WHERE `modulname` = '" . $plugin_name . "'");
-            safe_query("DELETE FROM `user_role_admin_navi_rights` WHERE `modulname` = '" . $plugin_name . "'");
-
-            safe_query("DELETE FROM `settings_plugins_installed` WHERE `modulname` = '" . $plugin_name . "'");
-
-            // 4) Redirect
-            flush();
-            echo '<script>
-                    setTimeout(function(){ 
-                        window.location.href = "admincenter.php?site=plugin_manager"; 
-                    }, 2000);
-                </script>';
-        } else {
-            echo '<div class="alert alert-danger"><strong><i class="bi bi-x-circle"></i> Error:</strong> Plugin <b>' . htmlspecialchars($modulname, ENT_QUOTES, 'UTF-8') . '</b> was not found in <b>settings_plugins</b>.</div>';
-        }
-    }
-
-
-    // Fine della cancellazione del plugin e dei suoi widget
-
-
-    #Erstellt eine neue Widget-Einstellung START
-    if (isset($_POST['widget_add'])) {
-        try {
-            safe_query(
-                "INSERT INTO `settings_widgets` (
-                    `widget_key`,
-                    `title`, 
-                    `plugin`, 
-                    `modulname`
-                    ) VALUES (
-                    '" . $_POST['widget_key'] . "',
-                    '" . $_POST['title'] . "',
-                    '" . $_POST['modulname'] . "', 
-                    '" . $_POST['modulname'] . "'
-                );
-            "
-            );
-
-            echo $languageService->get('success_save') . "<br /><br />";
-            redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $_POST['id'] . "&do=edit", "", 1);
-            return false;
-        } catch (Exception $e) {
-            echo $languageService->get('failed_save') . "<br /><br />" . $e->getMessage();
-            redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $_POST['id'] . "&do=edit", "", 1);
-            return false;
-        }
-        return false;
-    }
-
-
-if (isset($_POST['widget_edit'])) {
-    try {
-        $sql = "
-            UPDATE `settings_widgets` SET
-                `widget_key` = '" . escape($_POST['new_widget_key']) . "',
-                `title` = '" . escape($_POST['title']) . "'
-            WHERE `widget_key` = '" . escape($_POST['original_widget_key']) . "'
-        ";
-
-        safe_query($sql);
-
-        echo $languageService->get('success_save') . "<br /><br />";
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $_POST['id'] . "&do=edit", "", 1);
-        return false;
-    } catch (Exception $e) {
-        echo $languageService->get('failed_save') . "<br /><br />" . $e->getMessage();
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $_POST['id'] . "&do=edit", "", 1);
-        return false;
-    }
-}
-
-    #Erstellt eine neue Widget-Einstellung END
-
-
-    
-    ###FOOTER#################################
-    if (isset($_POST['sortieren'])) {
-        $CAPCLASS = new \nexpell\Captcha;
-        if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'])) {
-
-            $sort = $_POST['sort'];
-            foreach ($sort as $sortstring) {
-                $sorter = explode("-", $sortstring);
-                safe_query("UPDATE plugins_" . $_POST['modulname'] . "_settings_widgets SET sort='" . $sorter[1] . "' WHERE id='" . $sorter[0] . "' ");
-            }
-        } else {
-            echo $languageService->get('transaction_invalid');
-        }
-    }
-
-if (isset($_GET["delete"])) {
-    $CAPCLASS = new \nexpell\Captcha();
-    if ($CAPCLASS->checkCaptcha(0, $_GET['captcha_hash'])) {
-        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-        $widget_key = escape($_GET['widget_key']);
-
-        // Modulname anhand widget_key abfragen
-        $res = safe_query("SELECT modulname FROM settings_widgets WHERE widget_key = '" . $widget_key . "'");
-        if (mysqli_num_rows($res)) {
-            $data = mysqli_fetch_assoc($res);
-            $modulname = escape($data['modulname']);
-
-            // Jetzt sicher löschen
-            safe_query("DELETE FROM settings_widgets WHERE modulname='" . $modulname . "'");
-            safe_query("DELETE FROM settings_widgets_positions WHERE modulname='" . $modulname . "'");
-
-            echo '<div class="alert alert-success">Widget erfolgreich gelöscht.</div>';
-        } else {
-            echo '<div class="alert alert-warning">Kein passendes Widget gefunden.</div>';
-        }
-
-        // Redirect mit GET-ID
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . $id . "&do=edit", "", 1);
+        safe_query("
+            UPDATE navigation_dashboard_links
+            SET catID = $admin_cat_id,
+                url   = '$admin_file_url'
+            WHERE linkID = $linkID
+        ");
 
     } else {
-        echo '<div class="alert alert-danger">Ungültiger CAPTCHA-Hash!</div>';
-        redirect("admincenter.php?site=plugin_manager&action=edit&id=" . ($_GET['id'] ?? 0) . "&do=edit", "", 1);
+
+        // ---------- INSERT ----------
+        safe_query("
+            INSERT INTO navigation_dashboard_links
+                (catID, modulname, url, sort)
+            VALUES
+                ($admin_cat_id, '$modulname', '$admin_file_url', 1)
+        ");
+
+        // WICHTIG: neue linkID holen
+        $linkID = mysqli_insert_id($GLOBALS['up_db']);
+    }
+
+    // ---------------------------------------------
+    // 2. Mehrsprachige Titel speichern
+    // ---------------------------------------------
+    if ($linkID > 0) {
+
+        foreach (($_POST['nav_admin_title_lang'] ?? []) as $iso => $title) {
+
+            $isoTitle = escape($title ?? '');
+            $iso      = escape(strtolower($iso));
+
+            if ($isoTitle === '') {
+                continue;
+            }
+
+            $isoKey = 'nav_link_' . $linkID;
+
+            safe_query("
+                INSERT INTO navigation_dashboard_lang
+                    (language, content_key, content)
+                VALUES
+                    ('$iso', '$isoKey', '$isoTitle')
+                ON DUPLICATE KEY UPDATE
+                    content = '$isoTitle'
+            ");
+        }
+    }
+}
+
+
+        // 4. WEBSITE-NAVIGATION (Schleife fÃ¼r 3 EintrÃ¤ge)
+        // Zuerst bestehende EintrÃ¤ge lÃ¶schen oder via modulname identifizieren
+        // Wenn dein System pro Modul mehrere EintrÃ¤ge erlaubt, brauchen wir eine Referenz.
+        // Falls du sie Ã¼berschreiben willst:
+        if ($isEdit) {
+            // Optional: Alte Sprachen lÃ¶schen, falls snavID bekannt ist
+            // Hier gehen wir davon aus, dass wir neue hinzufÃ¼gen oder updaten
+        }
+
+        // 4. WEBSITE-NAVIGATION (Schleife fÃ¼r 3 EintrÃ¤ge)
+        // 4. WEBSITE-NAVIGATION (Schleife fÃ¼r 3 EintrÃ¤ge)
+global $_database;
+error_log('NAV SAVE START');
+
+for ($i = 1; $i <= 3; $i++) {
+
+    $web_cat_id = (int)($_POST['nav_website_cat'][$i] ?? 0);
+    $web_url    = trim($_POST['nav_website_link'][$i] ?? '');
+
+    // PATCH: nur Ã¼berspringen, wenn BEIDES leer ist
+    if ($web_cat_id <= 0 && $web_url === '') {
+        continue;
+    }
+
+    // Kategorie darf 0 sein
+    $mnavID = ($web_cat_id > 0) ? $web_cat_id : 0;
+
+    $escapedUrl = escape($web_url);
+    $existingNavRes = safe_query("
+        SELECT snavID
+        FROM navigation_website_sub
+        WHERE modulname = '$modulname' AND sort = $i
+        LIMIT 1
+    ");
+    $existingNav = mysqli_fetch_assoc($existingNavRes);
+
+    if (!empty($existingNav['snavID'])) {
+        $snavID = (int)$existingNav['snavID'];
+        safe_query("
+            UPDATE navigation_website_sub
+            SET mnavID = $mnavID,
+                url = '$escapedUrl',
+                indropdown = 1
+            WHERE snavID = $snavID
+        ");
+    } else {
+        safe_query("
+            INSERT INTO navigation_website_sub
+                (mnavID, modulname, url, sort, indropdown)
+            VALUES
+                ($mnavID, '$modulname', '$escapedUrl', $i, 1)
+        ");
+        $snavID = (int)mysqli_insert_id($_database);
+    }
+
+    // -----------------------------------------
+    // snavID sicher holen
+    // -----------------------------------------
+    if (empty($snavID)) {
+        $resID = safe_query("
+            SELECT snavID
+            FROM navigation_website_sub
+            WHERE modulname = '$modulname' AND sort = $i
+            LIMIT 1
+        ");
+
+        $rowID = mysqli_fetch_assoc($resID);
+        $snavID = (int)($rowID['snavID'] ?? 0);
+    }
+
+    // -----------------------------------------
+    // Sprach-Titel speichern
+    // -----------------------------------------
+    if ($snavID > 0 && isset($_POST['nav_website_title_lang'][$i])) {
+
+        foreach ($_POST['nav_website_title_lang'][$i] as $iso => $title) {
+
+            $isoTitle = trim($title ?? '');
+            if ($isoTitle === '') {
+                continue;
+            }
+
+            $isoKey = 'nav_sub_' . $snavID;
+
+            safe_query("
+                INSERT INTO navigation_website_lang
+                    (language, content_key, content)
+                VALUES
+                    ('" . escape($iso) . "', '$isoKey', '" . escape($isoTitle) . "')
+                ON DUPLICATE KEY UPDATE
+                    content = '" . escape($isoTitle) . "'
+            ");
+        }
+    }
+}
+
+error_log('NAV SAVE END');
+
+
+
+        // 5. Dateisystem-Logik
+        if (!$isEdit) {
+            if (!function_exists('sanitizeFilename')) {
+                function sanitizeFilename(string $filename): string {
+                    return preg_replace('/[^a-zA-Z0-9_\-\.]/', '', $filename);
+                }
+            }
+            $cleanPath = trim(str_replace(['includes/plugins/', '/includes/plugins/'], '', $path), '/');
+            $baseDir   = realpath(__DIR__ . '/../includes/plugins');
+            $pluginDir = $baseDir . '/' . $cleanPath;
+
+            if ($baseDir && !empty($cleanPath)) {
+                if (!is_dir($pluginDir)) mkdir($pluginDir, 0755, true);
+                if (!is_dir($pluginDir . '/admin')) mkdir($pluginDir . '/admin', 0755, true);
+                $adminFile = sanitizeFilename(preg_replace('/\.php$/i', '', $admin_file ?: 'admin')) . '.php';
+                $indexFile = sanitizeFilename(preg_replace('/\.php$/i', '', $index_file ?: 'index')) . '.php';
+
+                if (!file_exists($pluginDir . '/admin/' . $adminFile)) {
+                    file_put_contents($pluginDir . '/admin/' . $adminFile, "<?php\necho 'Admin Section'; ?>");
+                }
+                if (!file_exists($pluginDir . '/' . $indexFile)) {
+                    file_put_contents($pluginDir . '/' . $indexFile, "<?php\necho 'Plugin Index'; ?>");
+                }
+            }
+        }
+
+        $target = $isEdit ? 'admincenter.php?site=plugin_manager&action=edit&id='.$pluginID : 'admincenter.php?site=plugin_manager';
+        nx_redirect($target, 'success', 'alert_saved', false);
+
+    } catch (Exception $e) {
+        nx_redirect('admincenter.php?site=plugin_manager', 'danger', 'alert_save_failed', false);
     }
 }
 
 
 
-if ($action == "edit") {
-        $id = $_GET['id'];
 
-        $CAPCLASS = new \nexpell\Captcha;
-        $CAPCLASS->createTransaction();
-        $hash = $CAPCLASS->getHash();
 
-        echo '<div class="card">
-        <div class="card-header"><i class="bi bi-puzzle"></i> 
-            ' . $languageService->get('plugin_manager') . '
+
+
+#Erstellt eine neue Plugin-Einstellung END
+if (isset($_GET['action']) && $_GET['action'] == 'delete_plugin' && isset($_GET['modulname'])) {
+
+    $modulname = normalize_plugin_modulname((string)($_GET['modulname'] ?? ''));
+    $modulname_safe = mysqli_real_escape_string($_database, $modulname);
+
+    $plugin_name_query = safe_query("SELECT modulname FROM settings_plugins WHERE modulname = '" . $modulname_safe . "'");
+
+    if ($plugin_name_query && mysqli_num_rows($plugin_name_query) > 0) {
+
+        $plugin_name = mysqli_fetch_assoc($plugin_name_query)['modulname'];
+        $plugin_name_escaped = escape($plugin_name); // Einmal escapen fÃ¼r alle Queries
+
+        // 1. Hauptdaten lÃ¶schen
+        safe_query("DELETE FROM `settings_widgets` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `settings_widgets_positions` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `settings_plugins` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `navigation_dashboard_links` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `navigation_website_sub` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `user_role_admin_navi_rights` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `settings_plugins_installed` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+
+        /* =====================================================
+         * NEU: SPRACH-EINTRÃ„GE LÃ–SCHEN
+         * ===================================================== */
+        safe_query("DELETE FROM `navigation_dashboard_lang` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `navigation_website_lang` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+        safe_query("DELETE FROM `settings_plugins_lang` WHERE `modulname` = '" . $plugin_name_escaped . "'");
+
+        // Audit & Redirect
+        nx_audit_delete('plugin_manager', (string)$plugin_name, (string)$plugin_name, 'admincenter.php?site=plugin_manager');
+        nx_redirect('admincenter.php?site=plugin_manager', 'success', sprintf($languageService->get('alert_plugin_deleted'), htmlspecialchars($plugin_name, ENT_QUOTES, 'UTF-8')), false, true);
+
+    } else {
+        nx_redirect('admincenter.php?site=plugin_manager', 'danger', 'alert_plugin_not_found', false);
+    }
+}
+    #Erstellt eine neue Widget-Einstellung START
+
+// =====================================================
+// WIDGET ADD / EDIT â€“ COMBINED HANDLER
+// =====================================================
+if (isset($_POST['widget_add']) || isset($_POST['edit_widget'])) {
+
+    try {
+
+        $isEdit = isset($_POST['edit_widget']);
+
+        // =========================
+        // COMMON INPUT
+        // =========================
+        $id        = (int)($_POST['id'] ?? 0);
+        $title     = escape($_POST['title'] ?? '');
+        $modulname = escape(normalize_plugin_modulname((string)($_POST['modulname'] ?? '')));
+
+        if ($id <= 0 || $title === '') {
+            nx_redirect(
+                'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                'warning',
+                'alert_transaction_invalid',
+                false
+            );
+        }
+
+        // =========================
+        // ADD MODE
+        // =========================
+        if (!$isEdit) {
+
+            $widget_key = escape($_POST['widget_key'] ?? '');
+
+            if ($widget_key === '' || $modulname === '') {
+                nx_redirect(
+                    'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                    'warning',
+                    'alert_transaction_invalid',
+                    false
+                );
+            }
+
+            $res = safe_query("
+                INSERT INTO settings_widgets
+                    (widget_key, title, plugin, modulname)
+                VALUES
+                    ('$widget_key', '$title', '$modulname', '$modulname')
+            ");
+
+            if ($res === false) {
+                nx_redirect(
+                    'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                    'danger',
+                    'alert_db_error',
+                    false
+                );
+            }
+
+            nx_audit_create(
+                'plugin_manager',
+                (string)$widget_key,
+                $title,
+                'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit'
+            );
+        }
+
+        // =========================
+        // EDIT MODE
+        // =========================
+        else {
+
+            $new_widget_key      = escape($_POST['new_widget_key'] ?? '');
+            $original_widget_key = escape($_POST['original_widget_key'] ?? '');
+
+            if ($new_widget_key === '' || $original_widget_key === '') {
+                nx_redirect(
+                    'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                    'warning',
+                    'alert_transaction_invalid',
+                    false
+                );
+            }
+
+            $res = safe_query("
+                UPDATE settings_widgets
+                SET
+                    widget_key = '$new_widget_key',
+                    title      = '$title'
+                WHERE widget_key = '$original_widget_key'
+            ");
+
+            if ($res === false) {
+                nx_redirect(
+                    'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                    'danger',
+                    'alert_db_error',
+                    false
+                );
+            }
+
+            nx_audit_update(
+                'plugin_manager',
+                (string)$original_widget_key,
+                true,
+                $title,
+                'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+                ['new_widget_key' => $new_widget_key]
+            );
+        }
+
+        // =========================
+        // SUCCESS
+        // =========================
+        nx_redirect(
+            'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit',
+            'success',
+            'alert_saved',
+            false
+        );
+
+    } catch (Exception $e) {
+
+        nx_redirect(
+            'admincenter.php?site=plugin_manager&action=edit&id=' . (int)($_POST['id'] ?? 0) . '&do=edit',
+            'danger',
+            'alert_save_failed',
+            false
+        );
+    }
+}
+
+#Erstellt eine neue Widget-Einstellung END
+
+if (isset($_GET['delete'])) {
+
+    $CAPCLASS = new \nexpell\Captcha();
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+    if (!$CAPCLASS->checkCaptcha(0, $_GET['captcha_hash'] ?? '')) nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'danger', 'alert_transaction_invalid', false);
+
+    $widget_key = escape((string)($_GET['widget_key'] ?? ''));
+    if ($widget_key === '') nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'warning', 'alert_transaction_invalid', false);
+
+    $res = safe_query("SELECT modulname FROM settings_widgets WHERE widget_key = '" . $widget_key . "'");
+    if (!$res || !mysqli_num_rows($res)) nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'warning', 'alert_not_found', false);
+
+    $data = mysqli_fetch_assoc($res);
+    $modulname = escape(normalize_plugin_modulname((string)($data['modulname'] ?? '')));
+    if ($modulname === '') nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'warning', 'alert_not_found', false);
+
+    $del1 = safe_query("DELETE FROM settings_widgets WHERE widget_key='" . $widget_key . "'");
+    $del2 = safe_query("DELETE FROM settings_widgets_positions WHERE modulname='" . $modulname . "'");
+    if ($del1 === false || $del2 === false) nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'danger', 'alert_db_error', false);
+    nx_audit_delete('plugin_manager', (string)$widget_key, (string)$widget_key, 'admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit');
+    nx_redirect('admincenter.php?site=plugin_manager&action=edit&id=' . $id . '&do=edit', 'success', 'alert_deleted', false);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+if ($action === 'widget_add' || $action === 'edit_widget') {
+
+    $id = (int)($_GET['id'] ?? 0);
+
+    // =========================
+    // CAPTCHA
+    // =========================
+    $CAPCLASS = new \nexpell\Captcha;
+    $CAPCLASS->createTransaction();
+    $hash = $CAPCLASS->getHash();
+
+    // =========================
+    // MODE SWITCH
+    // =========================
+    $isEdit = ($action === 'edit_widget');
+
+    if ($isEdit) {
+        $widget_key = $_GET['widget_key'] ?? '';
+        $result = safe_query("
+            SELECT *
+            FROM settings_widgets
+            WHERE widget_key = '" . escape($widget_key) . "'
+        ");
+        $db = mysqli_fetch_array($result);
+
+        $headlineSmall = $languageService->get('edit');
+        $submitName    = 'edit_widget';
+        $submitValue   = '1';
+        $submitClass   = 'btn-warning';
+        $submitIcon    = '<i class="bi bi-pencil-square"></i> ';
+        $submitText    = $languageService->get('edit_widget');
+
+        $titleValue       = escape($db['title']);
+        $widgetKeyValue   = escape($db['widget_key']);
+        $widgetKeyName    = 'new_widget_key';
+        $hiddenExtraField = '
+            <input type="hidden" name="original_widget_key" value="' . escape($db['widget_key']) . '">
+        ';
+
+    } else {
+        $result = safe_query("
+            SELECT *
+            FROM settings_plugins
+            WHERE pluginID = '" . $id . "'
+        ");
+        $db = mysqli_fetch_array($result);
+
+        $headlineSmall = $languageService->get('add');
+        $submitName    = 'widget_add';
+        $submitValue   = '1';
+        $submitClass   = 'btn-primary';
+        $submitIcon    = '';
+        $submitText    = $languageService->get('add');
+
+        $titleValue       = '';
+        $widgetKeyValue   = '';
+        $widgetKeyName    = 'widget_key';
+        $hiddenExtraField = '';
+    }
+
+    // =========================
+    // OUTPUT
+    // =========================
+    echo '
+    <div class="card shadow-sm border-0 mb-4 mt-4">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <div class="card-title">
+                <i class="bi bi-puzzle"></i>
+                <span>' . $languageService->get('plugin_manager') . '</span>
+                <small class="text-muted">' . $headlineSmall . '</small>
+            </div>
         </div>
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_manager">' . $languageService->get('plugin_manager') . '</a></li>
-            <li class="breadcrumb-item active" aria-current="page">' . $languageService->get('edit_plugin') . '</li>
-          </ol>
-        </nav>
-        <div class="card-body">';
 
-        $ergebnis = safe_query("SELECT * FROM `settings_plugins` WHERE `pluginID`='" . $id . "' LIMIT 1");
+        <div class="card-body">
+
+            <div class="mb-4">
+                <h6 class="mb-3">Plugin</h6>
+                <div class="row g-3">
+                    <div class="col-auto">
+                        <div class="alert alert-info fw-semibold mb-0 py-2">
+                            ' . escape($db['modulname'] ?? $db['name']) . '
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <form method="post"
+                  action="admincenter.php?site=plugin_manager"
+                  enctype="multipart/form-data"
+                  onsubmit="return chkFormular();">
+
+                <div class="mb-4">
+                    <h6 class="mb-3">' . $languageService->get('settings') . '</h6>
+
+                    <div class="row g-3">
+
+                        <div class="col-lg-6">
+                            <label class="form-label">
+                                ' . $languageService->get('widget_name') . '
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div class="form-text mb-1">
+                                (' . $languageService->get('for_widgetname') . ')
+                            </div>
+                            <input type="text"
+                                   class="form-control"
+                                   name="title"
+                                   value="' . $titleValue . '"
+                                   required>
+                        </div>
+
+                        <div class="col-lg-6">
+                            <label class="form-label">
+                                ' . $languageService->get('modulname') . '
+                            </label>
+                            <div class="form-text mb-1">
+                                (' . $languageService->get('for_plugin') . ')
+                            </div>
+                            <input type="text"
+                                   class="form-control"
+                                   value="' . escape($db['modulname']) . '"
+                                   disabled>
+                        </div>
+
+                        <div class="col-lg-6">
+                            <label class="form-label">
+                                ' . $languageService->get('widget_datei') . '
+                                <span class="text-danger">*</span>
+                            </label>
+                            <div class="form-text mb-1">
+                                (' . $languageService->get('widgetdatei_nophp') . ')
+                            </div>
+                            <input type="text"
+                                   class="form-control"
+                                   name="' . $widgetKeyName . '"
+                                   value="' . $widgetKeyValue . '"
+                                   required>
+                        </div>
+
+                    </div>
+                </div>
+
+                <div class="d-flex align-items-center gap-3 pt-2">
+                    <input type="hidden" name="modulname" value="' . escape($db['modulname']) . '">
+                    <input type="hidden" name="id" value="' . $id . '">
+                    ' . $hiddenExtraField . '
+
+                    <button class="btn ' . $submitClass . '" type="submit"
+                            name="' . $submitName . '" value="' . $submitValue . '">
+                        ' . $submitIcon . $submitText . '
+                    </button>
+
+                    <small class="text-muted">
+                        <span class="text-danger">*</span>
+                        ' . $languageService->get('fields_star_required') . '
+                    </small>
+                </div>
+
+            </form>
+
+        </div>
+    </div>';
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ===============================
+    ABSCHNITT: BASISDATEN LADEN
+=============================== */
+
+elseif ($action == "add" || $action == "edit" || $action == "new") {
+    $currentLang = strtolower($languageService->detectLanguage());
+    $isEdit = ($action == "edit");
+    $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+    $ds = [];
+    $modulname = "";
+    $navAdminCatID = 0;
+    $navAdminLink = "";
+    $pluginNames = [];
+    $pluginInfos = [];
+    $adminNavTitles = [];
+    
+    // Arrays fÃ¼r bis zu 3 Website-Navigations-Instanzen
+    $navLinks_inst = [];
+    $navWebsiteCats = [];
+    $titles_inst = []; 
+
+    // Sprachen laden
+    $languages = [];
+    $resLang = safe_query("SELECT iso_639_1, name_de FROM settings_languages WHERE active = 1 ORDER BY id ASC");
+    while ($row = mysqli_fetch_assoc($resLang)) {
+        $languages[strtolower($row['iso_639_1'])] = $row['name_de'];
+    }
+    if (!isset($languages[$currentLang])) {
+        $currentLang = array_key_first($languages) ?: 'de';
+    }
+
+    if ($isEdit && $id > 0) {
+        $ergebnis = safe_query("SELECT * FROM `settings_plugins` WHERE `pluginID`=" . $id . " LIMIT 1");
         $ds = mysqli_fetch_array($ergebnis);
+        $modulname = escape(normalize_plugin_modulname((string)($ds['modulname'] ?? '')));
 
-        $translate = new multiLanguage($lang);
-        $translate->detectLanguages($ds['name']);
-        $name = $translate->getTextByLanguage($ds['name']);
-        $translate->detectLanguages($ds['info']);
-        $info = $translate->getTextByLanguage($ds['info']);
+        // Admin-Navi laden
+        $adminNavQuery = safe_query("SELECT url, catID FROM navigation_dashboard_links WHERE modulname = '$modulname' LIMIT 1");
+        $adminNav = mysqli_fetch_assoc($adminNavQuery);
+        $navAdminCatID = (int)($adminNav['catID'] ?? 0);
+        $navAdminLink = $adminNav['url'] ?? '';
 
-        if (@$ds['admin_file'] != '') {
+        $pluginLangQuery = safe_query("
+            SELECT content_key, language, content
+            FROM settings_plugins_lang
+            WHERE content_key IN ('plugin_name_$modulname', 'plugin_info_$modulname')
+        ");
+        while ($langRow = mysqli_fetch_assoc($pluginLangQuery)) {
+            $iso = strtolower((string)($langRow['language'] ?? ''));
+            $contentKey = (string)($langRow['content_key'] ?? '');
+            $content = (string)($langRow['content'] ?? '');
 
-            echo '<div class="mb-3 row">
-            <label class="col-md-1 control-label">' . $languageService->get('options') . ':</label>
-            <div class="col-md-8">
-                <a class="btn btn-primary" data-toggle="tooltip" data-html="true" title="' . $languageService->get('tooltip_7') . ' " href="admincenter.php?site=' . $ds['admin_file'] . '"><i class="bi bi-gear"></i> ' . $name . '</a>
-
-      <a href="admincenter.php?site=plugin_manager&action=widget_add&id=' . $id . '" class="btn btn-primary" type="button"><i class="bi bi-plus-circle"></i> ' . $languageService->get('new_widget') . '</a>
-
-            </div>
-        </div>';
-        } else {
-        }
-        echo '<form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=plugin_manager&id=' . $id . '&do=edit" enctype="multipart/form-data" onsubmit="return chkFormular();">';
-
-        echo '<b>' . $languageService->get('plugin_basic_setting') . ':</b>
-        <hr>
-        <div class="mb-3 row">
-            <input type="hidden" name="pid" value="' . $ds['pluginID'] . '" />    
-            <label class="col-sm-5 col-form-label" for="name">Plugin ' . $languageService->get('name') . ':<br>
-                ' . $languageService->get('multi_language_info_name') . '
-            </label>
-            <div class="col-sm-7">
-                <h4>' . $name . '</h4>
-                <span class="text-muted small"><em>
-                <input type="name" class="form-control" name="name" value="' . $ds['name'] . '" placeholder="plugin name"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('description') . ':<br>
-                ' . $languageService->get('multi_language_info_description') . '
-            </label>
-            <div class="col-sm-7">
-                <p style="margin-top: 7px">' . $info . '</p>
-                <span class="text-muted small"><em>
-                <textarea class="form-control" name="info" rows="10" cols="" style="width: 100%;" placeholder="info">' . $ds['info'] . '</textarea></em></span>
-            </div>
-        </div>
-   
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="author">' . $languageService->get('author') . ':</label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" name="author" value="' . $ds['author'] . '" placeholder="autor"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="website">' . $languageService->get('website') . ':</label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="http://" rows="5"  value="' . $ds['website'] . '" name="website"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('modulname') . ': <br><small>(' . $languageService->get('for_uninstall') . ')</small></label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" name="modulname" value="' . $ds['modulname'] . '" disabled></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="admin_file">' . $languageService->get('admin_file') . ': <br><small>(' . $languageService->get('index_file_nophp') . ')</small></label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control"  name="admin_file" value="' . $ds['admin_file'] . '" placeholder="admin file"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="index">' . $languageService->get('index_file') . ': <br><small>(' . $languageService->get('index_file_nophp') . ')</small></label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="index file" rows="5"  value="' . $ds['index_link'] . '" name="index"></em></span>
-            </div>
-        </div>
-
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="hittenfiles">' . $languageService->get('hidden_file') . ': <br><small>(' . $languageService->get('hidden_file_seperate') . ')</small></label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" placeholder="myfile,secondfile,anotherfile" value="' . $ds['hiddenfiles'] . '" name="hiddenfiles"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="version">' . $languageService->get('version_file') . ':</label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" value="' . $ds['version'] . '" name="version" placeholder="version"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="path">' . $languageService->get('folder_file') . ': <br><small>(' . $languageService->get('folder_file_slash') . ')</small></label>
-            <div class="col-sm-7"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="includes/plugins/myplugin/"  value="' . $ds['path'] . '" rows="5" name="path"></em></span>
-            </div>
-        </div>';
-
-        // Admin Kategorien laden
-        // Default-Werte definieren, damit Seite nicht abbricht
-        $navAdminLink   = '';
-        $navAdminTitle  = '';
-        $navAdminCatID  = 0;
-
-        $navWebsiteLink   = '';
-        $navWebsiteTitle  = '';
-        $navWebsiteCatID  = 0;
-
-        $modulname = escape($ds['modulname']); // z. B. aus settings_plugins
-
-        $modulname = escape($ds['modulname']); // ACHTUNG: muss vorher korrekt befüllt sein (z. B. aus settings_plugins)
-
-        $adminNavQuery = safe_query("SELECT name, url, catID FROM navigation_dashboard_links WHERE modulname = '$modulname' LIMIT 1");
-        if ($adminNav = mysqli_fetch_assoc($adminNavQuery)) {
-            $navAdminLink = $adminNav['url'];
-            $navAdminTitle = $adminNav['name'];
-            $navAdminCatID = (int)$adminNav['catID'];
+            if ($contentKey === 'plugin_name_' . $modulname) {
+                $pluginNames[$iso] = $content;
+            } elseif ($contentKey === 'plugin_info_' . $modulname) {
+                $pluginInfos[$iso] = $content;
+            }
         }
 
-        $websiteNavQuery = safe_query("SELECT name, url, mnavID FROM navigation_website_sub WHERE modulname = '$modulname' LIMIT 1");
-        if ($websiteNav = mysqli_fetch_assoc($websiteNavQuery)) {
-            $navWebsiteLink = $websiteNav['url'];
-            $navWebsiteTitle = $websiteNav['name'];
-            $navWebsiteCatID = (int)$websiteNav['mnavID'];
+        if (!empty($adminNav['catID'])) {
+            $adminLinkIdQuery = safe_query("SELECT linkID FROM navigation_dashboard_links WHERE modulname = '$modulname' LIMIT 1");
+            $adminLinkRow = mysqli_fetch_assoc($adminLinkIdQuery);
+            $adminLinkId = (int)($adminLinkRow['linkID'] ?? 0);
+            if ($adminLinkId > 0) {
+                $adminTitleQuery = safe_query("SELECT language, content FROM navigation_dashboard_lang WHERE content_key = 'nav_link_$adminLinkId'");
+                while ($titleRow = mysqli_fetch_assoc($adminTitleQuery)) {
+                    $adminNavTitles[strtolower((string)($titleRow['language'] ?? ''))] = (string)($titleRow['content'] ?? '');
+                }
+            }
         }
 
-        // Admin Kategorien laden
-        $adminCatOptions = '';
-        $adminCatQuery = safe_query("SELECT catID, name FROM navigation_dashboard_categories ORDER BY name");
-        while ($adminCat = mysqli_fetch_assoc($adminCatQuery)) {
-            $selected = ($adminCat['catID'] == $navAdminCatID) ? ' selected' : '';
-            $adminCatOptions .= '<option value="' . (int)$adminCat['catID'] . '"' . $selected . '>' . escape($adminCat['name']) . '</option>';
+        // Website-Navi Instanzen laden (bis zu 3)
+        $websiteNavQuery = safe_query("SELECT snavID, url, mnavID FROM navigation_website_sub WHERE modulname = '$modulname' ORDER BY snavID ASC LIMIT 3");
+        $instCounter = 1;
+        while ($wNav = mysqli_fetch_assoc($websiteNavQuery)) {
+            $navLinks_inst[$instCounter] = $wNav['url'];
+            $navWebsiteCats[$instCounter] = $wNav['mnavID'];
+            $currentSnavID = $wNav['snavID'];
+
+            $resT = safe_query("SELECT language, content FROM navigation_website_lang WHERE content_key = 'nav_sub_$currentSnavID'");
+            while ($tRow = mysqli_fetch_assoc($resT)) {
+                $titles_inst[$instCounter][strtolower($tRow['language'])] = $tRow['content'];
+            }
+            $instCounter++;
         }
+    }
 
-        // Website Kategorien laden
-        $websiteCatOptions = '';
-        $websiteCatQuery = safe_query("SELECT mnavID, name FROM navigation_website_main ORDER BY name");
-        while ($websiteCat = mysqli_fetch_assoc($websiteCatQuery)) {
-            $selected = ($websiteCat['mnavID'] == $navWebsiteCatID) ? ' selected' : '';
-            $websiteCatOptions .= '<option value="' . (int)$websiteCat['mnavID'] . '"' . $selected . '>' . escape($websiteCat['name']) . '</option>';
+    // Kategorien fÃ¼r Selects laden
+    $adminCatsMultilang = [];
+    $websiteCatsMultilang = [];
+    foreach ($languages as $iso => $label) {
+        $acQuery = safe_query("SELECT c.catID, COALESCE(l.content, '---') as name FROM navigation_dashboard_categories c LEFT JOIN navigation_dashboard_lang l ON l.content_key = CONCAT('nav_cat_', c.catID) AND l.language = '$iso' ORDER BY name");
+        while($ac = mysqli_fetch_assoc($acQuery)) $adminCatsMultilang[$iso][] = $ac;
+
+        $wcQuery = safe_query("SELECT m.mnavID, COALESCE(l.content, '---') as name FROM navigation_website_main m LEFT JOIN navigation_website_lang l ON l.content_key = CONCAT('nav_main_', m.mnavID) AND l.language = '$iso' ORDER BY name");
+        while($wc = mysqli_fetch_assoc($wcQuery)) $websiteCatsMultilang[$iso][] = $wc;
+    }
+
+    $CAPCLASS = new \nexpell\Captcha;
+    $CAPCLASS->createTransaction();
+    $hash = $CAPCLASS->getHash();
+    
+    $themeergebnis = safe_query("SELECT * FROM settings_themes WHERE active = '1'");
+    $db_theme = mysqli_fetch_array($themeergebnis);
+
+    /* ===============================
+        JAVASCRIPT VALIDIERUNG
+    =============================== */
+    ?>
+    <script>
+        function chkFormular() {
+            const name = document.querySelector('input[name="plugin_name[<?php echo $currentLang; ?>]"]');
+            if (name && !name.value.trim()) {
+                alert('<?php echo $languageService->get('no_plugin_name'); ?>');
+                name.focus();
+                return false;
+            }
+            return true;
         }
+    </script>
+    <?php
 
+    /* ===============================
+        HTML STRUKTUR START
+    =============================== */
+    if ($isEdit && !empty($ds['admin_file'])) {
+        echo '<div class="mb-3 d-flex gap-2">
+                <a class="btn btn-secondary" href="admincenter.php?site=' . $ds['admin_file'] . '">' . $languageService->get('tooltip_7') . '</a>
+                <a href="admincenter.php?site=plugin_manager&action=widget_add&id=' . $id . '" class="btn btn-secondary">' . $languageService->get('new_widget') . '</a>
+              </div>';
+    }
 
-        echo '<hr>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Navigations-Titel:<br><small>(admincenter.php?site=)</small></label>
-            <div class="col-sm-6"><input type="text" name="nav_admin_link" class="form-control" value="' . escape($navAdminLink) . '"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Navigations-Titel:</label>
-            <div class="col-sm-6"><input type="text" name="nav_admin_title" class="form-control" value="' . escape($navAdminTitle) . '"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Kategorie:</label>
-            <div class="col-sm-6">
-                <select name="nav_admin_cat" class="form-control">
-                    ' . $adminCatOptions . '
-                </select>
+    echo '<div class="card shadow-sm border-0 mb-4 mt-4">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <div class="card-title">
+                    <i class="bi bi-puzzle"></i> ' . $languageService->get($isEdit ? 'plugin_manager_edit' : 'plugin_manager_add') . '
+                    ' . ($isEdit ? '<small class="text-muted ms-2">Modul: ' . htmlspecialchars($modulname) . '</small>' : '') . '
+                </div>
+                <div class="ms-auto btn-group">';
+                foreach ($languages as $iso => $label) {
+                    $activeClass = ($iso === $currentLang) ? 'btn-primary' : 'btn-secondary';
+                    echo '<button type="button" class="btn ' . $activeClass . ' lang-switch-btn" data-lang="' . $iso . '">' . strtoupper($iso) . '</button>';
+                }
+    echo '      </div>
             </div>
-        </div>
+            <div class="card-body">';
 
-        <hr>
+    $formAction = $isEdit ? "admincenter.php?site=plugin_manager&id=$id&do=edit" : "admincenter.php?site=plugin_manager&do=add";
+    echo '<form method="post" id="post" action="' . $formAction . '" enctype="multipart/form-data" onsubmit="return chkFormular();">';
 
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Navigations-Titel:<br><small>(index.php?site=)</small></label>
-            <div class="col-sm-6"><input type="text" name="nav_website_link" class="form-control" value="' . escape($navWebsiteLink) . '"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Navigations-Titel:</label>
-            <div class="col-sm-6"><input type="text" name="nav_website_title" class="form-control" value="' . escape($navWebsiteTitle) . '"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Kategorie:</label>
-            <div class="col-sm-6">
-                <select name="nav_website_cat" class="form-control">
-                    ' . $websiteCatOptions . '
-                </select>
+    /* ABSCHNITT 1: NAME & BESCHREIBUNG */
+    echo '<div class="alert alert-secondary p-4 mb-4">
+
+            <h5 class="mb-0">
+                    <button class="btn btn-link btn-alert-link p-0 collapsed" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#pluginDetailsCollapse"
+                            aria-expanded="false"
+                            aria-controls="pluginDetailsCollapse">
+                        ' . $languageService->get('plugin_details') . '
+                    </button>
+                </h5>
+            <div class="mt-3 collapse" id="pluginDetailsCollapse">
+
+
+            <h6 class="mb-3"><i class="bi bi-info-circle"></i> ' . $languageService->get('name') . ' / ' . $languageService->get('description') . '</h6>
+            <div class="row g-3">';
+            foreach ($languages as $iso => $label) {
+                $display = ($iso !== $currentLang ? 'display:none' : '');
+                $valName = $isEdit ? ($pluginNames[$iso] ?? ($pluginNames[$currentLang] ?? '')) : '';
+                $valInfo = $isEdit ? ($pluginInfos[$iso] ?? ($pluginInfos[$currentLang] ?? '')) : '';
+                
+                echo '<div class="col-12 lang-content lang-' . $iso . '" style="' . $display . '" data-type="base">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Plugin ' . $languageService->get('name') . ' (' . strtoupper($iso) . ') <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="plugin_name[' . $iso . ']" value="' . htmlspecialchars($valName, ENT_QUOTES, 'UTF-8') . '">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">' . $languageService->get('description') . ' (' . strtoupper($iso) . ')</label>
+                            <textarea class="form-control" name="plugin_info[' . $iso . ']" rows="2">' . htmlspecialchars($valInfo, ENT_QUOTES, 'UTF-8') . '</textarea>
+                        </div>
+                      </div>';
+            }
+    
+
+    /* ABSCHNITT 2: STAMMDATEN, VERSION, AUTOR */
+    echo '<div class="mb-4">
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <label class="form-label fw-bold">' . $languageService->get('modulname') . ' *</label>
+                    <input type="text" class="form-control" name="modulname" value="' . htmlspecialchars($modulname) . '" ' . ($isEdit ? 'readonly' : 'required') . '>
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('version_file') . '</label>
+                    <input type="text" class="form-control" name="version" value="' . htmlspecialchars($ds['version'] ?? '1.0.0') . '" ' . ($isEdit ? 'readonly' : 'required') . '>
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('author') . '</label>
+                    <input type="text" class="form-control" name="author" value="' . htmlspecialchars($ds['author'] ?? '') . '" ' . ($isEdit ? 'readonly' : 'required') . '>
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('website') . '</label>
+                    <input type="url" class="form-control" name="website" value="' . htmlspecialchars($ds['website'] ?? '') . '" placeholder="https://" ' . ($isEdit ? 'readonly' : 'required') . '>
+                </div>
             </div>
-        </div>
+          </div><hr class="my-4">';
 
-        <hr>
+    /* ABSCHNITT 3: PFADE & DATEIEN */
+    echo '<div class="mb-4">
+            <h6 class="mb-3"><i class="bi bi-folder"></i> ' . $languageService->get('folder_file') . ' & ' . $languageService->get('index_file') . '</h6>
+            <div class="row g-3">';
+            
+                echo '<div class="col-lg-6">
+                        <label class="form-label">' . $languageService->get('folder_file') . ' (Pfad) *</label>
+                        <input type="text" class="form-control" value="' . htmlspecialchars($ds['path'] ?? '') . '">
+                      </div>
+                            <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('admin_file') . '</label>
+                    <input type="text" class="form-control" name="admin_file" value="'.htmlspecialchars($ds['admin_file'] ?? '').'">
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('index_file') . '</label>
+                    <input type="text" class="form-control" name="index_link" value="'.htmlspecialchars($ds['index_link'] ?? '').'">
+                </div>
+                <div class="col-lg-6">
+                    <label class="form-label">' . $languageService->get('hidden_file') . '</label>
+                    <input type="text" class="form-control" name="hiddenfiles" value="'.htmlspecialchars($ds['hiddenfiles'] ?? '').'" placeholder="file1,file2" readonly>
+                </div>
+            </div>
+          </div><hr class="my-4">';
+
+          echo '</div>  </div>
+          </div>';
+
+    /* ABSCHNITT 4: NAVIGATION (ADMIN & WEBSITE) */
+    echo '<div class="mb-4">
+            <h6 class="mb-3"><i class="bi bi-list"></i> ' . $languageService->get('navigation') . '</h6>
+            <div class="row g-4">
+                <div class="col-12 col-xl-6">
+                    <div class="p-3 border rounded bg-light" style="height: 320px">
+                        <h6 class="text-primary" style="margin-bottom: 20px;"><i class="bi bi-speedometer2"></i> Admincenter</h6>';
+                        foreach ($languages as $iso => $label) {
+                            $display = ($iso != $currentLang ? 'display:none' : '');
+                            echo '<div class="lang-content lang-'.$iso.'" style="'.$display.'" data-type="admin">
+                                    <label class="form-label small">' . $languageService->get('category') . '</label>
+                                    <select name="nav_admin_cat" class="form-select mb-3">';
+                                    foreach ($adminCatsMultilang[$iso] as $cat) {
+                                        $sel = ($cat['catID'] == $navAdminCatID ? 'selected' : '');
+                                        echo '<option value="'.$cat['catID'].'" '.$sel.'>'.htmlspecialchars($cat['name']).'</option>';
+                                    }
+                            echo '  </select>
+                                    <label class="form-label small">Nav-Titel (' . strtoupper($iso) . ')</label>
+                                    <input type="text" class="form-control" name="nav_admin_title_lang['.$iso.']" value="'.htmlspecialchars($adminNavTitles[$iso] ?? ($pluginNames[$iso] ?? ''), ENT_QUOTES, 'UTF-8').'">
+                                  </div>';
+                        }
+                        echo '<label class="form-label mt-2 small">Direkt-Link (Admin)</label>
+                              <input type="text" class="form-control" name="nav_admin_link" value="'.htmlspecialchars($navAdminLink).'">
+                    </div>
+                </div>
+
+                <div class="col-12 col-xl-6">
+                    <div class="p-3 border rounded bg-light" id="nav-container-website">';
+                        $maxLinks = 3;
+                        $initialCount = 1;
+                        for ($k = 1; $k <= $maxLinks; $k++) { if (!empty($navLinks_inst[$k])) $initialCount = $k; }
+
+    echo '              <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="text-success" style="margin-bottom: 19px;"><i class="bi bi-globe"></i> Website Navigation</h6>
+                            <div class="d-flex gap-2">
+                                <div class="btn-group btn-group-sm instance-switcher" id="switcher-group" data-current-count="' . $initialCount . '">';
+                                for ($n = 1; $n <= $maxLinks; $n++) {
+                                    $btnDisplay = ($n <= $initialCount) ? '' : 'display:none;';
+                                    echo '<button type="button" class="btn btn-outline-success ' . ($n==1?'active':'') . ' btn-inst-' . $n . '" style="'.$btnDisplay.'" onclick="switchNavInstance(this, '.$n.')">'.$n.'</button>';
+                                }
+    echo '                      </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-success" onclick="modifyInstanceCount(1)"><i class="bi bi-plus-lg"></i></button>
+                                    <button type="button" class="btn btn-danger" onclick="modifyInstanceCount(-1)"><i class="bi bi-dash-lg"></i></button>
+                                </div>
+                            </div>
+                        </div>';
+                        
+    #                    for ($i = 1; $i <= $maxLinks; $i++) {
+
+    #echo '<div id="nav-inst-' . $i . '" class="nav-instance-block" style="' . ($i > 1 ? 'display:none' : '') . '">';
+
+    /* ===============================
+       KATEGORIE â€“ SPRACHNEUTRAL (NUR 1Ã—!)
+    =============================== */
+  
+
+
+
+for ($i = 1; $i <= $maxLinks; $i++) {
+    $instDisplay = ($i > 1 ? 'display:none' : '');
+    echo '<div id="nav-inst-' . $i . '" class="nav-instance-block" style="' . $instDisplay . '">';
+
+    /* KATEGORIE â€“ Mit spezieller Klasse fÃ¼r JS-Ãœbersetzung */
+    echo '<div class="nav-global-field mb-3">
+            <label class="form-label small fw-bold">' . $languageService->get('category') . ' (Eintrag ' . $i . ')</label>
+            <select name="nav_website_cat[' . $i . ']" 
+                    class="form-select category-select-dynamic inst-input-' . $i . '">
+                <option value="0">-- ' . $languageService->get('none') . ' --</option>';
+
+    foreach ($websiteCatsMultilang[$currentLang] ?? [] as $cat) {
+        $savedID = 0;
+        if (isset($navWebsiteCats[$i])) {
+            $savedID = is_array($navWebsiteCats[$i]) ? (int)reset($navWebsiteCats[$i]) : (int)$navWebsiteCats[$i];
+        }
+        $sel = ((int)$cat['mnavID'] === $savedID) ? 'selected' : '';
+        echo '<option value="' . $cat['mnavID'] . '" ' . $sel . '>' . htmlspecialchars($cat['name']) . '</option>';
+    }
+    echo '  </select>
+          </div>';
+
+    /* TITEL â€“ Bleiben in lang-content Containern */
+    foreach ($languages as $iso => $label) {
+        $langDisplay = ($iso !== $currentLang ? 'display:none' : '');
+        echo '<div class="lang-content lang-' . $iso . '" style="' . $langDisplay . '" data-type="inst-' . $i . '">
+                <label class="form-label small">' . $languageService->get('nav_title') . ' (' . strtoupper($iso) . ')</label>
+                <input type="text" name="nav_website_title_lang[' . $i . '][' . $iso . ']" 
+                       value="' . htmlspecialchars($titles_inst[$i][$iso] ?? '') . '" class="form-control mb-3">
+              </div>';
+    }
+
+    /* LINK â€“ Ebenfalls in nav-global-field */
+    echo '<div class="nav-global-field mb-3">
+            <label class="form-label small">' . $languageService->get('nav_link') . '</label>
+            <input type="text" name="nav_website_link[' . $i . ']" 
+                   value="' . htmlspecialchars($navLinks_inst[$i] ?? '') . '" class="form-control">
+          </div>';
+
+    echo '</div>';
+}
+
+
+
+    echo '          </div>
+                </div>
+            </div>
+          </div>';
+          ########################
+
+
+echo'        <hr>
         <div class="mb-3 row">
             <label class="col-sm-5 col-form-label" for="path">Widgets: <br><small>(' . $languageService->get('widget_included_with_plugin') . ')</small></label>  
             ';
 
-        $widgetsergebnis = safe_query("SELECT * FROM settings_widgets WHERE plugin = '" . $ds['modulname'] . "'");
+        $moduleForWidgets = escape((string)($ds['modulname'] ?? ''));
+        $widgetsergebnis = safe_query("SELECT * FROM settings_widgets WHERE plugin = '" . $moduleForWidgets . "'");
         $widget = '';
         while ($df = mysqli_fetch_array($widgetsergebnis)) {
     $widget_key = $df['widget_key'];
@@ -770,7 +1197,7 @@ if ($action == "edit") {
                     data-bs-target="#confirmDeleteModal"
                     data-href="admincenter.php?site=plugin_manager&delete=true&widget_key=' . urlencode($widget_key) . '&modulname=' . urlencode($modulname) . '&id=' . $id . '&captcha_hash=' . $hash . '"
                     title="' . $languageService->get('tooltip_6') . '">
-                    <i class="bi bi-trash3"></i> ' . $languageService->get('widget_delete') . '
+                    <i class="bi bi-trash3"></i> ' . $languageService->get('delete_widget') . '
                 </button>
 
                 <!-- Modal -->
@@ -779,7 +1206,7 @@ if ($action == "edit") {
                     <div class="modal-content">
                     
                       <div class="modal-header">
-                        <h5 class="modal-title" id="confirmDeleteModalLabel">' . $languageService->get('widget_delete') . '</h5>
+                        <h5 class="modal-title" id="confirmDeleteModalLabel">' . $languageService->get('delete_widget') . '</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="' . $languageService->get('close') . '"></button>
                       </div>
                       
@@ -792,7 +1219,7 @@ if ($action == "edit") {
                           <i class="bi bi-x-square"></i> ' . $languageService->get('close') . '
                         </button>
                         <a class="btn btn-danger btn-ok">
-                          <i class="bi bi-trash3"></i> ' . $languageService->get('widget_delete') . '
+                          <i class="bi bi-trash3"></i> ' . $languageService->get('delete_widget') . '
                         </a>
                       </div>
                       
@@ -822,9 +1249,8 @@ if ($action == "edit") {
     </div>
 ';
 
-
         }
-        if ($ds['modulname'] == @$modulname) {
+        if ((string)($ds['modulname'] ?? '') === (string)($modulname ?? '')) {
             $xwidget = $widget;
         } else {
             $xwidget = $languageService->get('no_widget_available');
@@ -834,365 +1260,274 @@ if ($action == "edit") {
             
         </div>';
 
-        #Plugin-Grundeinstellungen END
+        #################
 
-        echo '<div class="col-sm-12">
-            <div class="mb-3 row">
-                <label class="col-sm- col-form-label" for="name"></label>
-                <div class="col-sm-6">
-                    <input type="hidden" name="captcha_hash" value="' . $hash . '">
-                
-                <input type="hidden" name="modulname" value="' . $ds['modulname'] . '">
-                <input type="hidden" name="id" value="' . $_GET['id'] . '">
-                    <button class="btn btn-warning" type="submit" name="edit"><i class="bi bi-save"></i> ' . $languageService->get('edit_plugin_widget') . '</button>
-                </div>
-            </div>
-        </div>
-        </form>
+
+
+$isActive = (!empty($ds['activate']) && (int)$ds['activate'] === 1) ? 'checked' : '';
+?>
+    <div class="mb-3 row">
+    <label class="col-sm-2 col-form-label">
+        <?= $languageService->get('plugin_activate') ?>
+        <span class="ms-2 badge <?= $isActive ? 'bg-success' : 'bg-secondary' ?>">
+    <?= $isActive ? 'aktiv' : 'inaktiv' ?>
+</span>
+    </label>
+    <div class="col-sm-10">
+        <input
+            class="form-check-input"
+            type="checkbox"
+            name="activate"
+            value="1"
+            <?= $isActive ?>
+        >
     </div>
-</div>';
+</div>
 
-        return false;
-    } elseif ($action == "widget_add") {
-
-        #$id = $_GET['id'];
-
-        $CAPCLASS = new \nexpell\Captcha;
-        $CAPCLASS->createTransaction();
-        $hash = $CAPCLASS->getHash();
-
-        echo '<div class="card">
-        <div class="card-header"><i class="bi bi-puzzle"></i> 
-            ' . $languageService->get('plugin_manager') . '
-        </div>
-            
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_manager">' . $languageService->get('plugin_manager') . '</a></li>
-            <li class="breadcrumb-item active" aria-current="page">' . $languageService->get('add_widget') . '</li>
-          </ol>
-        </nav>
-
-
-        <div class="card-body">';
-
-        $ergebnis = safe_query("SELECT * FROM settings_plugins WHERE pluginID = '" . $id . "'");
-        $db = mysqli_fetch_array($ergebnis);
-        echo '<div class="mb-12 row">
-            <label class="col-md-1 control-label"><h4><i class="bi bi-plugin"></i> Plugin:</h4></label>
-            <div class="col-md-3"><div class="alert alert-info" role="alert" style="padding: 0px 5px">
-        <h4>' . $db['modulname'] . '</h4></div>
-            </div>
+<?php
+    /* FOOTER */
+    echo '<div class="d-flex align-items-center gap-3 pt-4 border-top">
+            <input type="hidden" name="captcha_hash" value="'.$hash.'">
+            <input type="hidden" name="id" value="'.$id.'">
+            <input type="hidden" name="modulname" value="' . ($ds['modulname'] ?? '') . '">
+            <button class="btn btn-primary px-5 shadow-sm" type="submit" name="'.($isEdit ? 'edit' : 'add').'" value="1">
+                <i class="bi bi-check-lg"></i> '.$languageService->get('save').'
+            </button>
           </div>
-        <hr>';
+        </form>
+    </div></div>';
+
+    /* JAVASCRIPT LOGIK */
+echo '<script>
+/* =====================================================
+   VISIBILITY & LANGUAGE HANDLING
+===================================================== */
+// Kategorien als JSON bereitstellen
+const allWebsiteCats = ' . json_encode($websiteCatsMultilang) . ';
+
+function updateVisibility() {
+    const activeLang = document.querySelector(".lang-switch-btn.btn-primary")?.getAttribute("data-lang") || "de";
+    const activeInstBtn = document.querySelector(".instance-switcher .btn.active");
+    const visibleInstNum = activeInstBtn ? activeInstBtn.innerText.trim() : "1";
+
+    /* 1. Alles GrundsÃ¤tzliche ausblenden */
+    document.querySelectorAll(".lang-content").forEach(el => el.style.display = "none");
+
+    /* 2. Basis- & Admin-Daten einblenden (global) */
+    document.querySelectorAll(".lang-content[data-type=\'base\'].lang-" + activeLang + ", .lang-content[data-type=\'admin\'].lang-" + activeLang)
+            .forEach(el => el.style.display = "block");
+
+    /* 3. Website-Navigation (Instanz-BlÃ¶cke) */
+    // Zuerst alle BlÃ¶cke verstecken
+    document.querySelectorAll(".nav-instance-block").forEach(block => block.style.display = "none");
+    
+    // Dann nur den aktiven Block zeigen
+    const instBlock = document.getElementById("nav-inst-" + visibleInstNum);
+    if (instBlock) {
+        instBlock.style.display = "block";
         
-        echo '<form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=plugin_manager" onsubmit="return chkFormular();" enctype="multipart/form-data">
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('widget_name') . ':<font color="#DD0000">*</font> <br><small>(' . $languageService->get('for_widgetname') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="text"" class="form-control" name="title" placeholder="' . $languageService->get('widget_name') . '"></em></span>
-            </div>
-        </div>
+        // SprachabhÃ¤ngige Titel innerhalb des Blocks zeigen
+        instBlock.querySelectorAll(".lang-" + activeLang).forEach(el => el.style.display = "block");
 
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('modulname') . ': <br><small>(' . $languageService->get('for_plugin') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" name="modulname" value="' . $db['modulname'] . '" disabled></em></span>
-            </div>
-        </div>
+        // Globale Felder (Kategorie & Link) innerhalb des Blocks zeigen
+        instBlock.querySelectorAll(".nav-global-field, input[name^=\'nav_website_link\']").forEach(el => {
+            el.style.display = "block";
+        });
+    }
 
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="admin_file">' . $languageService->get('widget_datei') . ': <br><small>(' . $languageService->get('widgetdatei_nophp') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" name="widget_key" placeholder="' . $languageService->get('widgetdatei_nophp') . '"></em></span>
-            </div>
-        </div>
+    /* 4. LIVE-ÃœBERSETZUNG der Kategorie-Dropdowns */
+    document.querySelectorAll(".category-select-dynamic").forEach(select => {
+        const currentValue = select.value;
+        const langData = allWebsiteCats[activeLang] || [];
+        
+        const noSelectionText = "-- ' . $languageService->get('none') . ' --";
+        select.innerHTML = `<option value="0">${noSelectionText}</option>`;
 
-        <div class="col-sm-12">
-            <div class="mb-3 row">
-                <div class="col-sm-11">
-                    <font color="#DD0000">*</font>' . $languageService->get('fields_star_required') . '
-                </div>
-                <div class="col-sm-11">
+        langData.forEach(cat => {
+            const opt = document.createElement("option");
+            opt.value = cat.mnavID;
+            opt.text = cat.name;
+            if (cat.mnavID == currentValue) opt.selected = true;
+            select.add(opt);
+        });
+    });
+}
 
-                    <input type="hidden" name="modulname" value="' . $db['modulname'] . '" />
-                    <input type="hidden" name="id" value="' . $_GET['id'] . '" />
-                    <button class="btn btn-success" type="submit" name="widget_add"  /><i class="bi bi-plus-circle"></i> ' . $languageService->get('add_widget') . '</button>
+/* =====================================================
+   EVENT LISTENER & SWITCHER
+===================================================== */
+document.querySelectorAll(".lang-switch-btn").forEach(btn => {
+    btn.addEventListener("click", function () {
+        document.querySelectorAll(".lang-switch-btn").forEach(b => {
+            b.classList.replace("btn-primary", "btn-secondary");
+        });
+        this.classList.replace("btn-secondary", "btn-primary");
+        updateVisibility();
+    });
+});
 
-                </div>
-            </div>
-        </div>';
+function switchNavInstance(btn, num) {
+    document.querySelectorAll(".instance-switcher .btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    updateVisibility();
+}
 
-        echo '</form></div></div>';
-    } elseif ($action == "edit_widget") {
+function modifyInstanceCount(change) {
+    const switcher = document.getElementById("switcher-group");
+    let count = parseInt(switcher.getAttribute("data-current-count"));
+    let newCount = count + change;
 
-        $id = $_GET['id'];
-        $widget_key = $_GET['widget_key'];
+    if (newCount < 1 || newCount > 3) return;
 
-        $CAPCLASS = new \nexpell\Captcha;
-        $CAPCLASS->createTransaction();
-        $hash = $CAPCLASS->getHash();
-
-        echo '<div class="card">
-        <div class="card-header"><i class="bi bi-puzzle"></i> 
-            ' . $languageService->get('plugin_manager') . '
-        </div>
-            
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_manager">' . $languageService->get('plugin_manager') . '</a></li>
-            <li class="breadcrumb-item active" aria-current="page"><i class="bi bi-pencil-square"></i> ' . $languageService->get('edit_widget') . '</li>
-          </ol>
-        </nav>
-        <div class="card-body">';
-
-        $ergebnis = safe_query("SELECT * FROM settings_widgets WHERE `widget_key` = '" . $widget_key . "'");
-        $db = mysqli_fetch_array($ergebnis);
-        echo '<div class="mb-12 row">
-            <label class="col-md-1 control-label"><h4><i class="bi bi-plugin"></i> Plugin:</h4></label>
-            <div class="col-md-3"><div class="alert alert-info" role="alert" style="padding: 0px 5px">
-        <h4>' . $db['modulname'] . '</h4></div>
-            </div>
-          </div>
-        <hr>';
-
-        echo '<form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=plugin_manager" onsubmit="return chkFormular();" enctype="multipart/form-data">
-       
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('widget_name') . ':<font color="#DD0000">*</font> <br><small>(' . $languageService->get('for_widgetname') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="text"" class="form-control" name="title" value="' . $db['title'] . '" placeholder="widget name"></em></span>
-            </div>
-        </div>
-
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('modulname') . ': <br><small>(' . $languageService->get('for_plugin') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" name="modulname" value="' . $db['modulname'] . '" disabled></em></span>
-            </div>
-        </div>
-
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="admin_file">' . $languageService->get('widget_datei') . ': <br><small>(' . $languageService->get('widgetdatei_nophp') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="text" class="form-control" name="new_widget_key" value="'.$db['widget_key'].'" />
-            </div>
-        </div>
-
-       <div class="col-sm-12">
-            <div class="mb-3 row">
-                <div class="col-sm-11">
-                    <font color="#DD0000">*</font>' . $languageService->get('fields_star_required') . '
-                </div>
-                <div class="col-sm-11">
-                <input type="hidden" name="original_widget_key" value="'.htmlspecialchars($db['widget_key']).'">
-                <input type="hidden" name="id" value="'.(int)$_GET['id'].'">
-                    
-                    <button class="btn btn-warning" type="submit" name="widget_edit"  /><i class="bi bi-pencil-square"></i> ' . $languageService->get('edit_widget') . '</button>
-                </div>
-            </div>
-        </div>
-';
-        echo '</form></div></div>';
-
-
-} elseif ($action == "new") {
-        ?><script>
-            <!--
-            function chkFormular() {
-                if (document.getElementById('name').value == "") {
-                    alert('<? echo $languageService->get('no_plugin_name'); ?>');
-                    document.getElementById('name').focus();
-                    return false;
-                }
-
-                if (document.getElementById('modulname').value == "") {
-                    alert('<? echo $languageService->get('no_modul_name'); ?>');
-                    document.getElementById('modulname').focus();
-                    return false;
-                }
-
-            }
-            -->
-        </script><?php
-
-        // Admin-Kategorien laden
-
-
-
-        $themeergebnis = safe_query("SELECT * FROM settings_themes WHERE active = '1'");
-        $db = mysqli_fetch_array($themeergebnis);
-
-
-                    echo '<div class="card">
-        <div class="card-header"><i class="bi bi-puzzle"></i> 
-            ' . $languageService->get('plugin_manager') . '
-        </div>
-            
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_manager">' . $languageService->get('plugin_manager') . '</a></li>
-                <li class="breadcrumb-item active" aria-current="page">' . $languageService->get('add_plugin') . '</li>
-            </ol>
-        </nav>
-        <div class="card-body">';
-
-                    echo '<form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=plugin_manager" onsubmit="return chkFormular();" enctype="multipart/form-data">
-       <form class="form-horizontal" method="post" id="post" name="post" action="admincenter.php?site=plugin_manager" enctype="multipart/form-data" onsubmit="return chkFormular();"> 
-  
-
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('name') . ':<font color="#DD0000">*</font></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="text" name="name" id="name" placeholder="plugin name" maxlength="30" autocomplete="name" class="form-control"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('description') . ':</label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <textarea class="form-control" name="info" rows="5" cols="" style="width: 100%;" placeholder="info"></textarea></em></span>
-            </div>
-        </div>
-  
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="author">' . $languageService->get('author') . ':</label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" name="author" placeholder="author"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="website">' . $languageService->get('website') . ':</label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="http://" rows="5" name="website"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="name">' . $languageService->get('modulname') . ': <font color="#DD0000">*</font> <br><small>(' . $languageService->get('for_uninstall') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="text" name="modulname" id="modulname" placeholder="modulname" maxlength="30" autocomplete="modulname" class="form-control"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="admin_file">' . $languageService->get('admin_file') . ': <br><small>(' . $languageService->get('index_file_nophp') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" name="admin_file" placeholder="admin_file"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="index">' . $languageService->get('index_file') . ': <br><small>(' . $languageService->get('index_file_nophp') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="index file" rows="5" name="index"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="hittenfiles">' . $languageService->get('hidden_file') . ': <br><small>(' . $languageService->get('hidden_file_seperate') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" placeholder="myfile,secondfile,anotherfile" name="hiddenfiles"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="version">' . $languageService->get('version_file') . ':</label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" rows="5" name="version" placeholder="version"></em></span>
-            </div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label" for="path">' . $languageService->get('folder_file') . ':  <font color="#DD0000">*</font> <br><small>(' . $languageService->get('folder_file_slash') . ')</small></label>
-            <div class="col-sm-6"><span class="text-muted small"><em>
-                <input type="name" class="form-control" placeholder="includes/plugins/myplugin/" rows="5" name="path"></em></span>
-            </div>
-        </div>';
-
-        // Admin Kategorien laden
-        $adminCatOptions = '';
-        $adminCatQuery = safe_query("SELECT catID, name FROM navigation_dashboard_categories ORDER BY name");
-        while ($adminCat = mysqli_fetch_assoc($adminCatQuery)) {
-            $adminCatOptions .= '<option value="' . (int)$adminCat['catID'] . '">' . escape($adminCat['name']) . '</option>';
+    if (change > 0) {
+        const nextBtn = switcher.querySelector(".btn-inst-" + newCount);
+        if (nextBtn) {
+            nextBtn.style.display = "inline-block";
+            nextBtn.click();
         }
+    } else {
+        const currentBtn = switcher.querySelector(".btn-inst-" + count);
+        if (currentBtn) currentBtn.style.display = "none";
+        const prevBtn = switcher.querySelector(".btn-inst-" + newCount);
+        if (prevBtn) prevBtn.click();
+    }
+    switcher.setAttribute("data-current-count", newCount);
+}
 
-        // Website Kategorien laden
-        $websiteCatOptions = '';
-        $websiteCatQuery = safe_query("SELECT mnavID, name FROM navigation_website_main ORDER BY name");
-        while ($websiteCat = mysqli_fetch_assoc($websiteCatQuery)) {
-            $websiteCatOptions .= '<option value="' . (int)$websiteCat['mnavID'] . '">' . escape($websiteCat['name']) . '</option>';
+document.addEventListener("DOMContentLoaded", updateVisibility);
+
+
+/* =====================================================
+   LANGUAGE SWITCH BUTTONS
+===================================================== */
+document.querySelectorAll(".lang-switch-btn").forEach(btn => {
+    btn.addEventListener("click", function () {
+
+        document
+            .querySelectorAll(".lang-switch-btn")
+            .forEach(b => {
+                b.classList.remove("btn-primary");
+                b.classList.add("btn-secondary");
+            });
+
+        this.classList.remove("btn-secondary");
+        this.classList.add("btn-primary");
+
+        updateVisibility();
+    });
+});
+
+/* =====================================================
+   WEBSITE NAV INSTANCE SWITCH
+===================================================== */
+function switchNavInstance(btn, num) {
+
+    document
+        .querySelectorAll(".nav-instance-block")
+        .forEach(el => el.style.display = "none");
+
+    const target = document.getElementById("nav-inst-" + num);
+    if (target) target.style.display = "block";
+
+    document
+        .querySelectorAll(".instance-switcher .btn")
+        .forEach(b => b.classList.remove("active"));
+
+    btn.classList.add("active");
+
+    updateVisibility();
+}
+
+/* =====================================================
+   INSTANCE COUNT CONTROL (1â€“3)
+===================================================== */
+function modifyInstanceCount(change) {
+
+    const switcher = document.getElementById("switcher-group");
+    let count = parseInt(switcher.getAttribute("data-current-count"));
+    let newCount = count + change;
+
+    if (newCount < 1 || newCount > 3) return;
+
+    if (change > 0) {
+        const nextBtn = switcher.querySelector(".btn-inst-" + newCount);
+        if (nextBtn) {
+            nextBtn.style.display = "inline-block";
+            nextBtn.click();
         }
+    } else {
+        const currentBtn = switcher.querySelector(".btn-inst-" + count);
+        if (currentBtn) currentBtn.style.display = "none";
+
+        const prevBtn = switcher.querySelector(".btn-inst-" + newCount);
+        if (prevBtn) prevBtn.click();
+    }
+
+    switcher.setAttribute("data-current-count", newCount);
+}
+
+/* =====================================================
+   INIT
+===================================================== */
+document.addEventListener("DOMContentLoaded", updateVisibility);
+</script>';
+
+
+    return false;
+}
 
 
 
-        echo '<hr>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Navigations-Link:<br><small>(admincenter.php?site=)</small></label>
-            <div class="col-sm-6"><input type="text" name="nav_admin_link" class="form-control"></div>
-        </div>
 
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Navigations-Titel:</label>
-            <div class="col-sm-6"><input type="text" name="nav_admin_title" class="form-control"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Admin Kategorie:</label>
-            <div class="col-sm-6">
-                <select name="nav_admin_cat" class="form-control">
-                    ' . $adminCatOptions . '
-                </select>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+else {
+echo '<div class="card shadow-sm border-0 mb-4 mt-4">
+        <div class="card-header">
+            <div class="card-title">
+                <i class="bi bi-puzzle"></i> <span>' . $languageService->get('plugin_manager') . '</span>
+                <small class="text-muted">' . $languageService->get('settings') . '</small>
             </div>
         </div>
-        <hr>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Navigations-Link:<br><small>(index.php?site=)</small></label>
-            <div class="col-sm-6"><input type="text" name="nav_website_link" class="form-control"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Navigations-Titel:</label>
-            <div class="col-sm-6"><input type="text" name="nav_website_title" class="form-control"></div>
-        </div>
-        <div class="mb-3 row">
-            <label class="col-sm-5 col-form-label">Website Kategorie:</label>
-            <div class="col-sm-6">
-                <select name="nav_website_cat" class="form-control">
-                    ' . $websiteCatOptions . '
-                </select>
-            </div>
-        </div>
-
-
-        <div class="col-sm-12">
-            <div class="mb-3 row">
-                <div class="col-sm-11">
-                    <font color="#DD0000">*</font>' . $languageService->get('fields_star_required') . '
-                </div>
-                <div class="col-sm-11">
-                    <input type="hidden" name="themes_modulname" value="' . $db['modulname'] . '" />
-                    <button class="btn btn-success" type="submit" name="add"  /><i class="bi bi-save"></i> ' . $languageService->get('save_plugin') . '</button>
-                </div>
-            </div>
-        </div>
-
-        </form>
-    </div>
-</div>';
-                    return false;
-                    echo '</div></div>';
-} else {
-                    echo '<div class="card">
-        <div class="card-header"><i class="bi bi-puzzle"></i> 
-            ' . $languageService->get('plugin_manager') . '
-        </div>
-        <nav aria-label="breadcrumb">
-          <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_manager">' . $languageService->get('plugin_manager') . '</a></li>
-            <li class="breadcrumb-item active" aria-current="page">new & edit</li>
-          </ol>
-        </nav>
         <div class="card-body">
-        <div class="mb-3 row">
-    <label class="col-md-1 control-label">' . $languageService->get('options') . ':</label>
-    <div class="col-md-8">
 
-      <a href="admincenter.php?site=plugin_manager&action=new" class="btn btn-primary" type="button"><i class="bi bi-plus-circle"></i> ' . $languageService->get('new_plugin') . '</a>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <a href="admincenter.php?site=plugin_manager&action=new" class="btn btn-secondary" type="button">
+                ' . $languageService->get('new_plugin') . '
+            </a>
 
-    </div>
-  </div>';
+            <div class="input-group input-group-sm" style="min-width: 260px; max-width: 360px;">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="pluginSearch" type="search" class="form-control"
+                       placeholder="' . $languageService->get('search') . '">
+            </div>
+        </div>';
                     $thergebnis = safe_query("SELECT * FROM settings_themes WHERE active = '1'");
                     $db = mysqli_fetch_array($thergebnis);
 
@@ -1200,38 +1535,80 @@ if ($action == "edit") {
                     $CAPCLASS->createTransaction();
                     $hash = $CAPCLASS->getHash();
 
-                    echo '<table id="plugini" class="table table-striped table-bordered" style="width:100%">
-        <thead>
-            <th><strong>' . $languageService->get('id') . '</strong></th>
-            <th width="10%"><strong>' . $languageService->get('plugin') . ' ' . $languageService->get('name') . '</strong></th>
-            <th><strong>' . $languageService->get('plugin') . ' ' . $languageService->get('description') . '</strong></th>
-            <th class="text-center" width="12%"><strong>' . $languageService->get('plugin_status') . '</strong></th>
-            <th class="text-center" width="12%"><strong>' . $languageService->get('plugin_setting') . '</strong></th>
-            <th class="text-center" width="12%"><strong>' . $languageService->get('action') . '</strong></th>
-
-        </thead>';
+                    echo '<table id="plugini" class="table">
+                            <thead>
+                                <th>' . $languageService->get('id') . '</strong></th>
+                                <th width="10%">' . $languageService->get('plugin') . ' ' . $languageService->get('name') . '</th>
+                                <th>' . $languageService->get('plugin') . ' ' . $languageService->get('description') . '</th>
+                                <th class="text-center" width="12%">' . $languageService->get('plugin_status') . '</th>
+                                <th class="text-center" width="12%">' . $languageService->get('plugin_setting') . '</th>
+                                <th class="text-center" width="12%">' . $languageService->get('action') . '</th>
+                            </thead>';
                     $ergebnis = safe_query("SELECT * FROM settings_plugins");
                     while ($ds = mysqli_fetch_array($ergebnis)) {
+                        $dsModulname = (string)($ds['modulname'] ?? '');
+                        $dsPluginId = (int)($ds['pluginID'] ?? 0);
 
                         $dx = mysqli_fetch_array(safe_query("SELECT * FROM settings_plugins WHERE pluginID='" . $ds['pluginID'] . "'"));
 
                         if ($ds['activate'] == "1") {
-                            $actions = '<div class="d-grid gap-2"><a href="admincenter.php?site=plugin_manager&id=' . $ds['pluginID'] . '&modulname=' . $ds['modulname'] . '&do=dea" class="btn btn-info" data-toggle="tooltip" data-html="true" title="' . $languageService->get('tooltip_2') . ' " type="button"><i class="bi bi-toggle-off"></i> ' . $languageService->get('deactivate') . '</a></div>';
+                            $actions = '<div class="d-grid gap-2"><a href="admincenter.php?site=plugin_manager&id=' . $dsPluginId . '&modulname=' . urlencode($dsModulname) . '&do=dea" class="btn btn-info d-inline-flex align-items-center gap-1 w-auto" data-bs-toggle="tooltip" data-bs-title="' . $languageService->get('tooltip_2') . '" title="' . $languageService->get('tooltip_2') . ' " type="button"><i class="bi bi-toggle-off"></i> ' . $languageService->get('deactivate') . '</a></div>';
                         } else {
-                            $actions = '<div class="d-grid gap-2"><a href="admincenter.php?site=plugin_manager&id=' . $ds['pluginID'] . '&modulname=' . $ds['modulname'] . '&do=act" class="btn btn-success" data-toggle="tooltip" data-html="true" title="' . $languageService->get('tooltip_1') . ' " type="button"><i class="bi bi-toggle-on"></i> ' . $languageService->get('activate') . '</a></div>';
+                            $actions = '<div class="d-grid gap-2"><a href="admincenter.php?site=plugin_manager&id=' . $dsPluginId . '&modulname=' . urlencode($dsModulname) . '&do=act" class="btn btn-success d-inline-flex align-items-center gap-1 w-auto" data-bs-toggle="tooltip" data-bs-title="' . $languageService->get('tooltip_1') . '" title="' . $languageService->get('tooltip_1') . ' " type="button"><i class="bi bi-toggle-on"></i> ' . $languageService->get('activate') . '</a></div>';
                         }
 
-                        $translate = new multiLanguage($lang);
-                        $translate->detectLanguages($ds['name']);
-                        $ds['name'] = $translate->getTextByLanguage($ds['name']);
-                        $translate->detectLanguages($ds['info']);
-                        $ds['info'] = $translate->getTextByLanguage($ds['info']);
+                        $currentLang = strtolower($languageService->detectLanguage());
+                        $moduleNameRaw = (string)($ds['modulname'] ?? '');
+                        $moduleName = trim($moduleNameRaw, " \t\n\r\0\x0B,");
+                        $moduleCandidates = array_values(array_unique(array_filter([
+                            $moduleNameRaw,
+                            $moduleName
+                        ])));
+                        $langCandidates = array_values(array_unique(array_filter([
+                            $currentLang, 'de', 'en', 'it'
+                        ])));
+
+                        $ds['name'] = (string)($ds['name'] ?? '');
+                        $ds['info'] = (string)($ds['info'] ?? ($ds['description'] ?? ''));
+
+                        foreach ($moduleCandidates as $candidateModule) {
+                            $modulnameEsc = escape($candidateModule);
+                            foreach ($langCandidates as $langIso) {
+                                $nameLangRes = safe_query("SELECT content FROM settings_plugins_lang WHERE content_key = 'plugin_name_" . $modulnameEsc . "' AND language = '" . escape($langIso) . "' LIMIT 1");
+                                if ($nameLangRes && mysqli_num_rows($nameLangRes) > 0) {
+                                    $nameLangRow = mysqli_fetch_assoc($nameLangRes);
+                                    $translated = trim((string)($nameLangRow['content'] ?? ''));
+                                    if ($translated !== '') {
+                                        $ds['name'] = $translated;
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
+
+                        foreach ($moduleCandidates as $candidateModule) {
+                            $modulnameEsc = escape($candidateModule);
+                            foreach ($langCandidates as $langIso) {
+                                $infoLangRes = safe_query("SELECT content FROM settings_plugins_lang WHERE content_key = 'plugin_info_" . $modulnameEsc . "' AND language = '" . escape($langIso) . "' LIMIT 1");
+                                if ($infoLangRes && mysqli_num_rows($infoLangRes) > 0) {
+                                    $infoLangRow = mysqli_fetch_assoc($infoLangRes);
+                                    $translated = trim((string)($infoLangRow['content'] ?? ''));
+                                    if ($translated !== '') {
+                                        $ds['info'] = $translated;
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (trim((string)$ds['name']) === '') {
+                            $ds['name'] = $moduleName !== '' ? $moduleName : $moduleNameRaw;
+                        }
 
                         echo '<tr>
                     <td>' . $ds['pluginID'] . '</td>
-                    <td><b>' . $ds['name'] . '</b></td>
-                    <td>' . $ds['info'] . '</td>';
-
+                    <td class="fw-semibold">' . $ds['name'] . '</td>
+                    <td>' . ($ds['info'] ?? '') . '</td>';
 
                         if ($dx['status_display'] == "1") {
                             echo '<td class="text-center">' . $actions . '</div>';
@@ -1239,50 +1616,44 @@ if ($action == "edit") {
 
                             echo '<td class="text-center">
                                 <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-danger" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('status_cannot_assigned') . '</button>
+                            <button type="button" class="btn btn-secondary d-inline-flex align-items-center gap-1 w-auto" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('cannot_assigned') . '</button>
                                  </div></td>';
                         }
                         if ($dx['plugin_display'] == "1") {
                             echo '
-                    <td class="text-center">
-                    <div class="d-grid gap-2">
-                    <a href="admincenter.php?site=plugin_manager&action=edit&id=' . $ds['pluginID'] . '&do=edit" class="btn btn-warning" data-toggle="tooltip" data-html="true" title="' . $languageService->get('tooltip_4') . '" type="button"><i class="bi bi-pencil-square"></i> ' . $languageService->get('edit') . '</a></div></td>';
+                            <td class="text-center">
+                            <div class="d-grid gap-2">
+                            <a href="admincenter.php?site=plugin_manager&action=edit&id=' . $ds['pluginID'] . '&do=edit" class="btn btn-warning d-inline-flex align-items-center gap-1 w-auto" data-bs-toggle="tooltip" data-bs-title="' . $languageService->get('tooltip_4') . '" title="' . $languageService->get('tooltip_4') . '" type="button"><i class="bi bi-pencil-square"></i> ' . $languageService->get('edit') . '</a></div></td>';
                         } else {
 
                             echo '<td class="text-center">
                             <div class="d-grid gap-2">
-                        <button type="button" class="btn btn-danger" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('plugin_cannot_assigned') . '</button>
+                        <button type="button" class="btn btn-secondary d-inline-flex align-items-center gap-1 w-auto" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('cannot_assigned') . '</button>
                         </div></td>';
                         }
-
-
-                        
-
-
                         if ($dx['delete_display'] != "1") {
-
                             echo '<td class="text-center">
                             <div class="d-grid gap-2">
-                            <button type="button" class="btn btn-danger" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('delete_cannot_assigned') . '</button>
+                            <button type="button" class="btn btn-secondary d-inline-flex align-items-center gap-1 w-auto" disabled><i class="bi bi-slash-circle"></i> ' . $languageService->get('cannot_assigned') . '</button>
                             </div></td>';
                         } else {
 
-                           echo '
-                            <td class="text-center">
+                           echo '<td class="text-center">
                                 <div class="d-grid gap-2">
-                                    <a href="#"
-                                       class="btn btn-danger"
-                                       data-bs-toggle="modal"
-                                       data-bs-target="#confirmDeleteModal"
-                                       data-plugin-id="' . $ds['pluginID'] . '"
-                                       data-plugin-name="' . $ds['modulname'] . '"
-                                       title="' . $languageService->get('tooltip_8') . '">
-                                       <i class="bi bi-trash3"></i> ' . $languageService->get('delete_plugin') . '
-                                    </a>
-                                </div>
-                            </td>
-
-                            <!-- Bootstrap Modal for Confirm Delete -->
+                                    <span class="d-inline-block w-100"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        title="' . htmlspecialchars($languageService->get('tooltip_8'), ENT_QUOTES, 'UTF-8') . '">
+                                        <a href="#"
+                                           class="btn btn-danger"
+                                           data-bs-toggle="modal"
+                                           data-bs-target="#confirmDeleteModal"
+                                           data-plugin-id="' . $dsPluginId . '"
+                                           data-plugin-name="' . htmlspecialchars($dsModulname, ENT_QUOTES, 'UTF-8') . '"
+                                           title="' . $languageService->get('tooltip_8') . '">
+                                           <i class="bi bi-trash3"></i> ' . $languageService->get('delete_plugin') . '
+                                        </a>
+                                        <!-- Bootstrap Modal for Confirm Delete -->
                             <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteLabel" aria-hidden="true">
                                 <div class="modal-dialog">
                                     <div class="modal-content">
@@ -1310,72 +1681,87 @@ if ($action == "edit") {
                                     </div>
                                 </div>
                             </div>
-
-                            <script>
-                            document.querySelectorAll("a[data-bs-target=\'#confirmDeleteModal\']").forEach(button => {
-                                button.addEventListener("click", function() {
-                                    var pluginID = this.getAttribute("data-plugin-id");
-                                    var pluginName = this.getAttribute("data-plugin-name");
-
-                                    // Format plugin name
-                                    function formatPluginName(name) {
-                                        name = name.replace(/_/g, " ");
-                                        name = name.replace(/([a-z])([A-Z])/g, "$1 $2");
-                                        return name.replace(/\\b\\w/g, char => char.toUpperCase());
-                                    }
-                                    var formattedName = formatPluginName(pluginName);
-
-                                    // Set formatted name into the modal title
-                                    document.getElementById("modalPluginTitle").innerText = formattedName;
-
-                                    // Compose final delete URL
-                                    var deleteUrl = "admincenter.php?site=plugin_manager&action=delete_plugin&id="
-                                        + pluginID
-                                        + "&modulname=" + pluginName
-                                        + "&do=delete";
-
-                                    // Set href of confirm delete button
-                                    document.getElementById("confirmDeleteBtn").setAttribute("href", deleteUrl);
-                                });
-                            });
-                            </script>
-                            ';
+                                    </span>
+                                </div>
+                            </td>';
                         }
-
                         echo '</tr>';
                     }
+                        echo '</table></div>
+            <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                var input = document.getElementById("pluginSearch");
+                if (!input) return;
 
-                    echo '</table></div></div></div>';
+                function applyFilter() {
+                    var q = (input.value || "").toLowerCase().trim();
+                    var rows = document.querySelectorAll("#plugini tbody tr");
+
+                    for (var i = 0; i < rows.length; i++) {
+                        var row = rows[i];
+                        var txt = (row.textContent || "").toLowerCase();
+                        var show = (!q || txt.indexOf(q) !== -1);
+                        row.style.display = show ? "table-row" : "none";
+                    }
                 }
-            } else {
 
-                echo '<style type="text/css">
-     p.test {
-        font-family: Georgia, serif;
-        font-size: 78px;
-        font-style: italic;
-    }
-    .titlehead {
-        border: 3px solid;
-        border-color: #c4183c; 
-        background-color: #fff}
-    </style>
-    <div class="card">
-        <div class="card-body">
-            <div class="titlehead"><br>
-                <center>
-                    <div>
-                        <img class="img-fluid" src="/images/install-logo.jpg" alt="" style="height: 150px"/><br>
-                          <small>Ohje !</small><br>
-                          <p class="test">404 Error.</p><br>
-                          ' . $languageService->get('info') . '
-                    </div>
-                    <br />
-                    <p><a class="btn btn-warning" href="/admin/admincenter.php?site=settings_templates">' . $languageService->get('activate_template') . '</a></p>
-                    <br />
-                </center>
-            </div>
+                input.addEventListener("input", applyFilter);
+                applyFilter();
+            });
+            </script>
         </div>
+    </div>
     </div>';
-            }
+        }
+
+
+
 ?>
+<script>
+function switchNavInstance(btn, num) {
+    const container = document.getElementById('nav-container-website');
+    
+    // Alle Inhalts-BlÃ¶cke verstecken
+    container.querySelectorAll('.nav-instance-block').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Den gewÃ¤hlten Block anzeigen
+    const targetBlock = document.getElementById('nav-inst-' + num);
+    if (targetBlock) targetBlock.style.display = 'block';
+    
+    // Buttons in der Gruppe deaktivieren und den aktuellen aktivieren
+    const switcher = document.getElementById('switcher-group');
+    switcher.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function modifyInstanceCount(change) {
+    const switcher = document.getElementById('switcher-group');
+    let count = parseInt(switcher.getAttribute('data-current-count'));
+    let newCount = count + change;
+
+    // Limit zwischen 1 und 3 Instanzen
+    if (newCount >= 1 && newCount <= 3) {
+        if (change > 0) {
+            // HINZUFÃœGEN
+            const nextBtn = switcher.querySelector('.btn-inst-' + newCount);
+            if (nextBtn) {
+                nextBtn.style.display = 'inline-block';
+                nextBtn.click(); // Springt direkt zum neuen Tab
+            }
+        } else {
+            
+
+            const currentBtn = switcher.querySelector('.btn-inst-' + count);
+            const prevBtn = switcher.querySelector('.btn-inst-' + newCount);
+            
+            if (currentBtn) currentBtn.style.display = 'none';
+            if (prevBtn) prevBtn.click(); // Springt zum Tab davor
+        }
+        // Attribut aktualisieren
+        switcher.setAttribute('data-current-count', newCount);
+    }
+}
+</script>
+

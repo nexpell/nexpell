@@ -1,0 +1,266 @@
+<!-- footer_standard_content -->
+<footer class="border-top mt-4 footer-template-standard footer-easy">
+  <div class="container py-5">
+
+    <div class="row gy-4 gx-5 align-items-start">
+
+      <!-- Brand -->
+      <div class="col-12 col-lg-3">
+        <div class="d-flex align-items-center gap-3 mb-3 footer-brand-logo">
+          {footer_logo_img}
+          <div class="lh-sm">
+            <div class="fw-semibold fs-5">{myclanname}</div>
+            <div class="text-white-50 small">Seit {since}</div>
+          </div>
+        </div>
+
+        <p class="text-white-50 mb-0" style="max-width: 34ch;">
+          {footer_text}
+        </p>
+      </div>
+
+      <!-- Links -->
+      <div class="col-12 col-lg-6">
+        <div class="row g-4 justify-content-lg-end">
+          {footer_blocks}
+        </div>
+      </div>
+      
+      <!-- Social + Rechtliches -->
+      <div class="col-12 col-md-6 col-lg-3">
+        {social_block}
+
+        {legal_block}
+      </div>
+
+    </div>
+
+    <hr class="my-4">
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+      <div class="small text-white-50">
+        &copy; {date} {myclanname}
+      </div>
+
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-light btn-sm"
+                id="back-to-top"
+                data-bs-toggle="tooltip"
+                title="Nach oben scrollen">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+
+        <button class="btn btn-secondary btn-sm"
+                id="cookie-settings-icon"
+                data-bs-toggle="tooltip"
+                title="Cookie-Einstellungen">
+          <i class="bi bi-gear"></i>
+        </button>
+      </div>
+    </div>
+
+  </div>
+</footer>
+
+<style>
+  /* ===============================
+     FOOTER THEME ENGINE (light/dark)
+     Nutzt data-bs-theme am <html> (:root), analog zur Navigation
+  =============================== */
+  :root{
+    --fx-footer-bg: #1b1e24;
+    --fx-footer-fg: rgba(255,255,255,.92);
+    --fx-footer-muted: rgba(255,255,255,.66);
+    --fx-footer-border: rgba(255,255,255,.08);
+
+    --fx-footer-btn-outline-border: rgba(255,255,255,.35);
+    --fx-footer-btn-outline-fg: rgba(255,255,255,.85);
+
+    --fx-footer-btn-solid-bg: rgba(255,255,255,.12);
+    --fx-footer-btn-solid-border: rgba(255,255,255,.18);
+    --fx-footer-btn-solid-fg: rgba(255,255,255,.90);
+  }
+
+  :root[data-bs-theme="light"]{
+    --fx-footer-bg: var(--nx-surface-2, #f1f3f6);
+    --fx-footer-fg: rgba(0,0,0,.88);
+    --fx-footer-muted: rgba(0,0,0,.60);
+    --fx-footer-border: rgba(0,0,0,.10);
+
+    --fx-footer-btn-outline-border: rgba(0,0,0,.25);
+    --fx-footer-btn-outline-fg: rgba(0,0,0,.78);
+
+    --fx-footer-btn-solid-bg: rgba(0,0,0,.06);
+    --fx-footer-btn-solid-border: rgba(0,0,0,.14);
+    --fx-footer-btn-solid-fg: rgba(0,0,0,.82);
+  }
+
+  :root[data-bs-theme="dark"]{
+    --fx-footer-bg: var(--nx-surface-2, #1b1e24);
+    --fx-footer-fg: rgba(255,255,255,.92);
+    --fx-footer-muted: rgba(255,255,255,.66);
+    --fx-footer-border: rgba(255,255,255,.08);
+
+    --fx-footer-btn-outline-border: rgba(255,255,255,.35);
+    --fx-footer-btn-outline-fg: rgba(255,255,255,.88);
+
+    --fx-footer-btn-solid-bg: rgba(255,255,255,.12);
+    --fx-footer-btn-solid-border: rgba(255,255,255,.18);
+    --fx-footer-btn-solid-fg: rgba(255,255,255,.92);
+  }
+
+  footer.footer-easy{
+    background-color: var(--fx-footer-bg) !important;
+    color: var(--fx-footer-fg) !important;
+    border-top-color: var(--fx-footer-border) !important;
+  }
+
+  footer.footer-easy .text-white-50,
+  footer.footer-easy .small.text-white-50{
+    color: var(--fx-footer-muted) !important;
+  }
+
+  footer.footer-easy hr{
+    border-top-color: var(--fx-footer-border) !important;
+    opacity: 1 !important;
+  }
+
+  /* Links: konsistent im Theme */
+  footer.footer-easy a{
+    color: inherit;
+  }
+
+  /* Theme-fähige Action-Buttons */
+  footer.footer-easy #back-to-top{
+    background: transparent !important;
+    border-color: var(--fx-footer-btn-outline-border) !important;
+    color: var(--fx-footer-btn-outline-fg) !important;
+  }
+  footer.footer-easy #back-to-top:hover{
+    background: var(--nx-state-hover, rgba(255,255,255,.06)) !important;
+  }
+
+  footer.footer-easy #cookie-settings-icon{
+    background: var(--fx-footer-btn-solid-bg) !important;
+    border-color: var(--fx-footer-btn-solid-border) !important;
+    color: var(--fx-footer-btn-solid-fg) !important;
+  }
+  footer.footer-easy #cookie-settings-icon:hover{
+    filter: brightness(1.05);
+  }
+
+  /* Footer-Logo: Light/Dark Swap via CSS */
+  footer.footer-easy .footer-logo-dark{ display:none; }
+  :root[data-bs-theme="dark"] footer.footer-easy .footer-logo-light{ display:none; }
+  :root[data-bs-theme="dark"] footer.footer-easy .footer-logo-dark{ display:inline-block; }
+
+footer.footer-template-standard .footer-brand-logo img {
+    height: 32px;
+    width: auto;
+    opacity: .95;
+  }
+
+  footer.footer-template-standard .text-uppercase {
+    margin-bottom: .9rem !important;
+  }
+
+  footer.footer-template-standard ul.footer-list,
+  footer.footer-template-standard ul.footer-links,
+  footer.footer-template-standard ul.footer-links-legal {
+    list-style: none !important;
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  footer.footer-template-standard ul.footer-list > li::marker,
+  footer.footer-template-standard ul.footer-links > li::marker,
+  footer.footer-template-standard ul.footer-links-legal > li::marker {
+    content: "" !important;
+  }
+
+  footer.footer-template-standard .footer-list {
+    display: grid;
+    gap: .55rem;
+    justify-items: start;
+    padding: 0;
+    margin: 0;
+  }
+
+  footer.footer-template-standard .footer-item,
+  footer.footer-template-standard .footer-link-item {
+    margin-top: 0.6rem;
+    line-height: 1.5;
+  }
+
+  footer.footer-template-standard .footer-link,
+  footer.footer-template-standard .footer-list a {
+    color: inherit;
+    text-decoration: none;
+    opacity: .88;
+    transition: opacity .15s ease, transform .15s ease;
+  }
+
+  footer.footer-template-standard .footer-link:hover,
+  footer.footer-template-standard .footer-list a:hover {
+    opacity: 1;
+    transform: translateX(2px);
+  }
+
+  footer.footer-template-standard .footer-social-block {
+    text-align: left !important;
+    margin-bottom: 1rem;
+  }
+
+  footer.footer-template-standard .footer-social-icons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    align-items: center;
+    justify-content: flex-start !important;
+  }
+
+  footer.footer-template-standard .footer-social-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 38px;
+    height: 38px;
+
+    color: inherit;
+    background: transparent;
+
+    border: 1px solid rgba(var(--bs-body-color-rgb, 255,255,255), .45);
+    border-radius: 999px;
+
+    opacity: .9;
+    transition:
+      opacity .2s ease,
+      border-color .2s ease,
+      transform .2s ease;
+  }
+
+  footer.footer-template-standard .footer-social-chip i {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  footer.footer-template-standard .footer-social-chip:hover {
+    opacity: 1;
+    border-color: rgba(var(--bs-body-color-rgb, 255,255,255), .8);
+    transform: translateY(-1px);
+  }
+
+  footer.footer-template-standard .footer-links-legal {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem 1.25rem;
+    padding: 0;
+    margin: 0;
+  }
+
+  footer.footer-template-standard .footer-links-legal .footer-link-item {
+    margin-top: 0;
+  }
+</style>
+<!-- END -->

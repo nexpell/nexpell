@@ -1,4 +1,4 @@
-ï»¿<?php
+<?php
 global $str,$modulname,$version;
 $modulname='navigation';
 $version='0.3';
@@ -7,8 +7,16 @@ echo "<div class='card'><div class='card-header'>$str Database Installation</div
 #######################################################################################################################################
 $transaction = '';
 
-$transaction .= add_insert_plugin("INSERT IGNORE INTO `" . PREFIX . "settings_plugins` (`pluginID`, `name`, `modulname`, `info`, `admin_file`, `activate`, `author`, `website`, `index_link`, `hiddenfiles`, `version`, `path`, `status_display`, `plugin_display`, `widget_display`, `delete_display`, `sidebar`) VALUES
-('', 'Navigation', 'navigation', '{[de]}Mit diesem Plugin kÃ¶nnt ihr euch die Navigation anzeigen lassen.{[en]}With this plugin you can display navigation.{[it]}Con questo plugin puoi visualizzare la Barra di navigazione predefinita.', '', 1, 'T-Seven', 'https://webspell-rm.de', '', '', '0.3', 'includes/plugins/navigation/', 1, 1, 0, 0, 'deactivated')");
+$transaction .= add_insert_plugin("INSERT IGNORE INTO `" . PREFIX . "settings_plugins` (`pluginID`, `modulname`, `admin_file`, `activate`, `author`, `website`, `index_link`, `hiddenfiles`, `version`, `path`, `status_display`, `plugin_display`, `widget_display`, `delete_display`, `sidebar`) VALUES
+('', 'navigation', '', 1, 'T-Seven', 'https://webspell-rm.de', '', '', '0.3', 'includes/plugins/navigation/', 1, 1, 0, 0, 'deactivated')");
+
+safe_query("INSERT IGNORE INTO settings_plugins_lang (`content_key`, `language`, `content`, `updated_at`) VALUES
+('plugin_name_navigation', 'de', 'Navigation', NOW()),
+('plugin_name_navigation', 'en', 'Navigation', NOW()),
+('plugin_name_navigation', 'it', 'Navigation', NOW()),
+('plugin_info_navigation', 'de', 'Mit diesem Plugin könnt ihr euch die Navigation anzeigen lassen.', NOW()),
+('plugin_info_navigation', 'en', 'With this plugin you can display navigation.', NOW()),
+('plugin_info_navigation', 'it', 'Con questo plugin puoi visualizzare la Barra di navigazione predefinita.', NOW())");
 
 $transaction .= add_insert_plugins_widget("INSERT IGNORE INTO `" . PREFIX . "settings_plugins_widget` (`id`, `modulname`, `widgetname`, `widgetdatei`, `area`) VALUES
 ('', 'navigation', 'Navigation', 'widget_navigation', 2)");
@@ -20,9 +28,9 @@ $transaction .= add_insert_plugins_widget("INSERT IGNORE INTO `" . PREFIX . "set
 $datei_name = '../includes/plugins/navigation/css/styles.css';
  if (@file_exists($datei_name) == true) {
 	 if (@unlink($datei_name) == true) {
-	 echo '<div class="alert alert-success" role="alert">Die Datei: '.$datei_name.' wurde erfolgreich gelÃ¶scht.</div>';
+	 echo '<div class="alert alert-success" role="alert">Die Datei: '.$datei_name.' wurde erfolgreich gelöscht.</div>';
 	 } else {
-	 echo '<div class="alert alert-danger" role="alert">Die Datei: '.$datei_name.' konnte nicht gelÃ¶scht werden!</div>';
+	 echo '<div class="alert alert-danger" role="alert">Die Datei: '.$datei_name.' konnte nicht gelöscht werden!</div>';
 	 }
  } else {
  	echo '<div class="alert alert-warning" role="alert">Die Datei: '.$datei_name.' ist nicht vorhanden!</div>';

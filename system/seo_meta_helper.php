@@ -52,25 +52,77 @@
     return $meta[$site] ?? $defaults;
 }*/
 
-/*function getSeoMeta(string $site): array {
+function getSeoMeta(string $site): array {
     global $_database;
 
-    // Sprache automatisch aus der Session holen, Fallback 'de'
-    $language = $_SESSION['language'] ?? 'de';
+    $language = strtolower((string)($_SESSION['language'] ?? 'de'));
 
-    $stmt = $_database->prepare("
-        SELECT title, description 
-        FROM settings_seo_meta 
-        WHERE site = ? AND language = ?
-    ");
-    $stmt->bind_param("ss", $site, $language);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    $title = '';
+    $description = '';
 
-    if ($row = $result->fetch_assoc()) {
+    // Preferred schema (since 1.0.3.3): settings_seo_meta_lang
+    $hasNewTable = false;
+    if ($check = $_database->query("SHOW TABLES LIKE 'settings_seo_meta_lang'")) {
+        $hasNewTable = ($check->num_rows > 0);
+    }
+    if ($hasNewTable) {
+        $titleKey = 'seo_title_' . $site;
+        $descKey  = 'seo_description_' . $site;
+
+        $stmt = $_database->prepare("
+            SELECT content_key, content
+            FROM settings_seo_meta_lang
+            WHERE language = ?
+              AND content_key IN (?, ?)
+        ");
+        if ($stmt) {
+            $stmt->bind_param("sss", $language, $titleKey, $descKey);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                if (($row['content_key'] ?? '') === $titleKey) {
+                    $title = (string)($row['content'] ?? '');
+                } elseif (($row['content_key'] ?? '') === $descKey) {
+                    $description = (string)($row['content'] ?? '');
+                }
+            }
+            $stmt->close();
+        }
+    }
+
+    // Legacy fallback table (pre-1.0.3.3)
+    if ($title === '' || $description === '') {
+        $hasOldTable = false;
+        if ($checkOld = $_database->query("SHOW TABLES LIKE 'settings_seo_meta'")) {
+            $hasOldTable = ($checkOld->num_rows > 0);
+        }
+        if ($hasOldTable) {
+            $stmt = $_database->prepare("
+                SELECT title, description
+                FROM settings_seo_meta
+                WHERE site = ? AND language = ?
+            ");
+            if ($stmt) {
+                $stmt->bind_param("ss", $site, $language);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($row = $result->fetch_assoc()) {
+                    if ($title === '') {
+                        $title = (string)($row['title'] ?? '');
+                    }
+                    if ($description === '') {
+                        $description = (string)($row['description'] ?? '');
+                    }
+                }
+                $stmt->close();
+            }
+        }
+    }
+
+    if ($title !== '' || $description !== '') {
         return [
-            'title' => $row['title'],
-            'description' => $row['description'],
+            'title' => $title,
+            'description' => $description,
         ];
     }
 
@@ -94,62 +146,5 @@
             ];
     }
 }
-*/
-
-function getSeoMeta(string $site): array {
-    global $_database;
-
-    // Sprache aus Session, Fallback 'de'
-    $language = $_SESSION['language'] ?? 'de';
-
-    // 1️⃣ – Versuche, einen Eintrag für die Seite und Sprache zu finden
-    $stmt = $_database->prepare("
-        SELECT title, description 
-        FROM settings_seo_meta 
-        WHERE site = ? AND language = ?
-        LIMIT 1
-    ");
-    $stmt->bind_param("ss", $site, $language);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($row = $result->fetch_assoc()) {
-        $stmt->close();
-        return [
-            'title' => $row['title'],
-            'description' => $row['description'],
-        ];
-    }
-    $stmt->close();
-
-    // 2️⃣ – Fallback: "default" oder "global" in settings_seo_meta
-    $fallbackKeys = ['default', 'global', 'index', 'home'];
-    foreach ($fallbackKeys as $fallbackSite) {
-        $stmt = $_database->prepare("
-            SELECT title, description 
-            FROM settings_seo_meta 
-            WHERE site = ? AND language = ?
-            LIMIT 1
-        ");
-        $stmt->bind_param("ss", $fallbackSite, $language);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($row = $result->fetch_assoc()) {
-            $stmt->close();
-            return [
-                'title' => $row['title'],
-                'description' => $row['description'],
-            ];
-        }
-        $stmt->close();
-    }
-
-    // 3️⃣ – Letzter Fallback: statische Minimalwerte (nur falls DB leer)
-    return [
-        'title' => 'Nexpell CMS',
-        'description' => 'Ein modulares Open-Source-CMS für Communities und Clans.',
-    ];
-}
-
 
 

@@ -85,11 +85,8 @@ return function (array &$pages, array $CTX): void {
          * Non-SEO:
          *   index.php?site=wiki&action=detail&id=22
          */
-        if ($slug !== '') {
-            $contentKey = "wiki/{$slug}";
-        } else {
-            $contentKey = "wiki/detail/{$id}";
-        }
+        // Router-sicher kanonisch: nur detail/{id}
+        $contentKey = "wiki/detail/{$id}";
 
         $qBase = [
             'site'   => 'wiki',

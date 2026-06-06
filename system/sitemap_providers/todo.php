@@ -40,7 +40,7 @@ return function (array &$pages, array $CTX): void {
     $slugCol = null; foreach ($slugCols as $c) if (isset($cols[strtolower($c)])) { $slugCol = $cols[strtolower($c)]; break; }
     $langCol = null; foreach ($langCols as $c) if (isset($cols[strtolower($c)])) { $langCol = $cols[strtolower($c)]; break; }
 
-    $dateUse = []; foreach ($dateCols as $c) if (isset($cols[strtolower($c)])) $dateUse[] = $cols[strlower($c)];
+    $dateUse = []; foreach ($dateCols as $c) if (isset($cols[strtolower($c)])) $dateUse[] = $cols[strtolower($c)];
     $statusCol = null; foreach ($statusCols as $c) if (isset($cols[strtolower($c)])) { $statusCol = $cols[strtolower($c)]; break; }
 
     // SELECT

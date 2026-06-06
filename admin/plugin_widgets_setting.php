@@ -1,24 +1,42 @@
 <?php
-// === /admin/plugin_widgets_setting.php ===
 declare(strict_types=1);
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-$CURRENT_LANG = $_SESSION['language'] ?? 'de';
 $action = $_GET['action'] ?? '';
 
 // Seitenliste aufbauen
 $pages = ['index' => 'Startseite'];
-$res = safe_query("SELECT modulname, name FROM settings_plugins ORDER BY name ASC");
-$exclude = ['navigation','carousel','error_404','footer_easy','login','register','lostpassword','profile','edit_profile','lastlogin'];
+$res = safe_query("SELECT modulname FROM settings_plugins ORDER BY modulname ASC");
+$exclude = ['navigation','carousel','error_404','footer','login','register','lostpassword','profile','edit_profile','lastlogin'];
+$currentLang = strtolower((string)$languageService->detectLanguage());
 while ($row = mysqli_fetch_assoc($res)) {
-  if (!in_array($row['modulname'], $exclude, true)) {
-    $pages[$row['modulname']] = $row['name'];
+  $module = (string)($row['modulname'] ?? '');
+  if ($module === '' || in_array($module, $exclude, true)) {
+    continue;
   }
+
+  $name = $module;
+  $candidates = [$module];
+
+  foreach (array_unique($candidates) as $candidate) {
+    $candidateEsc = escape($candidate);
+    $nameRes = safe_query("SELECT content FROM settings_plugins_lang WHERE content_key = 'plugin_name_" . $candidateEsc . "' AND language = '" . escape($currentLang) . "' LIMIT 1");
+    if ($nameRes && mysqli_num_rows($nameRes) > 0) {
+      $nameRow = mysqli_fetch_assoc($nameRes);
+      $translated = trim((string)($nameRow['content'] ?? ''));
+      if ($translated !== '') {
+        $name = $translated;
+        break;
+      }
+    }
+  }
+
+  $pages[$module] = $name;
 }
 
-/* === Zonen-Restriktions-Logik START === */
+// Zonen-Restriktions-Logik START
 if (!function_exists('nx__load_widget_restrictions_map')) {
   function nx__load_widget_restrictions_map(): array {
     $map = [];
@@ -33,23 +51,9 @@ if (!function_exists('nx__load_widget_restrictions_map')) {
   }
 }
 $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
-/* === Zonen-Restriktions-Logik ENDE === */
+// Zonen-Restriktions-Logik ENDE
 
-
-// ============================================================================
 // LIST- UND BEARBEITUNGSMODUS
-// ============================================================================
-
-
-    function nxb_redirect_back(string $msg = '', int $delay = 0): void {
-        if (function_exists('redirect')) {
-            redirect('admincenter.php?site=plugin_widgets_setting', $msg, $delay);
-            exit;
-        }
-        header('Location: admincenter.php?site=plugin_widgets_setting');
-        exit;
-    }
-
     function nxb_normalize_allowed_zones(?array $zones): string {
         $ALL = ['top','undertop','left','maintop','mainbottom','right','bottom'];
         if (empty($zones)) return '';
@@ -68,18 +72,12 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
     $action   = $_GET['action'] ?? '';
     $edit_key = $_GET['edit'] ?? '';
 
-    // === POST speichern ===
+    // POST speichern
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_widget'])) {
-        if (isset($_POST['csrf_token'])) {
-            if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $_POST['csrf_token'])) {
-                nxb_redirect_back('Ungültiges CSRF-Token.');
-            }
-        }
+        if (isset($_POST['csrf_token'])) { if (empty($_SESSION['csrf_token']) || !hash_equals((string)$_SESSION['csrf_token'], (string)$_POST['csrf_token'])) nx_redirect('admincenter.php?site=plugin_widgets_setting', 'danger', 'alert_transaction_invalid', false); }
 
-        $widget_key = trim($_POST['widget_key'] ?? '');
-        if ($widget_key === '') {
-            nxb_redirect_back('Kein Widget-Key angegeben.');
-        }
+        $widget_key = trim((string)($_POST['widget_key'] ?? ''));
+        if ($widget_key === '') nx_redirect('admincenter.php?site=plugin_widgets_setting', 'warning', 'alert_widget_key_missing', false);
 
         $allowed_str = nxb_normalize_allowed_zones($_POST['allowed_zones'] ?? null);
         $ekey = escape($widget_key);
@@ -91,9 +89,8 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
             WHERE widget_key = '$ekey'
             LIMIT 1
         ");
-
-        nxb_redirect_back('Zonen aktualisiert.');
-        exit;
+        nx_audit_action('plugin_widgets_setting', 'audit_action_widget_zones_updated', $widget_key, null, 'admincenter.php?site=plugin_widgets_setting&action=edit&edit=' . urlencode($widget_key));
+        nx_redirect('admincenter.php?site=plugin_widgets_setting&action=edit&edit=' . urlencode($widget_key), 'success', 'alert_zones_updated', false);
     }
 
     if (empty($_SESSION['csrf_token'])) {
@@ -117,57 +114,49 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
         }
     }
 
-    
-
     if ($action === 'edit' && $edit_key !== '') {
-        // === Formular zur Bearbeitung ===
-        echo '<div class="card">
-          <div class="card-header">
-            <i class="bi bi-journal-text"></i> Widget bearbeiten
-          </div>
-
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb t-5 p-2 bg-light">
-              <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_widgets_setting">Widgets verwalten</a></li>
-              <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_widgets_setting&action=list">Widget Übersicht</a></li>
-              <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
-            </ol>
-          </nav>
+        // Formular zur Bearbeitung
+        echo '<div class="card shadow-sm border-0 mb-4 mt-4">
+                <div class="card-header">
+                  <div class="card-title">
+                    <i class="bi bi-journal-text"></i> <span>' . $languageService->get('page_title') . '</span>
+                    <small class="text-muted">' . $languageService->get('edit') . '</small>
+                  </div>
+                </div>
 
           <div class="card-body">
-          <div class="container py-5">
             <form method="post" action="admincenter.php?site=plugin_widgets_setting">
               <input type="hidden" name="csrf_token" value="' . htmlspecialchars($CSRF) . '">
               <input type="hidden" name="widget_key" value="' . htmlspecialchars($edit_data['widget_key']) . '">
 
               <div class="row mb-3"> 
                 <div class="col-md-6"> 
-                  <label class="form-label fw-semibold">Widget Key</label> 
+                  <label class="form-label fw-semibold">' . $languageService->get('widget_key') . '</label> 
                   <input type="text" value="' . htmlspecialchars($edit_data['widget_key']) . '" class="form-control" readonly> 
                 </div> 
                 <div class="col-md-6"> 
-                  <label class="form-label fw-semibold">Titel</label> 
+                  <label class="form-label fw-semibold">' . $languageService->get('title') . '</label> 
                   <input type="text" value="' . htmlspecialchars($edit_data['title']) . '" class="form-control" readonly> 
                 </div> 
               </div> 
 
               <div class="row mb-3"> 
                 <div class="col-md-6"> 
-                  <label class="form-label fw-semibold">Plugin</label> 
+                  <label class="form-label fw-semibold">' . $languageService->get('plugin') . '</label> 
                   <input type="text" value="' . htmlspecialchars($edit_data['plugin']) . '" class="form-control" readonly> 
                 </div> 
                 <div class="col-md-6"> 
-                  <label class="form-label fw-semibold">Modulname</label> 
+                  <label class="form-label fw-semibold">' . $languageService->get('modulname') . '</label> 
                   <input type="text" value="' . htmlspecialchars($edit_data['modulname']) . '" class="form-control" readonly> 
                 </div> 
               </div>
 
               <div class="mb-3">
-                <label class="form-label fw-semibold">Erlaubte Zonen</label>
+                <label class="form-label fw-semibold">' . $languageService->get('allowed_zones') . '</label>
 
                 <div class="alert alert-info d-flex align-items-center gap-3 py-2" role="alert">
                   <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0"></i>
-                  <div><strong>Hinweis:</strong> Änderungen auf eigene Gefahr – falsche Einstellungen können das Layout beschädigen.</div>
+                  <div>' . $languageService->get('info_changes') . '</div>
                 </div>
 
                 <div class="d-flex flex-wrap gap-3">';
@@ -184,54 +173,65 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
               </div>
 
               <div class="d-flex justify-content-between align-items-center">
-                <button type="submit" name="save_widget" class="btn btn-success">
-                  <i class="bi bi-save"></i> Änderungen speichern
+                <button type="submit" name="save_widget" class="btn btn-primary">
+                  ' . $languageService->get('save') . '
                 </button>
-                <a href="admincenter.php?site=plugin_widgets_setting&action=list" class="btn btn-outline-secondary">
-                  <i class="bi bi-arrow-left"></i> Zurück
-                </a>
               </div>
             </form>
             </div>
-          </div>
         </div>';
-}elseif (($action ?? '') === 'list') {
-        // === Übersicht ===
-        echo '<div class="card">
-          <div class="card-header"><i class="bi bi-journal-text"></i> Widget Übersicht</div>
-
-          <nav aria-label="breadcrumb">
-            <ol class="breadcrumb t-5 p-2 bg-light">
-              <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_widgets_setting">Widgets verwalten</a></li>
-              <li class="breadcrumb-item active" aria-current="page">Widgets – Übersicht</li>
-            </ol>
-          </nav>
-
+      }elseif (($action ?? '') === 'list') {
+        // Ãœbersicht
+        echo '<div class="card shadow-sm border-0 mb-4 mt-4">
+                <div class="card-header">
+                  <div class="card-title">
+                    <i class="bi bi-journal-text"></i> <span>' . $languageService->get('page_title') . '</span>
+                    <small class="text-muted">' . $languageService->get('widget_list') . '</small>
+                  </div>
+                </div>
           <div class="card-body">';
+        echo '<div class="d-flex flex-wrap justify-content-end align-items-center gap-3 mb-3">
+                <div class="input-group input-group-sm" style="min-width: 260px; max-width: 360px;">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input id="widgetSearch" type="search" class="form-control" placeholder="' . $languageService->get('search') . '">
+                </div>
+              </div>';
 
         $res = safe_query("SELECT widget_key, title, plugin, modulname, allowed_zones FROM settings_widgets ORDER BY widget_key ASC");
 
         echo '
-            <div class="container py-5">
-              <table class="table table-bordered table-striped">
-                <thead class="table-light">
+              <table class="table" id="widgetTable">
+                <thead>
                   <tr>
-                    <th>Widget Key</th>
-                    <th>Titel</th>
-                    <th>Plugin</th>
-                    <th>Modulname</th>
-                    <th>Erlaubte Zonen</th>
-                    <th>Aktion</th>
+                    <th>' . $languageService->get('widget_key') . '</th>
+                    <th>' . $languageService->get('title') . '</th>
+                    <th>' . $languageService->get('plugin') . '</th>
+                    <th>' . $languageService->get('modulname') . '</th>
+                    <th>' . $languageService->get('allowed_zones') . '</th>
+                    <th>' . $languageService->get('actions') . '</th>
                   </tr>
                 </thead>
                 <tbody>';
 
         if ($res && mysqli_num_rows($res) > 0) {
             while ($row = mysqli_fetch_assoc($res)) {
-                $zones = trim((string)($row['allowed_zones'] ?? ''));
-                $zonesLabel = $zones === ''
-                    ? '<span class="badge bg-secondary">alle</span>'
-                    : htmlspecialchars($zones, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+              $zones = trim((string)($row['allowed_zones'] ?? ''));
+
+              if ($zones === '') {
+                  $zonesLabel = '<span class="badge bg-secondary">' . $languageService->get('all') . '</span>';
+              } else {
+                  $zoneList = array_map('trim', explode(',', $zones));
+                  $zoneList = array_values(array_unique(array_filter($zoneList)));
+
+                  $badges = [];
+                  foreach ($zoneList as $z) {
+                      $badges[] = '<span class="badge bg-info me-1">'
+                          . htmlspecialchars($z, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                          . '</span>';
+                  }
+
+                  $zonesLabel = implode('', $badges);
+              }
                 echo '<tr>
                   <td><code>' . htmlspecialchars($row['widget_key']) . '</code></td>
                   <td>' . htmlspecialchars($row['title'] ?? '') . '</td>
@@ -239,49 +239,62 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
                   <td>' . htmlspecialchars($row['modulname'] ?? '') . '</td>
                   <td>' . $zonesLabel . '</td>
                   <td>
-                    <a href="admincenter.php?site=plugin_widgets_setting&action=edit&edit=' . urlencode($row['widget_key']) . '" class="btn btn-sm btn-primary">
-                      <i class="bi bi-pencil-square"></i> Bearbeiten
+                    <a href="admincenter.php?site=plugin_widgets_setting&action=edit&edit=' . urlencode($row['widget_key']) . '" class="btn btn-warning d-inline-flex align-items-center gap-1 w-auto">
+                      <i class="bi bi-pencil-square"></i> ' . $languageService->get('edit') . '
                     </a>
                   </td>
                 </tr>';
             }
         } else {
-            echo '<tr><td colspan="6" class="text-center text-muted py-4">Keine Widgets vorhanden.</td></tr>';
+            echo '<tr><td colspan="6" class="text-center text-muted py-4">' . $languageService->get('no_widgets_found') . '</td></tr>';
         }
 
-        echo '</tbody></table></div></div>
+        echo '</tbody></table>
+            <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                var input = document.getElementById("widgetSearch");
+                if (!input) return;
+
+                function applyFilter() {
+                    var q = (input.value || "").toLowerCase().trim();
+                    var rows = document.querySelectorAll("#widgetTable tbody tr");
+
+                    for (var i = 0; i < rows.length; i++) {
+                        var row = rows[i];
+                        var txt = (row.textContent || "").toLowerCase();
+                        var show = (!q || txt.indexOf(q) !== -1);
+                        row.style.display = show ? "table-row" : "none";
+                    }
+                }
+
+                input.addEventListener("input", applyFilter);
+                applyFilter();
+            });
+            </script>
+        </div></div>
           <div class="card-footer small text-muted">
-            Leerer <code>allowed_zones</code>-Wert bedeutet: in allen Zonen erlaubt.
-          </div></div>';
+            ' . $languageService->get('empty_code') . '
+          </div>';
     #}
 
     #echo '</div></div></div>';
 
 } else {
 ?>
-<!-- ======================================================================== -->
 <!-- BUILDER-VORSCHAU / LIVE-UI -->
-<!-- ======================================================================== -->
-
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <div><i class="bi bi-journal-text"></i> Widgets verwalten</div>
-    <div>
-      <a href="admincenter.php?site=plugin_widgets_setting&action=list" class="btn btn-success"><i class="bi bi-plus"></i> Widget Liste</a>
+<div class="card shadow-sm border-0 mb-4 mt-4">
+  <div class="card-header">
+    <div class="card-title">
+      <i class="bi bi-journal-text"></i> <span><?=$languageService->get('page_title') ?></span>
+      <small class="text-muted"><span><?=$languageService->get('overview') ?></small>
     </div>
+    <a href="admincenter.php?site=plugin_widgets_setting&action=list" class="btn btn-secondary mt-2"><span><?=$languageService->get('widget_list') ?></a>
   </div>
 
-  <nav aria-label="breadcrumb">
-    <ol class="breadcrumb t-5 p-2 bg-light">
-      <li class="breadcrumb-item"><a href="admincenter.php?site=plugin_widgets_setting">Widgets verwalten</a></li>
-      <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
-    </ol>
-  </nav>
-
   <div class="d-flex flex-wrap gap-3 align-items-center p-2 border-bottom">
-    <strong>Widgets verwalten</strong>
+    <span class="fw-semibold"><?=$languageService->get('widget_manage') ?></span>
     <div class="d-flex align-items-center gap-2">
-      <label for="page" class="form-label mb-0">Seite:</label>
+      <label for="page" class="form-label mb-0"><?=$languageService->get('site') ?>:</label>
       <select id="page" class="form-select form-select-sm" style="max-width:260px">
         <?php foreach ($pages as $v=>$label): ?>
           <option value="<?= htmlspecialchars($v) ?>"><?= htmlspecialchars($label) ?></option>
@@ -290,17 +303,17 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
     </div>
 
     <div class="d-flex align-items-center gap-2">
-      <label class="form-label mb-0">Modus:</label>
+      <label class="form-label mb-0"><?=$languageService->get('modus') ?>:</label>
       <div class="btn-group btn-group-sm w-100 gapped" role="group">
         <input type="radio" class="btn-check" name="builderMode" id="modeLive" value="live" checked>
-        <label class="btn btn-outline-primary flex-fill text-center" for="modeLive">Live</label>
+        <label class="btn btn-outline-primary flex-fill text-center" for="modeLive"><?=$languageService->get('live') ?></label>
 
         <input type="radio" class="btn-check" name="builderMode" id="modePreview" value="preview">
-        <label class="btn btn-outline-primary flex-fill text-center" for="modePreview">Preview</label>
+        <label class="btn btn-outline-primary flex-fill text-center" for="modePreview"><?=$languageService->get('preview') ?></label>
       </div>
     </div>
 
-    <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-reload">Neu laden</button>
+    <button class="btn btn-secondary ms-auto me-4" id="btn-reload"><?=$languageService->get('reload') ?></button>
   </div>
 
   <div class="card-body p-0">
@@ -309,8 +322,8 @@ $__WIDGET_RESTRICTIONS = nx__load_widget_restrictions_map();
 
   <div class="card-footer small text-muted">
     <ul class="mb-0">
-      <li><strong>Live:</strong> lädt die echte Seite mit <code>?builder=1</code>.</li>
-      <li><strong>Preview:</strong> lädt <code>/plugin_widgets_preview.php?page=…</code> (Sandbox mit Drop-Zonen).</li>
+      <li><span class="fw-semibold"><?=$languageService->get('live') ?>:</span> <?=$languageService->get('live_info') ?></li>
+      <li><span class="fw-semibold"><?=$languageService->get('preview') ?>:</span> <?=$languageService->get('preview_info') ?></li>
     </ul>
   </div>
 </div>
@@ -346,7 +359,7 @@ function updateFrameSrc(){
   frameEl.src = (mode === 'preview') ? buildPreviewUrl(page) : buildLiveUrl(page);
 }
 
-// === Zonen-Restriktions-Logik ===
+// Zonen-Restriktions-Logik
 window.widgetRestrictionsParent = <?= json_encode($__WIDGET_RESTRICTIONS, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
 
 function postRestrictionsToFrame() {
@@ -394,5 +407,6 @@ updateFrameSrc();
 }
 </style>
 <?php
-} // Ende else
+}
 ?>
+

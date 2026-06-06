@@ -1,151 +1,223 @@
 <?php
-
 use nexpell\LanguageService;
 use nexpell\AccessControl;
 
-// Session absichern
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+if (session_status() === PHP_SESSION_NONE) session_start();
 
-// Sprache setzen
-$_SESSION['language'] = $_POST['language'] ?? ($_SESSION['language'] ?? 'de');
-$language = $_SESSION['language'];
-
-global $languageService;
-$languageService = new LanguageService($_database);
-$languageService->readModule('startpage', true);
-
-// Admin-Zugriff prüfen
+global $_database;
 AccessControl::checkAdminAccess('ac_startpage');
 
 $CAPCLASS = new \nexpell\Captcha;
-$tpl = new Template();
+$content_key = 'startpage'; // Der Key für diese Seite
 
-// Formularverarbeitung
-if (isset($_POST['submit'])) {
-    $title = $_POST['title'] ?? '';
-    $editor = isset($_POST['editor']) ? '1' : '0';
-    $nameArray = $_POST['name'] ?? [];
-
-    // Mehrsprachigen Text zusammenbauen
-    $startpage_text = '';
-    foreach (['de', 'en', 'it'] as $lang) {
-        $text = $nameArray[$lang] ?? '';
-        $startpage_text .= "[[lang:$lang]]" . $text;
-    }
-
-    // CAPTCHA prüfen
-    if ($CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'])) {
-        if (mysqli_num_rows(safe_query("SELECT * FROM settings_startpage"))) {
-            safe_query("UPDATE settings_startpage SET date=CURRENT_TIMESTAMP, title='" . escape($title) . "', startpage_text='" . $startpage_text . "', editor='" . $editor . "'");
-        } else {
-            safe_query("INSERT INTO settings_startpage (date, title, startpage_text, editor) VALUES (NOW(), '" . escape($title) . "', '" . $startpage_text . "', '" . $editor . "')");
-        }
-
-        echo '<div class="alert alert-success">' . $languageService->module['changes_successful'] . '</div>';
-        echo '<script>setTimeout(() => window.location.href = "admincenter.php?site=settings_startpage", 3000);</script>';
-    } else {
-        echo '<div class="alert alert-danger">' . $languageService->module['transaction_invalid'] . '</div>';
-        echo '<script>setTimeout(() => window.location.href = "admincenter.php?site=settings_startpage", 3000);</script>';
-    }
-}
-
-// Daten laden
-$ds = mysqli_fetch_array(safe_query("SELECT * FROM settings_startpage"));
-
-// Mehrsprachigen Text extrahieren
-function extractLangText(?string $multiLangText, string $lang): string {
-    if (!$multiLangText) return '';
-    if (preg_match('/\[\[lang:' . preg_quote($lang, '/') . '\]\](.*?)(?=\[\[lang:|$)/s', $multiLangText, $matches)) {
-        return trim($matches[1]);
-    }
-    return '';
-}
-
-// Sprach-Array
+// 1. Sprachen laden
 $languages = [];
-
-$query = "SELECT iso_639_1, name_de FROM settings_languages WHERE active = 1 ORDER BY id ASC";
-$result = mysqli_query($_database, $query);
-
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        // $row['iso_639_1'] z.B. 'de', $row['name_de'] z.B. 'Deutsch'
-        $languages[$row['iso_639_1']] = $row['name_de'];
-    }
-} else {
-    // Fallback falls Query nicht klappt
-    $languages = ['de' => 'Deutsch', 'en' => 'English', 'it' => 'Italiano'];
+$res = mysqli_query($_database, "SELECT iso_639_1, name_de FROM settings_languages WHERE active = 1 ORDER BY id ASC");
+while ($row = mysqli_fetch_assoc($res)) {
+    $languages[$row['iso_639_1']] = $row['name_de'];
 }
 
-// Editor-Status
-$editor_checked = ($ds['editor'] ?? 0) == 1 ? 'checked' : '';
+// 2. Aktive Sprache bestimmen
+$currentLang = null;
 
-// CAPTCHA vorbereiten
+// 2️⃣ Aktive Sprache bestimmen
+
+if (!empty($_SESSION['startpage_active_lang'])) {
+    $currentLang = $_SESSION['startpage_active_lang'];
+    unset($_SESSION['startpage_active_lang']);
+}
+elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['active_lang'])) {
+    $currentLang = $_POST['active_lang'];
+}
+elseif (!empty($_SESSION['language'])) {
+    $currentLang = $_SESSION['language'];
+}
+else {
+    $currentLang = $languageService->detectLanguage();
+}
+
+
+// 3. Speichern
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
+
+    if (!$CAPCLASS->checkCaptcha(0, $_POST['captcha_hash'] ?? '')) {
+        nx_redirect('admincenter.php?site=settings_startpage','danger','alert_transaction_invalid',false);
+    }
+
+    $activeLang = $_POST['active_lang'] ?? $currentLang;
+
+    /* ------------------------------
+     * TITLE (mehrsprachig)
+     * ------------------------------ */
+    if (
+        isset($_POST['title_lang'][$activeLang]) &&
+        is_string($_POST['title_lang'][$activeLang])
+    ) {
+
+        $title_e = $_database->real_escape_string(
+            trim($_POST['title_lang'][$activeLang])
+        );
+        $lang_e = $_database->real_escape_string($activeLang);
+
+        $_database->query("
+            INSERT INTO settings_content_lang (content_key, language, content, updated_at)
+            VALUES ('startpage_title', '$lang_e', '$title_e', NOW())
+            ON DUPLICATE KEY UPDATE
+                content = VALUES(content),
+                updated_at = NOW()
+        ");
+    }
+
+
+    /* ------------------------------
+     * CONTENT (mehrsprachig)
+     * ------------------------------ */
+    if (
+        isset($_POST['content'][$activeLang]) &&
+        is_string($_POST['content'][$activeLang])
+    ) {
+        $html_e = $_database->real_escape_string(trim($_POST['content'][$activeLang]));
+        $lang_e = $_database->real_escape_string($activeLang);
+
+        $_database->query("
+            INSERT INTO settings_content_lang (content_key, language, content, updated_at)
+            VALUES ('$content_key', '$lang_e', '$html_e', NOW())
+            ON DUPLICATE KEY UPDATE
+                content = VALUES(content),
+                updated_at = NOW()
+        ");
+    }
+
+    $_SESSION['startpage_active_lang'] = $activeLang;
+
+    nx_audit_update(
+        'settings_content_lang',
+        null,
+        true,
+        null,
+        'admincenter.php?site=settings_startpage'
+    );
+
+    nx_redirect(
+        'admincenter.php?site=settings_startpage',
+        'success',
+        'alert_saved',
+        false
+    );
+}
+
+
+// 4. Daten laden
+
+$content      = [];
+$titles       = [];
+$lastUpdate   = [];
+
+$res_lang = $_database->query("
+    SELECT content_key, language, content, updated_at
+    FROM settings_content_lang
+    WHERE content_key IN ('startpage', 'startpage_title')
+");
+
+while ($row = $res_lang->fetch_assoc()) {
+    $lang = $row['language'];
+
+    if ($row['content_key'] === 'startpage') {
+        $content[$lang]    = $row['content'];
+        $lastUpdate[$lang] = $row['updated_at'];
+    }
+
+    if ($row['content_key'] === 'startpage_title') {
+        $titles[$lang] = $row['content'];
+    }
+}
+
+
 $CAPCLASS->createTransaction();
 $hash = $CAPCLASS->getHash();
 ?>
+<script>
+    const lastUpdateByLang = <?= json_encode($lastUpdate, JSON_UNESCAPED_UNICODE) ?>;
+</script>
+<form method="post" id="startpageForm" action="admincenter.php?site=settings_startpage">
+    <div class="nx-lang-editor">
 
-<div class="card">
-    <div class="card-header"><?= $languageService->module['startpage'] ?></div>
-    <nav class="breadcrumb bg-light px-3 py-2">
-        <a class="breadcrumb-item" href="admincenter.php?site=settings_startpage"><?= $languageService->module['startpage'] ?></a>
-        <span class="breadcrumb-item active">Edit</span>
-    </nav>
-    <div class="card-body">
-        <form class="form-horizontal" method="post" id="post" name="post">
-            <div class="mb-3 row">
-                <label class="col-sm-2 col-form-label"><?= $languageService->module['title_head'] ?></label>
-                <div class="col-sm-10">
-                    <input class="form-control" type="text" name="title" value="<?= htmlspecialchars($ds['title'] ?? '') ?>" />
-                </div>
+    <input type="hidden" name="captcha_hash" value="<?= $hash ?>">
+    <input type="hidden" name="active_lang" id="active_lang" value="<?= $currentLang ?>">
+
+    <div class="card shadow-sm border-0 mb-4 mt-3">
+
+        <!-- CARD HEADER -->
+        <div class="card-header d-flex align-items-center">
+            <div class="card-title mb-0">
+                <i class="bi bi-house-gear"></i> <?= $languageService->get('startpage') ?>
             </div>
 
-            <div class="mb-3 row">
-                <label class="col-sm-2 col-form-label"><?= $languageService->module['editor_is_editor'] ?></label>
-                <div class="col-sm-10">
-                    <input class="form-check-input" type="checkbox" id="toggle-editor" name="editor" value="1" <?= $editor_checked ?>>
+            <div class="ms-auto d-flex align-items-center gap-4">
+                <div class="btn-group" id="lang-switch">
+                    <?php foreach ($languages as $iso => $label): ?>
+                        <button type="button"
+                                class="btn <?= $iso === $currentLang ? 'btn-primary' : 'btn-secondary' ?>"
+                                data-lang="<?= $iso ?>">
+                            <?= strtoupper($iso) ?>
+                        </button>
+                    <?php endforeach; ?>
                 </div>
-            </div>
-            <div class="alert alert-info" role="alert">
-                 <label for="text" class="form-label"><h4><?= $languageService->module['text'] ?></h4></label>
-            <?php foreach ($languages as $code => $label): ?>
-                <div class="mb-3 row">
-                    <label class="col-sm-2 col-form-label"><?= $label ?>:</label>
-                    <div class="col-sm-10">
-                        <textarea class="form-control lang-field" rows="6" id="editor_<?= $code ?>" name="name[<?= $code ?>]"><?= htmlspecialchars(extractLangText($ds['startpage_text'] ?? '', $code)) ?></textarea>
+
+                <div class="text-end ps-3">
+                    <div class="text-muted small" id="last-update-box">
+                        <?php if (!empty($lastUpdate[$currentLang])): ?>
+                            <i class="bi bi-clock-history me-1"></i>
+                            <span id="last-update-text">
+                                <?= date('d.m.Y H:i', strtotime($lastUpdate[$currentLang])) ?>
+                            </span>
+                        <?php endif; ?>
                     </div>
                 </div>
-            <?php endforeach; ?>
             </div>
-            <input type="hidden" name="captcha_hash" value="<?= $hash ?>" />
-            <button class="btn btn-warning" type="submit" name="submit"><?= $languageService->module['update'] ?></button>
-        </form>
+        </div>
+
+        <!-- CARD BODY -->
+        <div class="card-body">
+
+            <div class="row mb-4">
+                <div class="col-md-8">
+                    <label class="form-label fw-bold"><?= $languageService->get('title_head') ?></label>
+
+                    <input type="text"
+                           id="nx-title-input"
+                           class="form-control mb-2"
+                           value="<?= htmlspecialchars($titles[$currentLang] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+
+                    <?php foreach ($languages as $iso => $label): ?>
+                        <input type="hidden"
+                               name="title_lang[<?= $iso ?>]"
+                               id="title_<?= $iso ?>"
+                               value="<?= htmlspecialchars($titles[$iso] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <textarea class="form-control"
+                      id="nx-editor-main"
+                      data-editor="nx_editor"
+                      rows="15"><?= htmlspecialchars($content[$currentLang] ?? '', ENT_QUOTES, 'UTF-8') ?></textarea>
+
+            <?php foreach ($languages as $iso => $label): ?>
+                <input type="hidden"
+                       name="content[<?= $iso ?>]"
+                       id="content_<?= $iso ?>"
+                       value="<?= htmlspecialchars($content[$iso] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+            <?php endforeach; ?>
+
+            <div class="mt-4">
+                <button type="submit" name="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-save"></i> <?= $languageService->get('save') ?>
+                </button>
+            </div>
+
+        </div>
     </div>
-</div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const toggle = document.getElementById('toggle-editor');
-    const editors = document.querySelectorAll('.lang-field');
-
-    function toggleEditors() {
-        editors.forEach(textarea => {
-            const id = textarea.id;
-            if (toggle.checked) {
-                if (!CKEDITOR.instances[id]) {
-                    CKEDITOR.replace(id);
-                }
-            } else {
-                if (CKEDITOR.instances[id]) {
-                    CKEDITOR.instances[id].destroy(true);
-                }
-            }
-        });
-    }
-
-    toggle.addEventListener('change', toggleEditors);
-    toggleEditors(); // Initialer Zustand
-});
-</script>
+    </div>
+</form>

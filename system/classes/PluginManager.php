@@ -30,7 +30,7 @@ class PluginManager
         $field = $admin ? 'admin_file' : 'index_link';
         $result = safe_query("SELECT * FROM settings_plugins WHERE `activate`='1'");
         while ($row = mysqli_fetch_array($result)) {
-            $files = explode(",", $row[$field]);
+            $files = array_map('trim', explode(",", (string)($row[$field] ?? '')));
             if (in_array($var, $files)) return $row;
         }
         return false;
@@ -137,16 +137,36 @@ class PluginManager
        ========================= */
     public function loadPluginPage(string $site): ?string
     {
-        $stmt = $this->_database->prepare("SELECT modulname FROM settings_plugins WHERE modulname = ? LIMIT 1");
-        $stmt->bind_param("s", $site);
+        $site = trim($site);
+        $stmt = $this->_database->prepare("SELECT modulname, index_link FROM settings_plugins WHERE activate = 1");
         $stmt->execute();
         $res = $stmt->get_result();
-        $row = $res->fetch_assoc();
-        if (!$row) return null;
 
-        $plugin = $row['modulname'];
-        $pluginFile = $_SERVER['DOCUMENT_ROOT'] . "/includes/plugins/{$plugin}/{$plugin}.php";
-        return file_exists($pluginFile) ? $pluginFile : null;
+        while ($row = $res->fetch_assoc()) {
+            $plugin = $this->normalizePluginName((string)($row['modulname'] ?? ''));
+            if ($plugin === '') {
+                continue;
+            }
+
+            $links = array_map('trim', explode(',', (string)($row['index_link'] ?? '')));
+            $links = array_values(array_filter($links, static fn($v) => $v !== ''));
+
+            if ($site !== $plugin && !in_array($site, $links, true)) {
+                continue;
+            }
+
+            $siteFile = $_SERVER['DOCUMENT_ROOT'] . "/includes/plugins/{$plugin}/{$site}.php";
+            if (file_exists($siteFile)) {
+                return $siteFile;
+            }
+
+            $pluginFile = $_SERVER['DOCUMENT_ROOT'] . "/includes/plugins/{$plugin}/{$plugin}.php";
+            if (file_exists($pluginFile)) {
+                return $pluginFile;
+            }
+        }
+
+        return null;
     }
 
     private function isPluginActive(string $plugin): bool
@@ -161,12 +181,50 @@ class PluginManager
 
     public function loadPluginAssets(string $plugin): void
     {
+        $plugin = $this->resolvePluginName($plugin);
+        if ($plugin === '') {
+            return;
+        }
+
         $basePath = "/includes/plugins/{$plugin}";
         if (!in_array($plugin, $this->_loadedAssets['plugins'], true)) {
             $this->loadAsset('css', $basePath, $plugin);
             $this->loadAsset('js',  $basePath, $plugin);
             $this->_loadedAssets['plugins'][] = $plugin;
         }
+    }
+
+    private function resolvePluginName(string $site): string
+    {
+        $site = trim($site);
+        if ($site === '') {
+            return '';
+        }
+
+        $stmt = $this->_database->prepare("SELECT modulname, index_link FROM settings_plugins WHERE activate = 1");
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        while ($row = $res->fetch_assoc()) {
+            $plugin = $this->normalizePluginName((string)($row['modulname'] ?? ''));
+            if ($plugin === '') {
+                continue;
+            }
+
+            $links = array_map('trim', explode(',', (string)($row['index_link'] ?? '')));
+            $links = array_values(array_filter($links, static fn($v) => $v !== ''));
+
+            if ($site === $plugin || in_array($site, $links, true)) {
+                return $plugin;
+            }
+        }
+
+        return $this->normalizePluginName($site);
+    }
+
+    private function normalizePluginName(string $plugin): string
+    {
+        return trim($plugin, " \t\n\r\0\x0B,");
     }
 
     /* =========================
@@ -245,24 +303,24 @@ public static function isActive(string $pluginName): bool
         global $_database;
 
         $stmt = $_database->prepare("SELECT modulname FROM settings_plugins WHERE modulname = ? LIMIT 1");
-        $key = "footer_easy";
+        $key = "footer";
         $stmt->bind_param("s", $key);
         $stmt->execute();
         $res = $stmt->get_result();
         $row = $res->fetch_assoc();
 
         if (!$row) {
-            echo "Widget 'footer_easy' nicht gefunden.";
+            echo "Widget 'footer' nicht gefunden.";
             return;
         }
 
         $plugin = $row['modulname'];
-        $widget_path = $_SERVER['DOCUMENT_ROOT'] . "/includes/plugins/{$plugin}/widget_footer_easy.php";
+        $widget_path = $_SERVER['DOCUMENT_ROOT'] . "/includes/plugins/{$plugin}/widget_footer.php";
 
         if (file_exists($widget_path)) {
             include $widget_path;
         } else {
-            echo "Widget-Datei widget_footer_easy.php im Plugin {$plugin} nicht gefunden!";
+            echo "Widget-Datei widget_footer.php im Plugin {$plugin} nicht gefunden!";
         }
     }
 }

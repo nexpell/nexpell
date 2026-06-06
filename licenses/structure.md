@@ -23,7 +23,7 @@
 │   ├── /bootstrap/                  # Bootstrap-Framework (lokal eingebunden)
 │   │   ├── /css/                    # Bootstrap-Stylesheets
 │   │   └── /js/                     # Bootstrap-JavaScript
-│   ├── /ckeditor/                   # CKEditor für Rich-Text-Editor-Funktionalität
+│   ├── /js/                         # JavaScript-Komponenten inkl. NxEditor
 │   ├── /cookies/                    # Cookie-Hinweis/Verwaltung (Cookie-Consent)
 │   │   ├──                          # Stylesheets für Cookie-Banner
 │   │   └──                          # JS für Cookie-Funktionalität

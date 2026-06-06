@@ -15,10 +15,20 @@
     echo '<!--Plugin & Widget js END-->' . PHP_EOL;
 ?>
 
+<?php if (!empty($_SESSION['userID'])): ?>
+<script>
+window.nexpellPresence = {
+    enabled: true,
+    endpoint: "/system/user_presence.php",
+    heartbeatMs: 60000
+};
+</script>
+<script src="/components/js/user_presence.js"></script>
+<?php endif; ?>
+
 <!-- ... dein HTML-Header etc. ... -->
 
-<script defer src="/components/ckeditor/ckeditor.js"></script>
-<script defer src="/components/ckeditor/editor-init.js"></script>
+<script defer src="/components/js/nx_editor.js"></script>
 
 <!-- reCAPTCHA Loader -->
 <script src="https://www.google.com/recaptcha/api.js?hl=de" async defer></script>

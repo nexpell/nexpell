@@ -51,6 +51,7 @@ $language_array = array(
     'unknown_location'   => 'Unbekannter Ort',
     'no_about_me'        => 'Keine Informationen über mich.',
     'no_information_about_me' => 'Keine Informationen über mich.',
+    'private_profile_notice' => 'Diese persönlichen Daten sind nur für registrierte Benutzer sichtbar.',
 
     // Abschnitt: Beiträge & Aktivität
     'latest_posts'       => 'Letzte Beiträge',

@@ -1,5 +1,5 @@
 /*!
- * Nexpell Bootstrap 5 Theme – Clean Version
+ * Nexpell Bootstrap 5 Theme - Clean Version
  * 100% Bootstrap 5 Compatible
  * Orange Rebrand + Glass + Darkmode
  */
@@ -70,93 +70,6 @@ a:hover {
     color: #ff9a40;
     text-decoration: underline;
 }
-
-/* ============================================================
-   NAVBAR – ORIGINAL BOOTSTRAP 5
-============================================================ */
-.navbar {
-    background: var(--bs-navbar-bg) !important;
-    backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--bs-border-color);
-}
-
-/* Logo */
-.navbar-brand img {
-    height: 48px;
-    width: auto;
-    object-fit: contain;
-    transition: .25s ease;
-}
-.navbar-brand img:hover {
-    transform: scale(1.05);
-}
-
-/* Nav-Link – clean BS5 */
-.navbar-nav .nav-link {
-    padding: .5rem 1rem;
-    position: relative;
-    display: flex;
-    align-items: center;
-    color: var(--bs-navbar-color) !important;
-    transition: .2s ease;
-}
-
-/* Hover overlay */
-.navbar-nav .nav-link::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: rgba(255,255,255,.08);
-    border-radius: .375rem;
-    opacity: 0;
-    z-index: -1;
-    transition: opacity .25s ease;
-}
-.navbar-nav .nav-link:hover::before,
-.navbar-nav .nav-link.active::before {
-    opacity: 1;
-}
-
-/* Avatar */
-.navbar-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    object-fit: cover;
-}
-
-/* Chevron */
-.dropdown-arrow {
-    margin-left: 6px;
-    opacity: .6;
-    transition: .25s ease;
-}
-.nav-item.dropdown.show .dropdown-arrow {
-    transform: rotate(180deg);
-}
-
-/* ============================================================
-   DROPDOWN – ORIGINAL BS5 ENHANCED
-============================================================ */
-.dropdown-menu {
-    background: var(--bs-dropdown-bg) !important;
-    color: var(--bs-dropdown-color) !important;
-    border-radius: .5rem;
-    border: 1px solid var(--bs-border-color);
-    backdrop-filter: blur(14px);
-    padding: .25rem 0;
-    box-shadow: 0 6px 18px rgba(0,0,0,.15);
-}
-.dropdown-item {
-    color: var(--bs-dropdown-color) !important;
-    padding: .55rem 1rem;
-}
-.dropdown-item:hover {
-    background: rgba(255,140,0,0.15) !important;
-}
-
-/* Remove Bootstrap arrow */
-.dropdown-toggle::after { display: none !important; }
 
 /* ============================================================
    GLASS ELEMENTS

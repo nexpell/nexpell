@@ -7,17 +7,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard setzen, wenn nicht vorhanden
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// Initialisieren
-global $languageService;
-$lang = $languageService->detectLanguage();
-$languageService = new LanguageService($_database);
-
-// Admin-Modul laden
-$languageService->readModule('user_roles', true);
-
 use nexpell\LoginSecurity;
 use nexpell\Email;
 use nexpell\AccessControl;
@@ -29,6 +18,39 @@ $action = $_GET['action'] ?? '';
 require_once "../system/config.inc.php";
 require_once "../system/functions.php";
 
+$getLocalizedText = static function (?string $raw) use ($languageService): string {
+    $raw = trim((string)$raw);
+    if ($raw === '') {
+        return '';
+    }
+
+    $currentLang = method_exists($languageService, 'detectLanguage')
+        ? (string)$languageService->detectLanguage()
+        : (string)($_SESSION['language'] ?? 'de');
+
+    $extract = static function (string $text, string $lang): string {
+        $pattern = '/\[\[lang:' . preg_quote($lang, '/') . '\]\](.*?)(?=\[\[lang:|$)/si';
+        if (preg_match($pattern, $text, $match)) {
+            return trim((string)$match[1]);
+        }
+        return '';
+    };
+
+    $localized = $extract($raw, $currentLang);
+    if ($localized !== '') {
+        return $localized;
+    }
+
+    foreach (['de', 'en', 'it'] as $fallbackLang) {
+        $fallbackText = $extract($raw, $fallbackLang);
+        if ($fallbackText !== '') {
+            return $fallbackText;
+        }
+    }
+
+    return $raw;
+};
+
 if ($action == "edit_role_rights") {
  
 // CSRF-Token generieren
@@ -37,9 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && !isset($_SESSION['csrf_token'])) {
 }
 
 // Überprüfen, ob der Benutzer berechtigt ist
-if (!$userID || !checkUserRoleAssignment($userID)) {
-    die('<div class="alert alert-danger" role="alert">' . $languageService->get('no_role_assigned') . '</div>');
-}
+if (!$userID || !checkUserRoleAssignment($userID)) nx_redirect('/admin/admincenter.php?site=user_roles&action=roles', 'danger', 'alert_no_role_assigned', false);
 
 $categoryRights = [];
 $moduleRights = [];
@@ -47,9 +67,38 @@ $moduleRights = [];
 if (isset($_GET['roleID'])) {
     $roleID = (int)$_GET['roleID'];
 
-    // Modul-Liste abrufen
+    $currentLang = method_exists($languageService, 'detectLanguage')
+        ? (string)$languageService->detectLanguage()
+        : (string)($_SESSION['language'] ?? 'de');
+    $currentLangEsc = escape($currentLang);
+
+    // Modul-Liste abrufen (multilang-first, mit Legacy-Fallback)
     $modules = [];
-    $result = safe_query("SELECT linkID, catID, modulname, name FROM navigation_dashboard_links ORDER BY sort ASC");
+    $hasLinkNameColumn = false;
+    $nameColumnCheck = safe_query("SHOW COLUMNS FROM navigation_dashboard_links LIKE 'name'");
+    if ($nameColumnCheck && mysqli_num_rows($nameColumnCheck) > 0) {
+        $hasLinkNameColumn = true;
+    }
+    if ($hasLinkNameColumn) {
+        $result = safe_query("
+            SELECT l.linkID, l.catID, l.modulname, COALESCE(ld.content, l.name, l.modulname) AS name
+            FROM navigation_dashboard_links l
+            LEFT JOIN navigation_dashboard_lang ld
+              ON ld.content_key = CONCAT('nav_link_', l.linkID)
+             AND ld.language = '" . $currentLangEsc . "'
+            ORDER BY l.sort ASC
+        ");
+    } else {
+        $result = safe_query("
+            SELECT l.linkID, l.catID, l.modulname, COALESCE(ld.content, l.modulname) AS name
+            FROM navigation_dashboard_links l
+            LEFT JOIN navigation_dashboard_lang ld
+              ON ld.content_key = CONCAT('nav_link_', l.linkID)
+             AND ld.language = '" . $currentLangEsc . "'
+            ORDER BY l.sort ASC
+        ");
+    }
+
     if (!$result) {
         die($languageService->get('error_fetching_modules') . ": " . $_database->error);
     }
@@ -66,7 +115,30 @@ if (isset($_GET['roleID'])) {
 
     // Kategorie-Liste abrufen
     $categories = [];
-    $result = safe_query("SELECT catID, name, modulname FROM navigation_dashboard_categories ORDER BY sort ASC");
+    $hasCategoryNameColumn = false;
+    $catNameColumnCheck = safe_query("SHOW COLUMNS FROM navigation_dashboard_categories LIKE 'name'");
+    if ($catNameColumnCheck && mysqli_num_rows($catNameColumnCheck) > 0) {
+        $hasCategoryNameColumn = true;
+    }
+    if ($hasCategoryNameColumn) {
+        $result = safe_query("
+            SELECT c.catID, c.modulname, COALESCE(cl.content, c.name, c.modulname) AS name
+            FROM navigation_dashboard_categories c
+            LEFT JOIN navigation_dashboard_lang cl
+              ON cl.content_key = CONCAT('nav_cat_', c.catID)
+             AND cl.language = '" . $currentLangEsc . "'
+            ORDER BY c.sort ASC
+        ");
+    } else {
+        $result = safe_query("
+            SELECT c.catID, c.modulname, COALESCE(cl.content, c.modulname) AS name
+            FROM navigation_dashboard_categories c
+            LEFT JOIN navigation_dashboard_lang cl
+              ON cl.content_key = CONCAT('nav_cat_', c.catID)
+             AND cl.language = '" . $currentLangEsc . "'
+            ORDER BY c.sort ASC
+        ");
+    }
     if (!$result) {
         die($languageService->get('error_fetching_categories') . ": " . $_database->error);
     }
@@ -88,395 +160,884 @@ if (isset($_GET['roleID'])) {
     }
 
     // Rechte speichern (POST)
+    // Rechte speichern (POST)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['roleID'], $_POST['save_rights'])) {
-        if ($_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            die('<div class="alert alert-danger" role="alert">' . $languageService->get('invalid_csrf') . '</div>');
+
+        if (!hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'] ?? '')) {
+            nx_redirect('/admin/admincenter.php?site=user_roles&action=roles', 'danger', 'alert_invalid_csrf', false);
         }
 
         $roleID = (int)$_POST['roleID'];
-
-        // 🔹 Alte Rechte dieser Rolle löschen
-        safe_query("DELETE FROM user_role_admin_navi_rights WHERE roleID = $roleID");
-
-        // 🔹 Module (Links) speichern
-        $grantedModules = array_unique($_POST['modules'] ?? []); // Duplikate entfernen
-        foreach ($grantedModules as $modulname) {
-            $modulnameEscaped = $_database->real_escape_string($modulname);
-            $query = "
-                INSERT IGNORE INTO user_role_admin_navi_rights (roleID, type, modulname)
-                VALUES ($roleID, 'link', '$modulnameEscaped')
-            ";
-            safe_query($query);
+        if ($roleID <= 0) {
+            nx_redirect('/admin/admincenter.php?site=user_roles&action=roles', 'danger', 'alert_invalid_id', false);
         }
 
-        // 🔹 Kategorien speichern
-        $grantedCategories = array_unique($_POST['category'] ?? []); // Duplikate entfernen
-        foreach ($grantedCategories as $modulname) {
-            $modulnameEscaped = $_database->real_escape_string($modulname);
-            $query = "
-                INSERT IGNORE INTO user_role_admin_navi_rights (roleID, type, modulname)
-                VALUES ($roleID, 'category', '$modulnameEscaped')
-            ";
-            safe_query($query);
+        // Reset
+        safe_query("DELETE FROM user_role_admin_navi_rights WHERE roleID = {$roleID}");
+
+        $modules   = array_unique($_POST['modules'] ?? []);
+        $categories = array_unique($_POST['category'] ?? []);
+
+        /* ============================================================
+           LINKS speichern + Kategorien automatisch sammeln
+        ============================================================ */
+
+        foreach ($modules as $mod) {
+            $mod = $_database->real_escape_string($mod);
+
+            safe_query("
+                INSERT IGNORE INTO user_role_admin_navi_rights
+                (roleID, type, modulname)
+                VALUES ({$roleID}, 'link', '{$mod}')
+            ");
+
+            $res = safe_query("
+                SELECT c.modulname
+                FROM navigation_dashboard_links l
+                JOIN navigation_dashboard_categories c ON c.catID = l.catID
+                WHERE l.modulname = '{$mod}'
+                LIMIT 1
+            ");
+
+            if ($row = mysqli_fetch_assoc($res)) {
+                $categories[] = $row['modulname'];
+            }
         }
 
-        // ✅ Erfolgsmeldung & Redirect
-        $_SESSION['success_message'] = $languageService->get('rights_updated');
-        header("Location: /admin/admincenter.php?site=user_roles&action=roles");
-        exit;
+        /* ============================================================
+           Kategorien speichern (manuell + automatisch)
+        ============================================================ */
+
+        foreach (array_unique($categories) as $cat) {
+            $cat = $_database->real_escape_string($cat);
+
+            safe_query("
+                INSERT IGNORE INTO user_role_admin_navi_rights
+                (roleID, type, modulname)
+                VALUES ({$roleID}, 'category', '{$cat}')
+            ");
+        }
+
+        nx_audit_update(
+            'user_roles',
+            (string)$roleID,
+            true,
+            null,
+            '/admin/admincenter.php?site=user_roles&action=roles',
+            [
+                'modules'    => count($modules),
+                'categories' => count(array_unique($categories))
+            ]
+        );
+
+        nx_redirect('/admin/admincenter.php?site=user_roles&action=roles', 'success', 'alert_rights_updated', false);
     }
 
 }
-
 ?>
+    <!-- Seitenkopf -->
+    <form method="post" id="rightsForm">
+        <input type="hidden" name="roleID" value="<?= $roleID ?>">
+        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token']; ?>">
 
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-paragraph"></i> <?= $languageService->get('regular_users') ?>
-    </div>
-
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a></li>
-            <li class="breadcrumb-item active" aria-current="page"><?= $languageService->get('edit_role_rights') ?></li>
-        </ol>
-    </nav>
-
-    <div class="card-body">
-        <div class="container py-5">
-            <h4 class="mb-4"><i class="bi bi-shield-lock"></i> <?= $languageService->get('edit_role_rights') ?></h4>
-
-            <p class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                Auf dieser Seite kannst du die <strong>Admincenter-Berechtigungen</strong> für eine bestimmte Benutzerrolle festlegen.
-                <br>
-                Jede Kategorie entspricht einem Bereich im Admincenter-Menü (z. B. „System & Einstellungen“, „Webinhalte“, „Plugins & Erweiterungen“).
-                <br>
-                Unter jeder Kategorie findest du die zugehörigen Module, die du individuell aktivieren oder deaktivieren kannst.
-                <br>
-                <small>
-                    Aktivierte Rechte bestimmen, welche Seiten und Module Benutzer mit dieser Rolle im Adminbereich sehen und aufrufen dürfen.
-                    <br>
-                    Aktiviere die Checkboxen, um Zugriff zu gewähren. Benutzer mit dieser Rolle sehen dann nur die ausgewählten Bereiche. 
-                </small>
-            </p>
-
-            <form method="post">
-                <input type="hidden" name="roleID" value="<?= $roleID ?>">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token']; ?>">
-
-                <?php foreach ($categories as $cat): ?>
-                    <?php
-                    $translate = new multiLanguage($lang);
-                    $translate->detectLanguages($cat['name']);
-                    $catTitle = $translate->getTextByLanguage($cat['name']);
-                    $catKey   = $cat['modulname'];
-                    $catID    = (int)$cat['catID'];
-                    $catModules = $modulesByCategory[$catID] ?? [];
-                    ?>
-
-                    <div class="card mb-4 shadow-sm border-0">
-                        <div class="card-header bg-light d-flex align-items-center">
-                            <input class="form-check-input me-2" type="checkbox"
-                                   name="category[]" id="cat_<?= $catID ?>"
-                                   value="<?= htmlspecialchars($catKey) ?>"
-                                   <?= in_array($catKey, $categoryRights) ? 'checked' : '' ?>>
-                            <label class="form-check-label fw-bold" for="cat_<?= $catID ?>">
-                                <?= htmlspecialchars($catTitle) ?>
-                            </label>
+        <div class="row g-4">
+            <!-- Rechte -->
+            <div class="col-12 col-lg-8">
+                <div class="card shadow-sm border-0 mb-4 mt-3">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="bi bi-person-gear"></i>
+                            <span><?= $languageService->get('role_rights') ?></span>
+                            <small class="small-muted"><?= $languageService->get('edit_role_rights') ?></small>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info d-flex gap-3 align-items-start mb-3" role="alert">
+                            <i class="bi bi-info-circle-fill fs-5"></i>
+                            <div class="small">
+                                <div class="fw-semibold mb-1"><?= $languageService->get('admin_rights_per_role') ?></div>
+                                <?= $languageService->get('admin_rights_per_role_info') ?>
+                            </div>
                         </div>
 
-                        <?php if (!empty($catModules)): ?>
-                            <div class="card-body p-0">
-                                <table class="table table-striped mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th style="width:70%"><?= $languageService->get('module') ?></th>
-                                            <th style="width:30%"><?= $languageService->get('access') ?></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                    <?php foreach ($catModules as $mod):
-                                        $translate->detectLanguages($mod['name']);
-                                        $modTitle = $translate->getTextByLanguage($mod['name']);
-                                    ?>
-                                        <tr>
-                                            <td class="ps-4"><?= htmlspecialchars($modTitle) ?></td>
-                                            <td>
-                                                <input class="form-check-input me-2" type="checkbox" name="modules[]"
-                                                       value="<?= htmlspecialchars($mod['modulname']) ?>"
-                                                       <?= in_array($mod['modulname'], $moduleRights) ? 'checked' : '' ?>>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            <div class="card-body text-muted small fst-italic">
-                                <?= $languageService->get('no_modules_in_category') ?? 'Keine Module in dieser Kategorie' ?>
-                            </div>
-                        <?php endif; ?>
+                        <div class="accordion rightsAccordion" id="rightsAccordion">
+                            <?php foreach ($categories as $cat): ?>
+                                <?php
+                                $catTitle = $getLocalizedText((string)($cat['name'] ?? ''));
+                                $catKey   = $cat['modulname'];
+                                $catID    = (int)$cat['catID'];
+                                $catModules = $modulesByCategory[$catID] ?? [];
+
+                                $totalModules = count($catModules);
+                                $selectedModules = 0;
+                                if ($totalModules > 0) {
+                                    foreach ($catModules as $m0) {
+                                        if (in_array($m0['modulname'], $moduleRights, true)) $selectedModules++;
+                                    }
+                                }
+                                $catChecked = in_array($catKey, $categoryRights, true);
+                                $statusText = $languageService->get('inactive');
+                                $statusClass = 'text-bg-secondary';
+
+                                if ($totalModules === 0) {
+                                    if ($catChecked) {
+                                        $statusText  = $languageService->get('active');
+                                        $statusClass = 'text-bg-success';
+                                    }
+                                } else {
+                                    if ($selectedModules === 0) {
+                                        $statusText  = $languageService->get('inactive');
+                                        $statusClass = 'text-bg-secondary';
+                                    } elseif ($selectedModules === $totalModules) {
+                                        $statusText  = $languageService->get('active');
+                                        $statusClass = 'text-bg-success';
+                                    } else {
+                                        $statusText  = $languageService->get('partly_active');
+                                        $statusClass = 'text-bg-warning';
+                                    }
+                                }
+                                ?>
+                                <div class="accordion-item border-0 shadow-sm mb-3" data-category="<?= $catID ?>">
+                                    <h2 class="accordion-header" id="heading_<?= $catID ?>">
+                                        <button class="accordion-button collapsed" type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#collapse_<?= $catID ?>"
+                                                aria-expanded="false"
+                                                aria-controls="collapse_<?= $catID ?>">
+                                            <div class="d-flex align-items-center justify-content-between w-100 gap-3">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    <input class="form-check-input mt-0 category-checkbox"
+                                                        type="checkbox"
+                                                        name="category[]"
+                                                        id="cat_<?= $catID ?>"
+                                                        value="<?= htmlspecialchars($catKey) ?>"
+                                                        <?= $catChecked ? 'checked' : '' ?>
+                                                        onclick="event.stopPropagation();">
+                                                    <label class="form-check-label fw-semibold" for="cat_<?= $catID ?>" onclick="event.stopPropagation();">
+                                                        <?= htmlspecialchars($catTitle) ?>
+                                                    </label>
+                                                </div>
+
+                                                <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                                                    <span class="badge text-bg-light border">
+                                                        <span class="cat-count" data-selected="<?= (int)$selectedModules ?>" data-total="<?= (int)$totalModules ?>">
+                                                            <?= (int)$selectedModules ?>/<?= (int)$totalModules ?>
+                                                        </span>
+                                                        <?= $languageService->get('modules') ?>
+                                                    </span>
+                                                    <span class="badge <?= $statusClass ?> cat-status">
+                                                        <?= htmlspecialchars($statusText) ?>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </h2>
+
+                                    <div id="collapse_<?= $catID ?>" class="accordion-collapse collapse" aria-labelledby="heading_<?= $catID ?>" data-bs-parent="#rightsAccordion">
+                                        <div class="accordion-body pt-3">
+                                            <?php if (!empty($catModules)): ?>
+                                                <div class="row g-2 module-grid" data-category="<?= $catID ?>">
+                                                    <?php foreach ($catModules as $mod):
+                                                        $modTitle = $getLocalizedText((string)($mod['name'] ?? ''));
+                                                        $modKey = $mod['modulname'];
+                                                        $isChecked = in_array($modKey, $moduleRights, true);
+                                                    ?>
+                                                        <div class="col-12 col-md-6 col-xl-4 module-item">
+                                                            <label class="d-flex align-items-start gap-2 p-2 w-100 h-100 module-card">
+                                                                <input class="form-check-input mt-1 module-checkbox"
+                                                                    type="checkbox"
+                                                                    name="modules[]"
+                                                                    value="<?= htmlspecialchars($modKey) ?>"
+                                                                    <?= $isChecked ? 'checked' : '' ?>
+                                                                    data-category="<?= $catID ?>">
+                                                                <span class="small">
+                                                                    <span class="fw-semibold module-title"><?= htmlspecialchars($modTitle) ?></span>
+                                                                    <span class="d-block text-muted" style="font-size:.75rem; line-height:1.2;">
+                                                                        <?= htmlspecialchars($modKey) ?>
+                                                                    </span>
+                                                                </span>
+                                                            </label>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </div>
+                                            <?php else: ?>
+                                                <div class="text-muted small fst-italic">
+                                                    <?= $languageService->get('no_modules_in_category') ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 border-top pt-3 mt-4">
+                            <button type="submit" name="save_rights" class="btn btn-primary">
+                                <?= $languageService->get('save') ?>
+                            </button>
+                        </div>
                     </div>
-                <?php endforeach; ?>
+                </div>
+            </div>
+            <div class="col-12 col-lg-4">
+            <!-- Suche -->
+            <div class="card shadow-sm border-0 mb-4 mt-3">
+                <div class="card-header">
+                    <div class="card-title">
+                        <i class="bi bi-search"></i>
+                        <span><?= $languageService->get('search') ?></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="vstack gap-3">
 
-                <button type="submit" name="save_rights" class="btn btn-warning mt-3">
-                    <i class="bi bi-save"></i> <?= $languageService->get('save_rights') ?>
-                </button>
-            </form>
+                        <div class="border rounded-3 p-3 bg-body-tertiary">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-12">
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text"
+                                            class="form-control"
+                                            id="moduleSearch"
+                                            placeholder="<?= $languageService->get('search') ?>">
+                                    </div>
+                                    <div class="form-text mb-0">
+                                        <?= $languageService->get('search_catg_info') ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
-
+                        <div class="p-3">
+                            <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-lg-between gap-2">
+                                <div class="d-flex flex-wrap justify-content-lg-start gap-2">
+                                    <button type="button" class="btn btn-secondary" id="selectVisible">
+                                        <i class="bi bi-check2-square"></i> <?= $languageService->get('select_visible') ?>
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="clearVisible">
+                                        <i class="bi bi-square"></i> <?= $languageService->get('clear_visible') ?>
+                                    </button>
+                                </div>
+                                <div class="d-flex flex-wrap justify-content-lg-end gap-2">
+                                    <button type="button" class="btn btn-secondary" id="expandAll">
+                                        <i class="bi bi-arrow-bar-down"></i> <?= $languageService->get('expand_all') ?>
+                                    </button>
+                                    <button type="button" class="btn btn-secondary" id="collapseAll">
+                                        <i class="bi bi-arrow-bar-up"></i> <?= $languageService->get('collapse_all') ?>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         </div>
     </div>
 </div>
+</form>
+
+<style>
+/* Kompaktere Cards im Rechte-Grid */
+.module-card { background: #fff; }
+.module-card:hover { background: rgba(0,0,0,.02); }
+.rightsAccordion .accordion-button { gap: .5rem; }
+.rightsAccordion .accordion-button .form-check-input { transform: translateY(1px); }
+</style>
+
 <script>
-document.querySelectorAll('input[name="category[]"]').forEach(catCheckbox => {
-    catCheckbox.addEventListener('change', () => {
-        const card = catCheckbox.closest('.card');
-        card.querySelectorAll('input[name="modules[]"]').forEach(mod => {
-            mod.checked = catCheckbox.checked;
+(function () {
+    const moduleSearch = document.getElementById('moduleSearch');
+    const selectVisible = document.getElementById('selectVisible');
+    const clearVisible = document.getElementById('clearVisible');
+    const expandAll = document.getElementById('expandAll');
+    const collapseAll = document.getElementById('collapseAll');
+
+    const categoryItems = Array.from(document.querySelectorAll('[data-category]'));
+    const categoryCheckboxes = Array.from(document.querySelectorAll('.category-checkbox'));
+    const moduleCheckboxes = Array.from(document.querySelectorAll('.module-checkbox'));
+
+    function updateCategoryState(catID) {
+        const catBox = document.querySelector('#cat_' + catID);
+        const catItem = document.querySelector('.accordion-item[data-category="' + catID + '"]');
+        const statusBadge = catItem ? catItem.querySelector('.cat-status') : null;
+        const countEl = catItem ? catItem.querySelector('.cat-count') : null;
+
+        const mods = moduleCheckboxes.filter(m => String(m.dataset.category) === String(catID));
+        const total = mods.length;
+        const selected = mods.filter(m => m.checked).length;
+
+        if (total > 0) {
+            if (selected === 0) {
+                catBox.checked = false;
+                catBox.indeterminate = false;
+            } else if (selected === total) {
+                catBox.checked = true;
+                catBox.indeterminate = false;
+            } else {
+                catBox.checked = false;
+                catBox.indeterminate = true;
+            }
+        }
+
+        if (statusBadge) {
+            const tActive = '<?= addslashes($languageService->get('active')) ?>';
+            const tInactive = '<?= addslashes($languageService->get('inactive')) ?>';
+            const tPartial = '<?= addslashes($languageService->get('partly_active')) ?>';
+
+            statusBadge.classList.remove('text-bg-success', 'text-bg-secondary', 'text-bg-warning');
+
+            if (total === 0) {
+                if (catBox.checked) {
+                statusBadge.classList.add('text-bg-success');
+                statusBadge.textContent = tActive;
+                } else {
+                statusBadge.classList.add('text-bg-secondary');
+                statusBadge.textContent = tInactive;
+                }
+            } else if (selected === 0) {
+                statusBadge.classList.add('text-bg-secondary');
+                statusBadge.textContent = tInactive;
+            } else if (selected === total) {
+                statusBadge.classList.add('text-bg-success');
+                statusBadge.textContent = tActive;
+            } else {
+                statusBadge.classList.add('text-bg-warning');
+                statusBadge.textContent = tPartial;
+            }
+        }
+        if (countEl) {
+            countEl.textContent = selected + '/' + total;
+            countEl.dataset.selected = selected;
+            countEl.dataset.total = total;
+        }
+    }
+
+    // Kategorie -> alle Module in dieser Kategorie toggeln
+    categoryCheckboxes.forEach(catCheckbox => {
+        catCheckbox.addEventListener('change', () => {
+            const catID = catCheckbox.id.replace('cat_', '');
+            const mods = moduleCheckboxes.filter(m => String(m.dataset.category) === String(catID));
+            mods.forEach(m => { m.checked = catCheckbox.checked; });
+            catCheckbox.indeterminate = false;
+            updateCategoryState(catID);
         });
     });
-});
+
+    // Module -> Kategorie-State aktualisieren
+    moduleCheckboxes.forEach(mod => {
+        mod.addEventListener('change', () => {
+            updateCategoryState(mod.dataset.category);
+        });
+    });
+
+    // Initial states
+    const catIDs = new Set(moduleCheckboxes.map(m => m.dataset.category));
+    catIDs.forEach(id => updateCategoryState(id));
+
+    // Suche: Module/Kategorien filtern
+    moduleSearch?.addEventListener('input', () => {
+        const q = (moduleSearch.value || '').trim().toLowerCase();
+
+        document.querySelectorAll('.accordion-item[data-category]').forEach(catItem => {
+            const catId = catItem.getAttribute('data-category');
+
+            // Kategorie-Titel (Label-Text)
+            const catLabel = catItem.querySelector('label.form-check-label');
+            const catText = (catLabel?.textContent || '').trim().toLowerCase();
+            const catMatches = q !== '' && catText.includes(q);
+
+            // Module dieser Kategorie
+            const moduleItems = Array.from(catItem.querySelectorAll('.module-item'));
+            let anyModuleVisible = false;
+
+            moduleItems.forEach(mi => {
+                const t = (mi.textContent || '').trim().toLowerCase();
+
+                // Wenn Kategorie matched -> alle Module sichtbar, sonst nur Module die selbst matchen
+                const show = (q === '') || catMatches || t.includes(q);
+                mi.style.display = show ? '' : 'none';
+                if (show) anyModuleVisible = true;
+            });
+
+            // Kategorie anzeigen, wenn:
+            // - keine Suche (q leer) oder
+            // - Kategorie matched oder
+            // - mindestens ein Modul sichtbar ist
+            const showCategory = (q === '') || catMatches || anyModuleVisible;
+            catItem.style.display = showCategory ? '' : 'none';
+
+            // Bei aktiver Suche passende Kategorien automatisch aufklappen
+            const collapseEl = catItem.querySelector('.accordion-collapse');
+            if (collapseEl) {
+                const c = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+                if (q !== '' && showCategory) c.show();
+                if (q === '') c.hide(); // optional: zurück in “zugeklappt”
+            }
+        });
+    });
+    // Sichtbare auswählen/abwählen
+    function setVisibleModules(checked) {
+        document.querySelectorAll('.module-item').forEach(item => {
+            if (item.style.display === 'none') return;
+            const cb = item.querySelector('input.module-checkbox');
+            if (cb) cb.checked = checked;
+        });
+
+        // alle Kategorie-States aktualisieren
+        catIDs.forEach(id => updateCategoryState(id));
+    }
+
+    selectVisible?.addEventListener('click', () => setVisibleModules(true));
+    clearVisible?.addEventListener('click', () => setVisibleModules(false));
+
+    // Expand / Collapse all (Bootstrap Collapse)
+    expandAll?.addEventListener('click', () => {
+        document.querySelectorAll('#rightsAccordion .accordion-collapse').forEach(el => {
+            const c = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+            c.show();
+        });
+    });
+
+    collapseAll?.addEventListener('click', () => {
+        document.querySelectorAll('#rightsAccordion .accordion-collapse').forEach(el => {
+            const c = bootstrap.Collapse.getOrCreateInstance(el, { toggle: false });
+            c.hide();
+        });
+    });
+})();
 </script>
 
 <?php
 
-}elseif ($action === "user_role_details") {
+} 
+elseif ($action === "user_role_details") {
 
-    if (!isset($_GET['userID'])) {
-        echo '<div class="alert alert-warning">Kein Benutzer ausgewählt.</div>';
-        exit;
-    }
+    if (!isset($_GET['userID'])) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_no_user_selected', false);
 
     $userID = (int)$_GET['userID'];
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
     try {
-        // --- Benutzer laden ---
-        $userResult = safe_query("SELECT username FROM users WHERE userID = $userID");
-        if (!mysqli_num_rows($userResult)) {
-            echo '<div class="alert alert-danger">Benutzer nicht gefunden.</div>';
-            exit;
-        }
-        $user = mysqli_fetch_assoc($userResult);
-        $username = htmlspecialchars($user['username']);
+    $userResult = safe_query("SELECT username FROM users WHERE userID = $userID");
+    if (!mysqli_num_rows($userResult)) nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_user_not_found', false);
 
-        // --- Alle Rollen des Benutzers laden ---
-        $rolesResult = safe_query("
-            SELECT r.roleID, r.role_name
-            FROM user_roles r
-            JOIN user_role_assignments ur ON ur.roleID = r.roleID
-            WHERE ur.userID = $userID
-            ORDER BY r.role_name ASC
-        ");
+    $user = mysqli_fetch_assoc($userResult);
+    $username = htmlspecialchars((string)($user['username'] ?? ''));
 
-        if (!mysqli_num_rows($rolesResult)) {
-            echo '<div class="alert alert-info">Dieser Benutzer hat keine Rollen.</div>';
-            $output .= '</div>';
-            exit;
-        }
+    $rolesResult = safe_query("
+        SELECT r.roleID, r.role_name
+        FROM user_roles r
+        JOIN user_role_assignments ur ON ur.roleID = r.roleID
+        WHERE ur.userID = $userID
+        ORDER BY r.role_name ASC
+    ");
 
-        // Sprachsystem vorbereiten
-        if (!isset($lang)) $lang = 'de';
-        if (!class_exists('multiLanguage')) {
-            require_once BASE_PATH . '/system/core/classes/multiLanguage.php';
-        }
-        $translate = new multiLanguage($lang);
+    if (!mysqli_num_rows($rolesResult)) nx_redirect('admincenter.php?site=user_roles', 'info', 'alert_user_no_roles', false);
 
-        $output = '';
-
-        // --- Durch jede Rolle iterieren ---
-        while ($role = mysqli_fetch_assoc($rolesResult)) {
-            $roleID = (int)$role['roleID'];
-            $roleName = htmlspecialchars($role['role_name']);
-            $output .= "<div class='card card-body bg-info-subtle'><h4 class='mt-4'><i class='bi bi-shield-lock'></i> Rolle: {$roleName}</h4>";
-
-            // --- Kategorien + Module dieser Rolle laden ---
-            $rights_query = "
-                SELECT 
-                    c.name AS category_name,
-                    l.name AS module_name,
-                    ar.type,
-                    ar.modulname
-                FROM user_role_admin_navi_rights ar
-                LEFT JOIN navigation_dashboard_links l 
-                    ON LOWER(CONVERT(ar.modulname USING utf8mb4)) COLLATE utf8mb4_general_ci = LOWER(l.modulname)
-                LEFT JOIN navigation_dashboard_categories c 
-                    ON l.catID = c.catID
-                WHERE ar.roleID = $roleID
-                ORDER BY c.sort ASC, l.sort ASC
-            ";
-
-            $rights_result = safe_query($rights_query);
-            if (!mysqli_num_rows($rights_result)) {
-                $output .= '<p class="text-muted fst-italic">Keine Rechte zugewiesen.</p>';
-                $output .= '</div>';
-                continue;
-            }
-
-            // --- Nach Kategorien gruppieren ---
-            $rights = [];
-            while ($r = mysqli_fetch_assoc($rights_result)) {
-                $cat = $r['category_name'] ?: 'Allgemein';
-                $rights[$cat][] = $r;
-                #$output .= '</div>';
-            }
-
-            // --- Darstellung ---
-            foreach ($rights as $catName => $items) {
-                $translate->detectLanguages($catName);
-                $catTitle = htmlspecialchars($translate->getTextByLanguage($catName));
-
-                $output .= '
-                <div class="list-group mb-4 shadow-sm">
-                    <div class="list-group-item bg-secondary text-white d-flex justify-content-between align-items-center">
-
-                        <div><i class="bi bi-folder2-open me-2"></i> ' . $catTitle . '</div>
-                        <small class="text-light">' . count($items) . ' Module</small>
-                    </div>
-                ';
-
-                foreach ($items as $item) {
-                    $modulname = htmlspecialchars($item['modulname']);
-                    $translate->detectLanguages($item['module_name']);
-                    $displayName = htmlspecialchars($translate->getTextByLanguage($item['module_name']));
-
-                    $output .= '
-                    <div class="list-group-item">
-                        <div class="d-flex w-100 justify-content-between">
-                            <p class="mb-1"><i class="bi bi-puzzle"></i> ' . $displayName . '</p>
-                            <small class="text-muted">' . $modulname . '</small>
-                        </div>
-                    </div>
-                    ';
-                }
-
-                $output .= '</div>'; // Ende list-group
-            }
-$output .= '</div>';
-        }
-
-    } catch (Throwable $e) {
-        echo '<div class="alert alert-danger"><b>Datenbankfehler:</b> ' . htmlspecialchars($e->getMessage()) . '</div>';
-        exit;
+    $roles = [];
+    while ($roleRow = mysqli_fetch_assoc($rolesResult)) {
+        $roles[] = $roleRow;
     }
-?>
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-person-badge"></i> Benutzerrechte & Rollen
-    </div>
 
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles">Benutzerrollen</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Rechte des Benutzers</li>
-        </ol>
-    </nav>
+    $roleNamesEscaped = [];
+    foreach ($roles as $r0) {
+        $roleNamesEscaped[] = htmlspecialchars((string)($r0['role_name'] ?? ''));
+    }
+    $rolesText = implode(', ', $roleNamesEscaped);
 
-    <div class="card-body">
-        <div class="container py-4">
-            <h4 class="mb-3"><i class="bi bi-person"></i> Benutzerinfo</h4>
-            <h6><strong>Benutzername:</strong> <?= $username ?></h6>
+    $rolesHtml = '';
 
-            <h6 class="mt-4 mb-3"><i class="bi bi-key"></i> Zugewiesene Rollen & Rechte im Admincenter</h6>
-            <!-- Info-Hinweis -->
-            <div class="alert alert-info d-flex align-items-center mt-3" role="alert">
-                <i class="bi bi-info-circle-fill me-2 fs-5"></i>
-                <div>
-                    Diese Übersicht zeigt alle Rollen und die dazugehörigen Rechte, 
-                    die diesem Benutzer im Admincenter zugewiesen wurden.
+// Durch jede Rolle iterieren
+foreach ($roles as $role) {
+    $roleID   = (int)$role['roleID'];
+    $roleName = htmlspecialchars($role['role_name']);
+    $currentLang = method_exists($languageService, 'detectLanguage')
+        ? (string)$languageService->detectLanguage()
+        : (string)($_SESSION['language'] ?? 'de');
+    $currentLangEsc = escape($currentLang);
+
+    // Rechte dieser Rolle laden (Links + Kategorien)
+    $catOrder     = [];
+    $catTitlesRaw = [];
+    $catModules   = [];
+    $catUnlocked  = [];
+
+    // Link-Rechte (Module)
+    $linkRightsQuery = "
+        SELECT
+            l.catID,
+            COALESCE(c_lang.content, c.name, c.modulname) AS category_name,
+            COALESCE(l_lang.content, l.name, l.modulname) AS module_name,
+            ar.modulname
+        FROM user_role_admin_navi_rights ar
+        JOIN navigation_dashboard_links l
+            ON LOWER(CONVERT(ar.modulname USING utf8mb4)) COLLATE utf8mb4_general_ci = LOWER(l.modulname)
+        LEFT JOIN navigation_dashboard_categories c
+            ON l.catID = c.catID
+        LEFT JOIN navigation_dashboard_lang l_lang
+            ON l_lang.content_key = CONCAT('nav_link_', l.linkID)
+           AND l_lang.language = '" . $currentLangEsc . "'
+        LEFT JOIN navigation_dashboard_lang c_lang
+            ON c_lang.content_key = CONCAT('nav_cat_', c.catID)
+           AND c_lang.language = '" . $currentLangEsc . "'
+        WHERE ar.roleID = $roleID AND ar.type = 'link'
+        ORDER BY c.sort ASC, l.sort ASC
+    ";
+    $linkRightsRes = safe_query($linkRightsQuery);
+
+    while ($r = mysqli_fetch_assoc($linkRightsRes)) {
+        $catID = (int)($r['catID'] ?? 0);
+        if (!isset($catTitlesRaw[$catID])) {
+            $catTitlesRaw[$catID] = $r['category_name'];
+            $catOrder[] = $catID;
+        }
+        $catModules[$catID][] = [
+            'module_name' => $r['module_name'],
+            'modulname'   => $r['modulname'],
+        ];
+    }
+
+    // Kategorienrechte (Kategorie freigeschaltet, ggf. ohne einzelne Module)
+    $catRightsQuery = "
+        SELECT c.catID, COALESCE(c_lang.content, c.name, c.modulname) AS category_name, ar.modulname
+        FROM user_role_admin_navi_rights ar
+        JOIN navigation_dashboard_categories c
+            ON LOWER(CONVERT(ar.modulname USING utf8mb4)) COLLATE utf8mb4_general_ci = LOWER(c.modulname)
+        LEFT JOIN navigation_dashboard_lang c_lang
+            ON c_lang.content_key = CONCAT('nav_cat_', c.catID)
+           AND c_lang.language = '" . $currentLangEsc . "'
+        WHERE ar.roleID = $roleID AND ar.type = 'category'
+        ORDER BY c.sort ASC
+    ";
+    $catRightsRes = safe_query($catRightsQuery);
+
+    while ($r = mysqli_fetch_assoc($catRightsRes)) {
+        $catID = (int)($r['catID'] ?? 0);
+        $catUnlocked[$catID] = true;
+
+        if (!isset($catTitlesRaw[$catID])) {
+            $catTitlesRaw[$catID] = $r['category_name'];
+            $catOrder[] = $catID;
+        }
+    }
+
+    // Wenn keinerlei Rechte vorhanden sind, dennoch eine Info ausgeben
+    $hasAnyRights = (count(array_filter($catModules)) > 0) || !empty($catUnlocked);
+    $rolesHtml .= '
+        <div class="card shadow-sm border-0 mb-4 mt-4">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="bi bi-shield-lock"></i>
+                    <span>' . $languageService->get('role') . ': ' . $roleName . '</span>
+                    <small class="small-muted">' . $languageService->get('role_rights') . '</small>
                 </div>
             </div>
-            <?= $output ?>
+            <div class="card-body">';
 
-            <a href="admincenter.php?site=user_roles&action=admins" class="btn btn-primary mt-4">
-                <i class="bi bi-arrow-left"></i> Zurück
-            </a>
+    if (!$hasAnyRights) {
+        $rolesHtml .= '<div class="alert alert-info mb-0">' . $languageService->get('role_no_rights') . '</div>';
+        $rolesHtml .= '</div></div>';
+        continue;
+    }
+
+    $rolesHtml .= '<div class="accordion rightsAccordion" id="rightsAccordion_' . $roleID . '">';
+
+    // Kategorien in stabiler Reihenfolge
+    $catOrder = array_values(array_unique($catOrder));
+    sort($catOrder);
+
+    foreach ($catOrder as $catID) {
+        $rawTitle = $catTitlesRaw[$catID] ?? 'Allgemein';
+        $catTitle = htmlspecialchars($getLocalizedText((string)$rawTitle));
+
+        $modules = $catModules[$catID] ?? [];
+        $totalModules = count($modules);
+        $badgeModules = ($totalModules > 0)
+            ? ($totalModules . ' Module')
+            : ('0 Module');
+
+        $collapseId = 'collapse_' . $roleID . '_' . $catID;
+        $headingId  = 'heading_'  . $roleID . '_' . $catID;
+
+        $rolesHtml .= '
+            <div class="accordion-item border-0 shadow-sm mb-3">
+                <h2 class="accordion-header" id="' . $headingId . '">
+                    <button class="accordion-button collapsed" type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#' . $collapseId . '"
+                            aria-expanded="false"
+                            aria-controls="' . $collapseId . '">
+                        <div class="d-flex w-100 justify-content-between align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-list"></i>
+                                <span class="fw-semibold">' . $catTitle . '</span>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 ms-auto me-2">
+                                <span class="badge text-bg-light">' . $badgeModules . '</span>
+                            </div>
+                        </div>
+                    </button>
+                </h2>
+                <div id="' . $collapseId . '" class="accordion-collapse collapse"
+                    aria-labelledby="' . $headingId . '"
+                    data-bs-parent="#rightsAccordion_' . $roleID . '">
+                    <div class="accordion-body p-0">';
+
+        if ($totalModules === 0) {
+            $rolesHtml .= '
+                <div class="p-3">
+                    <span class="text-muted fst-italic">' . $languageService->get('no_modules_in_catg') . '</span>
+                </div>';
+        } else {
+            $rolesHtml .= '
+                <div class="row g-2 module-grid" data-category="' . $catID . '">';
+
+            foreach ($modules as $m) {
+                $displayName = htmlspecialchars($getLocalizedText((string)($m['module_name'] ?? '')));
+                $modulname   = htmlspecialchars($m['modulname']);
+
+                $rolesHtml .= '
+                    <div class="col-12 col-md-6 col-xl-4 module-item">
+                        <div class="d-flex align-items-start gap-2 p-2 w-100 h-100 module-card" style="cursor:default;">
+                            <span class="small">
+                                <span class="fw-semibold module-title">' . $displayName . '</span>
+                                <span class="d-block text-muted" style="font-size:.75rem; line-height:1.2;">
+                                    ' . $modulname . '
+                                </span>
+                            </span>
+                        </div>
+                    </div>';
+            }
+            $rolesHtml .= '</div>';
+        }
+        $rolesHtml .= '
+                    </div>
+                </div>
+            </div>';
+    }
+
+    $rolesHtml .= '</div></div></div>';
+}
+    } catch (Throwable $e) {
+        nx_redirect('admincenter.php?site=user_roles', 'danger', 'Error: ' . $e->getMessage(), true, true);
+    }
+?>
+<div class="row g-4">
+    <!-- Linke Info-Card -->
+    <div class="col-12 col-lg-3">
+        <div class="card shadow-sm border-0 mb-4 mt-4">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="bi bi-person"></i>
+                    <span><?=$languageService->get('user_info') ?></span>
+                    <small class="small-muted"><?=$languageService->get('user_roles_and_rights') ?></small>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <span class="fw-semibold"><?=$languageService->get('user') ?>:</span> <?= $username ?>
+                </div>
+
+                <div class="mb-2">
+                    <span class="fw-semibold"><?=$languageService->get('roles') ?>:</span>
+                    <?= ($rolesText !== '' ? $rolesText : '<span class="text-muted">—</span>') ?>
+                </div>
+            </div>
         </div>
+    </div>
+
+    <!-- Rechte-Übersicht rechts -->
+    <div class="col-12 col-lg-9">
+        <?= $rolesHtml ?>
     </div>
 </div>
 
 <?php
 
-      
 } elseif ($action == "admins") {
 
-    // === CSRF-Token generieren ===
+/* =====================================================
+   PATCH A: höchste Rolle korrekt ermitteln
+   ===================================================== */
+
+$currentUserID  = (int)($_SESSION['userID'] ?? 0);
+$currentMaxRole = '';
+
+$resMyRoles = safe_query("
+    SELECT r.role_name
+    FROM user_role_assignments ura
+    INNER JOIN user_roles r ON r.roleID = ura.roleID
+    WHERE ura.userID = $currentUserID
+");
+
+while ($r = mysqli_fetch_assoc($resMyRoles)) {
+    $name = strtolower($r['role_name']);
+
+    if (strpos($name, 'co-admin') !== false || strpos($name, 'coadmin') !== false) {
+        $currentMaxRole = 'co-admin';
+        continue;
+    }
+
+    if (strpos($name, 'admin') !== false) {
+        $currentMaxRole = 'admin';
+        break;
+    }
+}
+
+
+
+    /* =====================================================
+       CSRF
+       ===================================================== */
+
     if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
-    // --- ALLE ROLLEN LÖSCHEN ---
+    /* =====================================================
+       Alle Rollen löschen
+       ===================================================== */
+
     if (isset($_GET['delete_all_roles'])) {
-        $userID = (int)$_GET['delete_all_roles'];
+        $userID = (int)($_GET['delete_all_roles'] ?? 0);
 
         if ($userID > 0) {
             safe_query("DELETE FROM user_role_assignments WHERE userID = $userID");
-            $_SESSION['csrf_success'] = $languageService->get('all_roles_removed_successfully') ?? 'Alle Rollen wurden entfernt.';
-            header("Location: admincenter.php?site=user_roles&action=admins");
-            exit();
-        } else {
-            $_SESSION['csrf_error'] = $languageService->get('invalid_user_id') ?? 'Ungültige Benutzer-ID.';
-            header("Location: admincenter.php?site=user_roles&action=admins");
-            exit();
+            nx_redirect('admincenter.php?site=user_roles&action=admins', 'success', 'alert_all_roles_removed', false);
         }
+
+        nx_audit_action(
+            'user_roles',
+            'audit_action_named',
+            (string)$userID,
+            null,
+            'admincenter.php?site=user_roles&action=admins',
+            ['action' => nx_translate('alert_all_roles_removed')]
+        );
+
+        nx_redirect('admincenter.php?site=user_roles&action=admins', 'danger', 'alert_invalid_user_id', false);
     }
 
-    // --- EINZELNE ROLLE LÖSCHEN ---
+    /* =====================================================
+       Einzelne Rolle löschen
+       ===================================================== */
+
     if (isset($_GET['remove_role'])) {
-        $assignmentID = (int)$_GET['remove_role'];
+        $assignmentID = (int)($_GET['remove_role'] ?? 0);
+
         if ($assignmentID > 0) {
-            // Nexpell verwendet standardmäßig "assignmentID" als Primärschlüssel
             safe_query("DELETE FROM user_role_assignments WHERE assignmentID = $assignmentID");
-            $_SESSION['csrf_success'] = $languageService->get('role_removed_successfully') ?? 'Rolle wurde entfernt.';
-        } else {
-            $_SESSION['csrf_error'] = 'Ungültige Rollen-ID.';
+            nx_redirect('admincenter.php?site=user_roles&action=admins', 'success', 'alert_deleted', false);
         }
-        header("Location: admincenter.php?site=user_roles&action=admins");
-        exit();
+
+        nx_audit_remove(
+            'user_roles',
+            (string)$assignmentID,
+            null,
+            'admincenter.php?site=user_roles&action=admins'
+        );
+
+        nx_redirect('admincenter.php?site=user_roles&action=admins', 'danger', 'alert_invalid_id', false);
     }
 
-    // === POST: Neue Rolle zuweisen ===
+    /* =====================================================
+       POST: Neue Rolle zuweisen
+       ===================================================== */
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // CSRF-Prüfung
-        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            $_SESSION['csrf_error'] = $languageService->get('csrf_error_message') ?? 'CSRF-Token ungültig.';
-            header("Location: admincenter.php?site=user_roles&action=admins");
-            exit();
+
+        if (!hash_equals(
+            (string)($_SESSION['csrf_token'] ?? ''),
+            (string)($_POST['csrf_token'] ?? '')
+        )) {
+            nx_redirect('admincenter.php?site=user_roles&action=admins', 'danger', 'alert_invalid_csrf', false);
         }
 
-        // Rolle zuweisen
         if (isset($_POST['assign_role'])) {
-            $userID = (int)$_POST['user_id'];
-            $roleID = (int)$_POST['role_id'];
 
-            // Prüfen, ob Zuweisung bereits existiert
-            $existing_assignment = safe_query("SELECT * FROM user_role_assignments WHERE userID = '$userID' AND roleID = '$roleID'");
-            if (mysqli_num_rows($existing_assignment) > 0) {
-                $_SESSION['csrf_error'] = $languageService->get('role_already_assigned') ?? 'Diese Rolle wurde bereits zugewiesen.';
-                header("Location: admincenter.php?site=user_roles&action=admins");
-                exit();
+            $userID = (int)($_POST['user_id'] ?? 0);
+            $roleID = (int)($_POST['role_id'] ?? 0);
+
+            if ($userID <= 0 || $roleID <= 0) {
+                nx_redirect('admincenter.php?site=user_roles&action=admins', 'danger', 'alert_invalid_id', false);
             }
 
-            safe_query("INSERT INTO user_role_assignments (userID, roleID) VALUES ('$userID', '$roleID')");
-            $_SESSION['csrf_success'] = $languageService->get('role_assigned_successfully') ?? 'Rolle wurde erfolgreich zugewiesen.';
-            header("Location: admincenter.php?site=user_roles&action=admins");
-            exit();
+            /* =====================================================
+               PATCH B: keine höhere Rolle als eigene vergeben
+               ===================================================== */
+
+$roleName = strtolower($roleRow['role_name']);
+
+$isAdminRole = (
+    strpos($roleName, 'admin') !== false &&
+    strpos($roleName, 'co-admin') === false &&
+    strpos($roleName, 'coadmin') === false
+);
+
+// Co-Admin darf KEIN echtes Admin vergeben
+if ($currentMaxRole === 'co-admin' && $isAdminRole) {
+    nx_redirect(
+        'admincenter.php?site=user_roles&action=admins',
+        'danger',
+        'alert_not_allowed_higher_role',
+        false
+    );
+}
+
+// Kein Admin/Co-Admin darf Admin vergeben
+if ($currentMaxRole === '' && $isAdminRole) {
+    nx_redirect(
+        'admincenter.php?site=user_roles&action=admins',
+        'danger',
+        'alert_not_allowed_higher_role',
+        false
+    );
+}
+
+
+            /* =====================================================
+               bestehende Zuweisung prüfen
+               ===================================================== */
+
+            $existing = safe_query("
+                SELECT 1
+                FROM user_role_assignments
+                WHERE userID = $userID
+                  AND roleID = $roleID
+                LIMIT 1
+            ");
+
+            if (mysqli_num_rows($existing) > 0) {
+                nx_redirect(
+                    'admincenter.php?site=user_roles&action=admins',
+                    'warning',
+                    'alert_role_already_assigned',
+                    false
+                );
+            }
+
+            safe_query("
+                INSERT INTO user_role_assignments (userID, roleID)
+                VALUES ($userID, $roleID)
+            ");
+
+            nx_audit_create(
+                'user_roles',
+                (string)$userID . ':' . (string)$roleID,
+                null,
+                'admincenter.php?site=user_roles&action=admins'
+            );
+
+            nx_redirect(
+                'admincenter.php?site=user_roles&action=admins',
+                'success',
+                'alert_role_assigned',
+                false
+            );
         }
     }
 
-    // === Fehlermeldungen anzeigen ===
-    if (isset($_SESSION['csrf_error'])) {
-        echo '<div class="alert alert-danger" role="alert">' . htmlspecialchars($_SESSION['csrf_error']) . '</div>';
-        unset($_SESSION['csrf_error']);
-    }
-
-    // === Erfolgsmeldungen anzeigen ===
-    if (isset($_SESSION['csrf_success'])) {
-        echo '<div class="alert alert-success" role="alert">' . htmlspecialchars($_SESSION['csrf_success']) . '</div>';
-        unset($_SESSION['csrf_success']);
-    }
+ 
 
 /**
  * Gibt die kombinierten Forumrechte für eine bestimmte Rolle zurück.
@@ -484,7 +1045,7 @@ $output .= '</div>';
  */
 function nx_getForumPermissionsByRole(int $roleID): string
 {
-    global $_database;
+    global $_database, $languageService;
 
     $tables = [
         'plugins_forum_permissions_board',
@@ -504,7 +1065,7 @@ function nx_getForumPermissionsByRole(int $roleID): string
 
     foreach ($tables as $table) {
 
-        // 🛡 Tabelle prüfen
+        // Tabelle prüfen
         $check = $_database->query("SHOW TABLES LIKE '{$table}'");
         if (!$check || $check->num_rows === 0) {
             continue;
@@ -532,480 +1093,469 @@ function nx_getForumPermissionsByRole(int $roleID): string
         }
     }
 
-    // 🔸 Badges
+    // Badges
     $out = [];
+        if ($rights['can_view'])   $out[] = '<span class="badge bg-light text-dark"><i class="bi bi-eye"></i> ' . $languageService->get('forum_right_view') . '</span>';
+        if ($rights['can_read'])   $out[] = '<span class="badge bg-success"><i class="bi bi-book"></i> ' . $languageService->get('forum_right_read') . '</span>';
+        if ($rights['can_post'])   $out[] = '<span class="badge bg-primary"><i class="bi bi-plus-circle"></i> ' . $languageService->get('forum_right_post') . '</span>';
+        if ($rights['can_reply'])  $out[] = '<span class="badge bg-info text-dark"><i class="bi bi-chat"></i> ' . $languageService->get('forum_right_reply') . '</span>';
+        if ($rights['can_edit'])   $out[] = '<span class="badge bg-secondary"><i class="bi bi-pencil"></i> ' . $languageService->get('forum_right_edit') . '</span>';
+        if ($rights['can_delete']) $out[] = '<span class="badge bg-danger"><i class="bi bi-trash"></i> ' . $languageService->get('forum_right_delete') . '</span>';
+        if ($rights['is_mod'])     $out[] = '<span class="badge bg-warning text-dark"><i class="bi bi-shield-lock"></i> ' . $languageService->get('forum_right_moderator') . '</span>';
 
-    if ($rights['can_view'])   $out[] = '<span class="badge bg-light text-dark"><i class="bi bi-eye"></i> Ansicht</span>';
-    if ($rights['can_read'])   $out[] = '<span class="badge bg-success"><i class="bi bi-book"></i> Lesen</span>';
-    if ($rights['can_post'])   $out[] = '<span class="badge bg-primary"><i class="bi bi-plus-circle"></i> Thema</span>';
-    if ($rights['can_reply'])  $out[] = '<span class="badge bg-info text-dark"><i class="bi bi-chat"></i> Antworten</span>';
-    if ($rights['can_edit'])   $out[] = '<span class="badge bg-secondary"><i class="bi bi-pencil"></i> Bearbeiten</span>';
-    if ($rights['can_delete']) $out[] = '<span class="badge bg-danger"><i class="bi bi-trash"></i> Löschen</span>';
-    if ($rights['is_mod'])     $out[] = '<span class="badge bg-warning text-dark"><i class="bi bi-shield-lock"></i> Moderator</span>';
-
-    return !empty($out)
-        ? implode(' ', $out)
-        : '<span class="text-muted">Keine Rechte</span>';
-}
-
-
-
-
+            return !empty($out)
+                ? implode(' ', $out)
+                : '<span class="text-muted">' . $languageService->get('no_rights_at_all') . '</span>';
+        }
     ?>
+    <!-- Rollen zuweisen -->
+    <div class="col-12 mt-4">
+        <div class="card shadow-sm px-3 py-2 mb-3">
+            <form method="post" class="row align-items-end g-3">
 
-    <div class="card">
-        <div class="card-header">
-            <i class="bi bi-paragraph"></i> <?= $languageService->get('regular_users') ?>
-        </div>
+                <!-- Benutzer -->
+                <div class="col-12 col-md-4 col-lg-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="user_id" class="form-label mb-0 small text-muted">
+                            <?= $languageService->get('username') ?>:
+                        </label>
+                        <select
+                            name="user_id"
+                            id="user_id"
+                            class="form-select form-select-sm"
+                            required
+                        >
 
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb t-5 p-2 bg-light">
-                <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a></li>
-                <li class="breadcrumb-item active" aria-current="page"><?= $languageService->get('assign_role_to_user') ?></li>
-            </ol>
-        </nav>
-
-        <div class="card-body">
-            <div class="container py-4">
-                <!-- Benutzerrolle zuweisen -->
-                <h3 class="mb-4"><?= $languageService->get('assign_role_to_user') ?></h3>
-                <form method="post" class="row g-3 mb-5">
-                    <div class="col-auto">
-                        <label for="user_id" class="form-label"><?= $languageService->get('username') ?></label>
-                        <select name="user_id" class="form-select" required>
+                        <option selected><?= $languageService->get('select_user') ?></option>
                             <?php
                             $admins = safe_query("SELECT * FROM users ORDER BY username");
                             while ($admin = mysqli_fetch_assoc($admins)) : ?>
-                                <option value="<?= $admin['userID'] ?>"><?= htmlspecialchars($admin['username']) ?></option>
+                                <option value="<?= $admin['userID'] ?>">
+                                    <?= htmlspecialchars($admin['username']) ?>
+                                </option>
                             <?php endwhile; ?>
                         </select>
                     </div>
+                </div>
 
-                    <div class="col-auto">
-                        <label for="role_id" class="form-label"><?= $languageService->get('role_name') ?></label>
-                        <select name="role_id" class="form-select" required>
-                            <?php
-                            $roles_for_assign = safe_query("SELECT * FROM user_roles WHERE is_active = 1 ORDER BY role_name");
-                            while ($role = mysqli_fetch_assoc($roles_for_assign)) :
-                            ?>
-                                <option value="<?= $role['roleID'] ?>"><?= htmlspecialchars($role['role_name']) ?></option>
+                <!-- Rolle -->
+                <div class="col-12 col-md-4 col-lg-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <label for="role_id" class="form-label mb-0 small text-muted">
+                            <?= $languageService->get('role_name') ?>:
+                        </label>
+                        <select
+                            name="role_id"
+                            id="role_id"
+                            class="form-select form-select-sm"
+                            required
+                        >
+                        <?php
+                        $roles_for_assign = safe_query("
+                            SELECT * FROM user_roles
+                            WHERE is_active = 1
+                            AND (
+                                '$currentMaxRole' = 'admin'
+                                OR (
+                                    '$currentMaxRole' = 'co-admin'
+                                    AND role_name NOT LIKE '%admin%'
+                                )
+                            )
+                            ORDER BY role_name
+                        ");
+
+                        if ($roles_for_assign && mysqli_num_rows($roles_for_assign) > 0):
+                        ?>
+                            <option selected><?= $languageService->get('select_role') ?></option>
+
+                            <?php while ($role = mysqli_fetch_assoc($roles_for_assign)) : ?>
+                                <option value="<?= $role['roleID'] ?>">
+                                    <?= htmlspecialchars($role['role_name']) ?>
+                                </option>
                             <?php endwhile; ?>
+
+                        <?php else: ?>
+                            <option selected disabled>
+                                <?= $languageService->get('not_authorized_to_assign_roles') ?>
+                            </option>
+                        <?php endif; ?>
                         </select>
+
                     </div>
+                </div>
 
-                    <div class="col-auto align-self-end">
-                        <button type="submit" name="assign_role" class="btn btn-primary">
-                            <?= $languageService->get('assign_role_to_user') ?>
-                        </button>
+                <!-- Action -->
+                <div class="col-12 col-md-auto">
+                    <button
+                        type="submit"
+                        name="assign_role"
+                        class="btn btn-secondary btn-sm px-4"
+                    >
+                        <i class="bi bi-person-plus me-1"></i>
+                        <?= $languageService->get('assign_role') ?>
+                    </button>
+                </div>
+
+                <!-- Helper -->
+                <div class="col-12 col-md text-md-end">
+                    <div class="form-text small mb-1">
+                        <?= $languageService->get('assign_role_to_user_info') ?>
                     </div>
-                    <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-                </form>
+                </div>
 
-                <!-- Zuweisungen anzeigen -->
-                <h3 class="mb-4"><?= $languageService->get('available_roles') ?></h3>
-                <table class="table table-bordered table-striped bg-white shadow-sm align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th><?= $languageService->get('username') ?></th>
-                            <th><?= $languageService->get('role_name') ?></th>
-                            <th><?= $languageService->get('forum_permissions') ?? 'Forum-Rechte' ?></th>
-                            <th style="width: 350px"><?= $languageService->get('actions') ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    <?php
-                    // === Benutzer + Rollen laden (auch ohne Rollen) ===
-                    $assignments = safe_query("
-                        SELECT 
-                            u.userID,
-                            u.username,
-                            COALESCE(r.role_name, '') AS role_name,
-                            COALESCE(ura.assignmentID, 0) AS assignID
-                        FROM users u
-                        LEFT JOIN user_role_assignments ura ON u.userID = ura.userID
-                        LEFT JOIN user_roles r ON ura.roleID = r.roleID
-                        ORDER BY u.username ASC, r.role_name ASC
-                    ");
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+            </form>
+        </div>
+    </div>
 
-                    if (!$assignments) {
-                        echo '<tr><td colspan="3" class="text-danger">SQL-Fehler: ' . mysqli_error($_database) . '</td></tr>';
-                    } elseif (mysqli_num_rows($assignments) === 0) {
-                        echo '<tr><td colspan="3" class="text-muted text-center">Keine Benutzer gefunden.</td></tr>';
-                    } else {
-                        $userRoles = [];
-                        while ($row = mysqli_fetch_assoc($assignments)) {
-                            $uid = (int)$row['userID'];
-                            if (!isset($userRoles[$uid])) {
-                                $userRoles[$uid] = [
-                                    'username' => $row['username'],
-                                    'roles' => []
-                                ];
-                            }
-                            if (!empty($row['role_name'])) {
-                                $userRoles[$uid]['roles'][] = [
-                                    'assignID' => (int)$row['assignID'],
-                                    'name' => $row['role_name']
-                                ];
-                            }
-                        }
+    <hr class="my-4">
+    <!-- Übersicht -->
+    <div class="col-12 col-lg-12">
+        <div class="card shadow-sm border-0 mb-4 mt-4">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="bi bi-list-check"></i>
+                    <span><?= $languageService->get('assigned_rights') ?></span>
+                    <small class="small-muted"><?= $languageService->get('user_overview') ?></small>
+                </div>
+            </div>
 
-                        foreach ($userRoles as $userID => $user) {
-                            $username = htmlspecialchars($user['username']);
-                            $roleBadges = [];
+            <div class="card-body">
+                <div class="row g-3 align-items-end mb-3">
+                    <div class="col-12 col-md-3 ms-auto">
+                        <label for="userRoleSearch" class="form-label mb-1"><?= $languageService->get('search') ?></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text"
+                                    class="form-control"
+                                    id="userRoleSearch"
+                                    placeholder="<?= $languageService->get('username') ?> / <?= $languageService->get('role_name') ?>">
+                        </div>
+                    </div>
+                </div>
 
-                            foreach ($user['roles'] as $role) {
-                                $cleanRole = htmlspecialchars($role['name']);
-                                $badge = '<span class="badge bg-secondary">' . $cleanRole . '</span>';
-                                if (stripos($cleanRole, 'admin') !== false) {
-                                    $badge = '<span class="badge bg-danger">' . $cleanRole . '</span>';
-                                    $username = '<strong class="text-danger">' . $username . '</strong>';
-                                } elseif (stripos($cleanRole, 'moderator') !== false) {
-                                    $badge = '<span class="badge bg-warning text-dark">' . $cleanRole . '</span>';
-                                } elseif (stripos($cleanRole, 'editor') !== false || stripos($cleanRole, 'redakteur') !== false) {
-                                    $badge = '<span class="badge bg-info text-dark">' . $cleanRole . '</span>';
+                <div class="table-responsive">
+                    <table class="table" id="userRolesTable">
+                        <thead>
+                            <tr>
+                                <th><?= $languageService->get('username') ?></th>
+                                <th><?= $languageService->get('role_name') ?></th>
+                                <th><?= $languageService->get('forum_permissions') ?></th>
+                                <th class="text-end" style="width: 500px;"><?= $languageService->get('actions') ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php
+                        // Benutzer + Rollen laden (auch ohne Rollen)
+                        $assignments = safe_query("
+                            SELECT 
+                                u.userID,
+                                u.username,
+                                COALESCE(r.role_name, '') AS role_name,
+                                COALESCE(ura.assignmentID, 0) AS assignID
+                            FROM users u
+                            LEFT JOIN user_role_assignments ura ON u.userID = ura.userID
+                            LEFT JOIN user_roles r ON ura.roleID = r.roleID
+                            ORDER BY u.username ASC, r.role_name ASC
+                        ");
+
+                        if (!$assignments) {
+                            echo '<tr><td colspan="4" class="text-danger">SQL-Fehler: ' . mysqli_error($_database) . '</td></tr>';
+                        } elseif (mysqli_num_rows($assignments) === 0) {
+                            echo '<tr><td colspan="4" class="text-muted text-center">' . $languageService->get('user_not_found') . '</td></tr>';
+                        } else {
+                            $userRoles = [];
+                            while ($row = mysqli_fetch_assoc($assignments)) {
+                                $uid = (int)$row['userID'];
+                                if (!isset($userRoles[$uid])) {
+                                    $userRoles[$uid] = [
+                                        'username' => $row['username'],
+                                        'roles' => []
+                                    ];
                                 }
-
-                                // ❌ Einzelne Rolle löschen
-                                $remove = '<a href="admincenter.php?site=user_roles&action=admins&remove_role='
-                                    . intval($role['assignID']) . '&userID=' . $userID . '" '
-                                    . 'class="text-danger ms-1" title="Rolle löschen" '
-                                    . 'onclick="return confirm(\'Rolle ' . $cleanRole . ' wirklich entfernen?\')">'
-                                    . '<i class="bi bi-x-circle"></i></a><br>';
-
-                                $roleBadges[] = $badge . $remove;
+                                if (!empty($row['role_name'])) {
+                                    $userRoles[$uid]['roles'][] = [
+                                        'assignID' => (int)$row['assignID'],
+                                        'name' => $row['role_name']
+                                    ];
+                                }
                             }
 
-                            echo '<tr>';
-                            echo '<td>' . $username . '</td>';
-                            echo '<td>' . (!empty($roleBadges) ? implode(' ', $roleBadges) : '<span class="text-muted">Keine Rollen</span>') . '</td>';
-                            // 🔹 Forum-Rechte anzeigen
-                            echo '<td>';
-                            if (!empty($user['roles'])) {
-                                $forumRights = [];
+                            foreach ($userRoles as $userID => $user) {
+                                $username = htmlspecialchars($user['username']);
+                                $roleBadges = [];
+
                                 foreach ($user['roles'] as $role) {
-                                    $res = safe_query("SELECT roleID FROM user_roles WHERE role_name = '" . escape($role['name']) . "' LIMIT 1");
-                                    if (mysqli_num_rows($res) > 0) {
-                                        $roleRow = mysqli_fetch_assoc($res);
-                                        $forumRights[] = nx_getForumPermissionsByRole((int)$roleRow['roleID']);
+                                    $cleanRole = htmlspecialchars($role['name']);
+                                    $badge = '<span class="badge bg-secondary">' . $cleanRole . '</span>';
+                                    if (stripos($cleanRole, 'admin') !== false) {
+                                        $badge = '<span class="badge bg-danger">' . $cleanRole . '</span>';
+                                        $username = '<strong class="text-danger">' . $username . '</strong>';
+                                    } elseif (stripos($cleanRole, 'moderator') !== false) {
+                                        $badge = '<span class="badge bg-warning text-dark">' . $cleanRole . '</span>';
+                                    } elseif (stripos($cleanRole, 'editor') !== false || stripos($cleanRole, 'redakteur') !== false) {
+                                        $badge = '<span class="badge bg-info text-dark">' . $cleanRole . '</span>';
                                     }
+
+                                    // Einzelne Rolle löschen (Modal)
+                                    $deleteUrl = 'admincenter.php?site=user_roles&action=admins&remove_role=' . intval($role['assignID']) . '&userID=' . $userID;
+                                    $remove = '<a href="#" class="text-danger ms-1" title="Rolle löschen" '
+                                        . 'data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" '
+                                        . 'data-delete-url="' . htmlspecialchars($deleteUrl, ENT_QUOTES, 'UTF-8') . '">' 
+                                        . '<i class="bi bi-x-circle"></i></a><br>';
+
+                                    $roleBadges[] = $badge . $remove;
                                 }
-                                echo implode('<br>', $forumRights);
-                            } else {
-                                echo '<span class="text-muted">Keine</span>';
+
+                                echo '<tr>';
+                                echo '<td>' . $username . '</td>';
+                                echo '<td>' . (!empty($roleBadges) ? implode(' ', $roleBadges) : '<span class="text-muted">' . $languageService->get('no_roles') . '</span>') . '</td>';
+
+                                // Forum-Rechte anzeigen
+                                echo '<td>';
+                                if (!empty($user['roles'])) {
+                                    $forumRights = [];
+                                    foreach ($user['roles'] as $role) {
+                                        $res = safe_query("SELECT roleID FROM user_roles WHERE role_name = '" . escape($role['name']) . "' LIMIT 1");
+                                        if (mysqli_num_rows($res) > 0) {
+                                            $roleRow = mysqli_fetch_assoc($res);
+                                            $forumRights[] = nx_getForumPermissionsByRole((int)$roleRow['roleID']);
+                                        }
+                                    }
+                                    echo implode('<br>', $forumRights);
+                                } else {
+                                    echo '<span class="text-muted">' . $languageService->get('none') . '</span>';
+                                }
+                                echo '</td>';
+
+                                echo '<td class="text-end">';
+                                echo '<a href="admincenter.php?site=user_roles&action=user_role_details&userID=' . $userID . '" class="btn btn-warning d-inline-flex align-items-center gap-1 w-auto me-2"><i class="bi bi-eye"></i> ' . $languageService->get('view_assigned_rights') . '</a>';
+                                echo '<a href="#" class="btn btn-danger d-inline-flex align-items-center gap-1 w-auto" data-bs-toggle="modal" data-bs-target="#confirmDeleteModal" data-delete-url="' . htmlspecialchars('admincenter.php?site=user_roles&action=admins&delete_all_roles=' . $userID, ENT_QUOTES, 'UTF-8') . '"><i class="bi bi-trash3"></i> ' . $languageService->get('remove_all_roles') . '</a>';
+                                echo '</td>';
+                                echo '</tr>';
                             }
-                            echo '</td>';
-                            echo '<td>';
-                            echo '<a href="admincenter.php?site=user_roles&action=user_role_details&userID=' . $userID . '" class="btn btn-warning btn-sm">'
-                                . $languageService->get('view_assigned_rights') . '</a> ';
-                            echo '<a href="admincenter.php?site=user_roles&action=admins&delete_all_roles=' . $userID . '" '
-                                . 'class="btn btn-danger btn-sm" '
-                                . 'onclick="return confirm(\'' . $languageService->get('remove_all_roles_confirm') . '\')">'
-                                . ($languageService->get('remove_all_roles') ?? 'Alle Rollen entfernen') . '</a>';
-                            echo '</td>';
-                            echo '</tr>';
                         }
-                    }
-                    ?>
-                    </tbody>
-                </table>
+                        ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 <?php
 
- // Ende if $action == admins
-
-
-    // Überprüfen, ob die Parameter 'delete_assignment' und 'roleID' in der URL gesetzt sind
-/*if (isset($_GET['delete_assignment']) && isset($_GET['roleID'])) {
-    // Sichere die Parameter und konvertiere sie in Ganzzahlen
-    $userID = (int)$_GET['delete_assignment'];
-    $roleID = (int)$_GET['roleID'];
-
-    // SQL-Abfrage ausführen, um die Zuweisung zu entfernen
-    $result = safe_query("DELETE FROM user_role_assignments WHERE userID = '$userID' AND roleID = '$roleID'");
-
-    // Erfolgreiche Löschung und Weiterleitung
-    if ($result) {
-        $_SESSION['success_message'] = "Rolle erfolgreich entfernt.";
-    } else {
-        $_SESSION['error_message'] = "Fehler beim Entfernen der Rolle.";
-    }
-
-    // Weiterleitung zur Admin-Seite für Benutzerrollen
-    header("Location: admincenter.php?site=user_roles&action=admins");
-    exit();
-}*/
-
-
 } elseif ($action == "roles") {
 
-
-// === Aktivieren/Deaktivieren von Rollen ===
+// Aktivieren/Deaktivieren von Rollen
 if (isset($_GET['toggle_role'])) {
-    $roleID = (int)$_GET['toggle_role'];
+    $roleID = (int)($_GET['toggle_role'] ?? 0);
 
-    // aktuellen Zustand abrufen
     $res = safe_query("SELECT is_active FROM user_roles WHERE roleID = $roleID");
     if ($res && mysqli_num_rows($res) > 0) {
         $row = mysqli_fetch_assoc($res);
-        $newState = ($row['is_active'] == 1) ? 0 : 1;
+        $newState = ((int)($row['is_active'] ?? 0) === 1) ? 0 : 1;
+
         safe_query("UPDATE user_roles SET is_active = $newState WHERE roleID = $roleID");
-
-        $_SESSION['success_message'] = $newState
-            ? $languageService->get('role_activated')
-            : $languageService->get('role_deactivated');
-
-        header("Location: admincenter.php?site=user_roles&action=roles");
-        exit;
+        nx_audit_update('user_roles', (string)$roleID, true, null, 'admincenter.php?site=user_roles&action=roles', ['is_active' => $newState]);
+        nx_redirect('admincenter.php?site=user_roles&action=roles', 'success', $newState ? 'alert_activated' : 'alert_deactivated', false);
     }
-}    
 
+    nx_redirect('admincenter.php?site=user_roles&action=roles', 'danger', 'alert_invalid_id', false);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF-Überprüfung
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $_SESSION['csrf_error'] = $languageService->get('csrf_error_message');
-        header("Location: admincenter.php?site=user_roles"); // Weiterleitung zur vorherigen Seite
-        exit();
-    }
 
-    // Rolle zuweisen
+    if (!hash_equals((string)($_SESSION['csrf_token'] ?? ''), (string)($_POST['csrf_token'] ?? ''))) nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_invalid_csrf', false);
+
     if (isset($_POST['assign_role'])) {
-        $userID = (int)$_POST['user_id'];  // Benutzer-ID
-        $roleID = (int)$_POST['role_id'];  // Rollen-ID
+        $userID = (int)($_POST['user_id'] ?? 0);
+        $roleID = (int)($_POST['role_id'] ?? 0);
 
-        // Überprüfen, ob die Rolle bereits zugewiesen wurde
-        $existing_assignment = safe_query("SELECT * FROM user_role_assignments WHERE userID = '$userID' AND roleID = '$roleID'");
-        if (mysqli_num_rows($existing_assignment) > 0) {
-            $_SESSION['csrf_error'] = $languageService->get('role_already_assigned');
-            header("Location: admincenter.php?site=user_roles");
-            exit();
-        }
+        if ($userID <= 0 || $roleID <= 0) nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_invalid_id', false);
 
-        // Zuweisung in der Tabelle speichern
-        safe_query("INSERT INTO user_role_assignments (userID, roleID) VALUES ('$userID', '$roleID')");
+        $existing = safe_query("SELECT 1 FROM user_role_assignments WHERE userID = $userID AND roleID = $roleID LIMIT 1");
+        if (mysqli_num_rows($existing) > 0) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_role_already_assigned', false);
 
-        // Erfolgsmeldung
-        $_SESSION['success_message'] = $languageService->get('role_assigned_successfully');
-        header("Location: admincenter.php?site=user_roles");
-        exit();
+        safe_query("INSERT INTO user_role_assignments (userID, roleID) VALUES ($userID, $roleID)");
+        nx_audit_create('user_roles', (string)$userID . ':' . (string)$roleID, null, 'admincenter.php?site=user_roles');
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_role_assigned', false);
     }
 }
 
-// Fehler nach CSRF-Überprüfung anzeigen
-if (isset($_SESSION['csrf_error'])): ?>
-    <div class="alert alert-danger" role="alert">
-        <?= htmlspecialchars($_SESSION['csrf_error']) ?>
-    </div>
-    <?php unset($_SESSION['csrf_error']); ?> <!-- Fehlernachricht nach einmaligem Anzeigen entfernen -->
-<?php endif; ?>
+?>
+    <small class="small-muted d-none"><?= $languageService->get('available_roles') ?></small>
+    <!-- Rollenliste -->
+    <style>
+        .role-card .card-title { line-height: 1.2; padding: 0px; }
+        .role-card .role-desc { min-height: 1.25rem; }
+        .role-card .btn { white-space: nowrap; }
+        .role-card .form-switch .form-check-input { cursor: pointer; }
+    </style>
 
-<!-- Erfolgsnachricht anzeigen -->
-<?php if (isset($_SESSION['success_message'])): ?>
-    <div class="alert alert-success" role="alert">
-        <?= htmlspecialchars($_SESSION['success_message']) ?>
-    </div>
-    <?php unset($_SESSION['success_message']); ?> <!-- Erfolgsnachricht nach einmaligem Anzeigen entfernen -->
-<?php endif; ?>
+    <div class="row g-3 mt-3">
+        <?php
+        $roles = safe_query("SELECT * FROM user_roles ORDER BY role_name");
+        while ($role = mysqli_fetch_assoc($roles)) :
+            $roleID = (int)$role['roleID'];
+            $isActive = ((int)$role['is_active'] === 1);
+            $desc = $role['description'] ?? ($role['desciption'] ?? '');
+            $desc = trim((string)$desc);
+            if ($desc === '') {
+                $desc = $languageService->get('no_permissions_defined');
+            }
+        ?>
+            <div class="col-12 col-md-6 col-xl-3 mb-3 mt-3">
+                <div class="card shadow-sm h-100 role-card">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="me-2">
+                                <h5 class="card-title mb-1"><?= htmlspecialchars($role['role_name']) ?></h5>
+                                <div class="text-muted small role-desc"><?= htmlspecialchars($desc) ?></div>
+                            </div>
 
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-paragraph"></i> <?= $languageService->get('regular_users') ?>
-    </div>
+                            <?php if ($isActive): ?>
+                                <span class="badge bg-success role-status-badge">
+                                    <?= $languageService->get('active') ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary role-status-badge">
+                                    <?= $languageService->get('inactive') ?>
+                                </span>
+                            <?php endif; ?>
+                        </div>
 
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a></li>
-            <li class="breadcrumb-item active" aria-current="page"><?= $languageService->get('manage_admin_roles') ?></li>
-        </ol>
-    </nav>
+                        <hr class="my-3">
 
-    <div class="card-body">
-        <div class="container py-5">
-            <h2 class="mb-4"><?= $languageService->get('manage_admin_roles') ?></h2>
+                        <div class="d-flex align-items-center justify-content-between gap-2 mt-auto">
+                            <a href="admincenter.php?site=user_roles&action=edit_role_rights&roleID=<?= $roleID ?>"
+                                class="btn btn-secondary">
+                                <?= $languageService->get('edit') ?>
+                            </a>
 
-            <!-- Rollenliste -->
-            <h3 class="mb-4"><?= $languageService->get('available_roles') ?></h3>
-            <table class="table table-bordered table-striped bg-white shadow-sm">
-                <thead class="table-light">
-                    <tr>
-                        <th><?= $languageService->get('role_name') ?></th>
-                        <th><?= $languageService->get('permissions') ?></th>
-                        <th style="width: 200px"><?= $languageService->get('actions') ?></th>
-                        <th style="width: 150px">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php
-                    $roles = safe_query("SELECT * FROM user_roles ORDER BY role_name");
-                    while ($role = mysqli_fetch_assoc($roles)) : ?>
-                        <tr>
-                            <td><?= htmlspecialchars($role['role_name']) ?></td>
-                            <td><?= htmlspecialchars($role['description'] ?? $languageService->get('no_permissions_defined')) ?></td>
-                            <td>
-                                <a href="admincenter.php?site=user_roles&action=edit_role_rights&roleID=<?= (int)$role['roleID'] ?>" class="btn btn-warning">
-                                    <?= $languageService->get('edit_rights') ?>
-                                </a>
-                            </td>
-                            <td>
-                                <?php if ((int)$role['is_active'] === 1): ?>
-                                    <span class="badge bg-success"><?= $languageService->get('active') ?></span>
-                                    <a href="admincenter.php?site=user_roles&action=roles&toggle_role=<?= (int)$role['roleID'] ?>"
-                                       class="btn btn-outline-danger btn-sm ms-2">
-                                        <i class="bi bi-x-circle"></i> <?= $languageService->get('deactivate') ?>
-                                    </a>
-                                <?php else: ?>
-                                    <span class="badge bg-secondary"><?= $languageService->get('inactive') ?></span>
-                                    <a href="admincenter.php?site=user_roles&action=roles&toggle_role=<?= (int)$role['roleID'] ?>"
-                                       class="btn btn-outline-success btn-sm ms-2">
-                                        <i class="bi bi-check-circle"></i> <?= $languageService->get('activate') ?>
-                                    </a>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endwhile; ?>
-                </tbody>
-            </table>
-        </div>
+                            <div class="form-check form-switch m-0">
+                                <input class="form-check-input"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="roleSwitch<?= $roleID ?>"
+                                        <?= $isActive ? 'checked' : '' ?>
+                                        onclick="window.location.href='admincenter.php?site=user_roles&action=roles&toggle_role=<?= $roleID ?>'">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php endwhile; ?>
     </div>
 </div>
 
 <?php
+    } elseif ($action == "edit_user") {
 
+        // Benutzer-ID aus der URL holen
+        $userID = isset($_GET['userID']) ? intval($_GET['userID']) : 0;
 
-} elseif ($action == "edit_user") {
+        if ($userID > 0) {
+            $result = safe_query("SELECT * FROM users WHERE userID = $userID");
 
-    // Benutzer-ID aus der URL holen
-    $userID = isset($_GET['userID']) ? intval($_GET['userID']) : 0;
+            if ($result && mysqli_num_rows($result) > 0) {
+                $user = mysqli_fetch_assoc($result);
+                $username = (string)($user['username'] ?? '');
+                $email = (string)($user['email'] ?? '');
 
-    if ($userID > 0) {
-        $result = safe_query("SELECT * FROM users WHERE userID = $userID");
-
-        if ($result && mysqli_num_rows($result) > 0) {
-            $user = mysqli_fetch_assoc($result);
-            $username = $user['username'];
-            $email = $user['email'];
-
-            if ($user['is_active'] != 1) {
-                echo "<div class=\"alert alert-warning\" role=\"alert\">Benutzerkonto ist noch nicht aktiviert.</div>";
-                exit();
-            }
-        } else {
-            echo "<div class=\"alert alert-info\" role=\"alert\">Benutzer nicht gefunden.</div>";
-            exit();
-        }
-
-        if (isset($_POST['submit']) || isset($_POST['reset_password'])) {
-            // CSRF-Schutz
-            if (!function_exists('generate_csrf_token') || !function_exists('verify_csrf_token')) {
-                die("CSRF-Funktionen nicht verfügbar. Bitte sicherstellen, dass csrf_helper.php eingebunden ist.");
+                if ((int)($user['is_active'] ?? 0) !== 1) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_user_not_activated', false);
+            } else {
+                nx_redirect('admincenter.php?site=user_roles', 'info', 'alert_user_not_found', false);
             }
 
-            if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
-                die("Ungültiges CSRF-Token.");
+            if (isset($_POST['submit']) || isset($_POST['reset_password'])) {
+
+        // CSRF-Schutz
+        if (!function_exists('generate_csrf_token') || !function_exists('verify_csrf_token')) nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_csrf_functions_missing', false);
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_invalid_csrf', false);
+
+        $username = mysqli_real_escape_string($_database, (string)($_POST['username'] ?? ''));
+        $email = mysqli_real_escape_string($_database, (string)($_POST['email'] ?? ''));
+        $new_password_plain = trim((string)($_POST['password'] ?? ''));
+        $reset_password = isset($_POST['reset_password']) && (string)$_POST['reset_password'] === '1';
+
+        // Seiteneinstellungen
+        $hp_title = get_all_settings('hptitle');
+        $hp_url = get_all_settings('hp_url');
+
+        $send_password = false;
+
+        if ($new_password_plain !== '' || $reset_password) {
+
+            if ($reset_password && $new_password_plain === '') {
+                $new_password_plain = LoginSecurity::generateTemporaryPassword();
+                $send_password = true;
             }
 
-            $username = mysqli_real_escape_string($_database, $_POST['username']);
-            $email = mysqli_real_escape_string($_database, $_POST['email']);
-            $new_password_plain = trim($_POST['password']);
-            $reset_password = isset($_POST['reset_password']) && $_POST['reset_password'] == "1";
+            $new_pepper = LoginSecurity::generateRandomPepper();
+            $pepper_encrypted = LoginSecurity::encryptPepper($new_pepper);
+            $password_hash = password_hash($new_password_plain . $new_pepper, PASSWORD_DEFAULT);
 
-            // Seiteinstellungen
-            $hp_title = get_all_settings('hptitle');
-            $hp_url = get_all_settings('hp_url');
+            $stmt = $_database->prepare("UPDATE users SET username = ?, password_hash = ?, password_pepper = ? WHERE userID = ?");
+            if ($stmt === false) nx_redirect('admincenter.php?site=user_roles', 'danger', 'SQL error: ' . (string)$_database->error, true, true);
 
-            $send_password = false;
+            $stmt->bind_param("sssi", $username, $password_hash, $pepper_encrypted, $userID);
+            $stmt->execute();
 
-            if (!empty($new_password_plain) || $reset_password) {
-                if ($reset_password && empty($new_password_plain)) {
-                    $new_password_plain = LoginSecurity::generateTemporaryPassword();
-                    $send_password = true;
-                }
+            if ($stmt->affected_rows > 0) {
 
-                $new_pepper = LoginSecurity::generateRandomPepper();
-                $pepper_encrypted = LoginSecurity::encryptPepper($new_pepper); // <-- geändert!
-                $password_hash = password_hash($new_password_plain . $new_pepper, PASSWORD_DEFAULT);
-
-                $query = "UPDATE users SET username = ?, email = ?, password_hash = ?, password_pepper = ? WHERE userID = ?";
-                $stmt = $_database->prepare($query);
-
-                if ($stmt === false) {
-                    die("SQL-Fehler: " . $_database->error);
-                }
-
-                $stmt->bind_param("ssssi", $username, $email, $password_hash, $pepper_encrypted, $userID);
-                $stmt->execute();
-
-                if ($stmt->affected_rows > 0) {
-                    $adminID = $_SESSION['userID'];
+                if ($send_password) {
+                    $adminID = (int)($_SESSION['userID'] ?? 0);
                     $admin_query = safe_query("SELECT email, username FROM users WHERE userID = $adminID");
                     $admin = mysqli_fetch_assoc($admin_query);
-                    $admin_email = $admin['email'];
-                    $admin_name = $admin['username'];
+                    $admin_email = (string)($admin['email'] ?? '');
+                    $admin_name = (string)($admin['username'] ?? '');
 
-                    if ($send_password) {
-                        $vars = ['%pagetitle%', '%email%', '%new_password%', '%homepage_url%', '%admin_name%', '%admin_email%'];
-                        $repl = [$hp_title, $email, $new_password_plain, $hp_url, $admin_name, $admin_email];
+                    $vars = ['%pagetitle%', '%email%', '%new_password%', '%homepage_url%', '%admin_name%', '%admin_email%'];
+                    $repl = [$hp_title, $email, $new_password_plain, $hp_url, $admin_name, $admin_email];
 
-                        $subject = str_replace($vars, $repl, $languageService->get('email_subject'));
-                        $message = str_replace($vars, $repl, $languageService->get('email_text'));
+                    $subject = str_replace($vars, $repl, (string)$languageService->get('email_subject'));
+                    $message = str_replace($vars, $repl, (string)$languageService->get('email_text'));
 
-                        $sendmail = Email::sendEmail($admin_email, 'Passwort zurückgesetzt', $email, $subject, $message);
-
-                        if ($sendmail['result'] === 'fail') {
-                            echo generateErrorBoxFromArray($languageService->get('email_failed'), [$sendmail['error']]);
-                        } else {
-                            echo $languageService->get('password_reset_success') ?? 'E-Mail wurde erfolgreich versendet.';
-                        }
-                    }
-
-                    $_SESSION['success_message'] = $languageService->get('password_reset_success') ?? 'Passwort wurde neu gesetzt.';
-                } else {
-                    echo generateErrorBoxFromArray($languageService->get('user_update_failed'), []);
+                    $sendmail = Email::sendEmail($admin_email, (string)$languageService->get('mail_password_reset_subject'), $email, $subject, $message);
+                    if (($sendmail['result'] ?? 'fail') === 'fail') ac_redirect('admincenter.php?site=user_roles', 'danger', 'email_failed', false, true);
                 }
-            } else {
-                $query = "UPDATE users SET username = ?, email = ? WHERE userID = ?";
-                $stmt = $_database->prepare($query);
-
-                if ($stmt === false) {
-                    die("SQL-Fehler: " . $_database->error);
-                }
-
-                $stmt->bind_param("ssi", $username, $email, $userID);
-                $stmt->execute();
-
-                if ($stmt->affected_rows > 0) {
-                    $_SESSION['success_message'] = $languageService->get('user_updated');
-                } else {
-                    $_SESSION['error_message'] = $languageService->get('user_update_failed');
-                }
+                nx_audit_action('user_roles','audit_action_named',(string)$userID,null,'admincenter.php?site=user_roles',['action' => (string)$languageService->get('alert_password_reset')]);
+                nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_password_reset', false);
             }
 
-            header("Location: admincenter.php?site=user_roles");
-            exit();
-        }
+            $stmt->close();
+            nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
 
+        } else {
+
+            $stmt = $_database->prepare("UPDATE users SET username = ? WHERE userID = ?");
+            if ($stmt === false) nx_redirect('admincenter.php?site=user_roles', 'danger', 'SQL error: ' . (string)$_database->error, true, true);
+
+            $stmt->bind_param("si", $username, $userID);
+            $stmt->execute();
+
+            if ($stmt->affected_rows > 0) {
+                nx_audit_update('user_roles', (string)$userID, true, $username, 'admincenter.php?site=user_roles');
+                nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_saved', false);
+            }
+            $stmt->close();
+
+            nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
+        }
+    }
         // HTML-Ausgabe
         $csrf_token = generate_csrf_token();
         ?>
-        <div class="card">
+        <div class="card shadow-sm border-0 mb-4 mt-4">
             <div class="card-header">
-                <i class="bi bi-paragraph"></i> <?= $languageService->get('regular_users') ?>
+                <div class="card-title">
+                    <i class="bi bi-person-circle"></i>
+                    <span><?= $languageService->get('user_info') ?></span>
+                    <small class="small-muted"><?= $languageService->get('user_edit') ?></small>
+                </div>
             </div>
 
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb t-5 p-2 bg-light">
-                    <li class="breadcrumb-item">
-                        <a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page"><?= $languageService->get('user_edit') ?></li>
-                </ol>
-            </nav>
-
             <div class="card-body">
-                <div class="container py-5">
-                    <h2 class="mb-4"><?= $languageService->get('user_edit') ?></h2>
 
                     <form method="post" class="row g-4 align-items-stretch">
                         <input type="hidden" name="userID" value="<?= htmlspecialchars($user['userID']) ?>">
@@ -1018,19 +1568,19 @@ if (isset($_SESSION['csrf_error'])): ?>
 
                         <div class="col-md-6">
                             <label for="email" class="form-label"><?= $languageService->get('email') ?></label>
-                            <input type="email" id="email" name="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" disabled>
+                            <input type="email" id="email" name="email" class="form-control" value="<?= htmlspecialchars($user['email']) ?>" readonly>
                         </div>
 
                         <!-- Manuelles Passwort -->
                         <div class="col-md-6 d-flex flex-column justify-content-between">
                             <div>
-                                <label for="password" class="form-label"><?= $languageService->get('set_password_manually') ?? 'Neues Passwort manuell setzen (optional)' ?></label>
+                                <label for="password" class="form-label"><?= $languageService->get('set_password_manually') ?></label>
                                 <input type="password" id="password" name="password" class="form-control">
                             </div>
                             <div class="alert alert-warning d-flex align-items-center mt-3 mb-0 flex-grow-1" role="alert">
                                 <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
                                 <div>
-                                    <?= $languageService->get('manual_password_info') ?? 'Nur ausfüllen, wenn du selbst ein neues Passwort setzen möchtest.' ?>
+                                    <?= $languageService->get('manual_password_info') ?>
                                 </div>
                             </div>
                         </div>
@@ -1038,178 +1588,127 @@ if (isset($_SESSION['csrf_error'])): ?>
                         <!-- Automatisches Passwort -->
                         <div class="col-md-6 d-flex flex-column justify-content-between">
                             <div>
-                                <label for="password_auto" class="form-label">Neues Passwort automatisch setzen</label>
+                                <label for="password_auto" class="form-label"><?= $languageService->get('new_password_send_auto') ?></label>
                                 <button type="submit" name="reset_password" value="1" class="btn btn-danger w-100"
-                                    onclick="return confirm('<?= $languageService->get('confirm_reset_password') ?? 'Automatisch neues Passwort setzen?' ?>');">
-                                    🔄 <?= $languageService->get('reset_password') ?? 'Passwort automatisch zurücksetzen' ?>
+                                    onclick="return confirm('<?= $languageService->get('confirm_reset_password') ?>');">
+                                    <?= $languageService->get('reset_password') ?>
                                 </button>
                             </div>
                             <div class="alert alert-warning d-flex align-items-center mt-3 mb-0 flex-grow-1" role="alert">
                                 <i class="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
                                 <div>
-                                    Mit dieser Funktion wird automatisch ein neues, zufälliges Passwort für den Benutzer generiert. 
-                                    Das bisherige Passwort wird dabei sofort ungültig. 
-                                    Der Benutzer muss sich anschließend mit dem neuen Passwort anmelden.
+                                    <?= $languageService->get('new_password_generate_info') ?>
                                 </div>
                             </div>
                         </div>
 
                         <div class="col-md-12">
-                            <button type="submit" name="submit" class="btn btn-warning"><?= $languageService->get('save_user') ?></button>
+                            <button type="submit" name="submit" class="btn btn-warning"><?= $languageService->get('save') ?></button>
                         </div>
                     </form>
                 </div>
-            </div>
-
         <?php
     } else {
-        echo "Ungültige Benutzer-ID.";
-        exit();
+        nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_invalid_id', false);
     }
 }
+elseif ($action == "user_create") {
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
- elseif ($action == "user_create") {
-
-
-
-
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-
-    $username = htmlspecialchars(trim($_POST['username']));
-    $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
+    $username = trim((string)($_POST['username'] ?? ''));
+    $emailRaw = trim((string)($_POST['email'] ?? ''));
+    $email = filter_var($emailRaw, FILTER_SANITIZE_EMAIL);
+    $password = (string)($_POST['password'] ?? '');
 
     // Validierung
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $_SESSION['error_message'] = "❌ Ungültige E-Mail-Adresse.";
-        header("Location: admincenter.php?site=user_roles");
-        exit();
-    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_invalid_email', false);
+    if (mb_strlen($password) < 8) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_password_too_short', false);
+    // Prüfen ob Email bereits vorhanden ist
+    $stmt = $_database->prepare("SELECT userID FROM users WHERE email = ?");
+    if ($stmt === false) nx_redirect('admincenter.php?site=user_roles', 'danger', 'SQL error: ' . (string)$_database->error, true, true);
 
-    if (strlen($password) < 8) {
-        $_SESSION['error_message'] = "❌ Das Passwort muss mindestens 8 Zeichen lang sein.";
-        header("Location: admincenter.php?site=user_roles");
-        exit();
-    }
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $stmt->store_result();
 
-    // Prüfen, ob E-Mail bereits vorhanden ist
-    $query = "SELECT userID FROM users WHERE email = ?";
-    if ($stmt = $_database->prepare($query)) {
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        $stmt->store_result();
+    if ($stmt->num_rows > 0) { $stmt->close(); nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_email_already_taken', false); }
 
-        if ($stmt->num_rows > 0) {
-            $_SESSION['error_message'] = "❌ Diese E-Mail-Adresse wird bereits verwendet.";
-            header("Location: admincenter.php?site=user_roles");
-            exit();
-        }
-    }
+
+    $stmt->close();
 
     // Benutzer einfügen (registerdate als DATETIME)
     $query = "INSERT INTO users (username, email, registerdate) VALUES (?, ?, NOW())";
     if ($stmt = $_database->prepare($query)) {
-        $stmt->bind_param('ss', $username, $email);
-        $stmt->execute();
-        $userID = $_database->insert_id;
+    $stmt->bind_param('ss', $username, $email);
+    $stmt->execute();
+    $userID = $_database->insert_id;
 
-        if ($userID > 0) {
+    if ($userID > 0) {
 
-            // Standardrolle 12 vergeben
-            $roleID = 12;
+        $roleID = 12;
 
-            $queryRole = "INSERT INTO user_role_assignments (userID, roleID) VALUES (?, ?)";
+        $queryRole = "INSERT INTO user_role_assignments (userID, roleID) VALUES (?, ?)";
             if ($stmtRole = $_database->prepare($queryRole)) {
                 $stmtRole->bind_param('ii', $userID, $roleID);
                 $stmtRole->execute();
             }
-            // Pepper erzeugen und verschlüsseln
-            $pepper_plain = LoginSecurity::generatePepper();
+
+            $pepper_plain     = LoginSecurity::generatePepper();
             $pepper_encrypted = LoginSecurity::encryptPepper($pepper_plain);
+            $password_hash    = LoginSecurity::createPasswordHash($password, $email, $pepper_plain);
 
-            // Passwort-Hash erstellen
-            $password_hash = LoginSecurity::createPasswordHash($password, $email, $pepper_plain);
-
-            // Passwort und verschlüsselten Pepper speichern
             $query = "UPDATE users SET password_hash = ?, password_pepper = ?, is_active = 1 WHERE userID = ?";
             if ($stmt = $_database->prepare($query)) {
                 $stmt->bind_param('ssi', $password_hash, $pepper_encrypted, $userID);
                 $stmt->execute();
-
-                $_SESSION['success_message'] = $languageService->get('user_created_successfully');
-                header("Location: admincenter.php?site=user_roles");
-                exit();
+                nx_audit_update('user_roles', (string)$userID, true, null, 'admincenter.php?site=user_roles');
+                nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_saved', false);
             } else {
-                $_SESSION['error_message'] = "❌ Fehler beim Speichern des Passworts.";
-                header("Location: admincenter.php?site=user_roles");
-                exit();
+                nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_db_error', false);
             }
         } else {
-            $_SESSION['error_message'] = $languageService->get('user_creation_error');
-            header("Location: admincenter.php?site=user_roles");
-            exit();
+            nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
         }
     } else {
-        $_SESSION['error_message'] = "❌ Fehler bei der Benutzererstellung.";
-        header("Location: admincenter.php?site=user_roles");
-        exit();
+        nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_db_error', false);
     }
 }
-
-
-
-
 ?>
 
-<div class="card">
+<div class="card shadow-sm border-0 mb-4 mt-4">
     <div class="card-header">
-        <i class="bi bi-paragraph"></i> <?= $languageService->get('regular_users') ?>
+        <div class="card-title">
+            <i class="bi bi-person-fill-add"></i> 
+            <span><?= $languageService->get('user_overview') ?></span>
+            <small class="small-muted"><?= $languageService->get('add_user') ?></small>
+        </div>
     </div>
-
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a></li>
-            <li class="breadcrumb-item active" aria-current="page"><?= $languageService->get('add_user') ?></li>
-        </ol>
-    </nav>
 
     <div class="card-body">
-
-        <div class="container py-5">
-            <h2 class="mb-4"><?= $languageService->get('add_user') ?></h2>
-
-            <form method="POST" action="">
-                <div class="mb-3">
-                    <label for="username" class="form-label"><?= $languageService->get('username') ?></label>
-                    <input type="text" class="form-control" id="username" name="username" required>
-                </div>
-                <div class="mb-3">
-                    <label for="email" class="form-label"><?= $languageService->get('email') ?></label>
-                    <input type="email" class="form-control" id="email" name="email" required>
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label"><?= $languageService->get('password') ?></label>
-                    <input type="password" class="form-control" id="password" name="password" required>
-                </div>
-                <button type="submit" class="btn btn-success"><?= $languageService->get('add_user') ?></button>
-            </form>
-        </div>
-
+        <form method="POST" action="">
+            <div class="mb-3">
+                <label for="username" class="form-label"><?= $languageService->get('username') ?></label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label"><?= $languageService->get('email') ?></label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label"><?= $languageService->get('password') ?></label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary"><?= $languageService->get('add') ?></button>
+        </form>
     </div>
 </div>
-
-
-
-
 
 <?php
 } else { 
 
-
 // Anzahl der Einträge pro Seite
-$users_per_page = 5;
+$users_per_page = 10;
 
 // Aktuelle Seite ermitteln
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -1220,241 +1719,326 @@ $total_users_query = safe_query("SELECT COUNT(*) as total FROM users");
 $total_users = mysqli_fetch_assoc($total_users_query)['total'];
 $total_pages = ceil($total_users / $users_per_page);
 
-if (isset($_GET['action']) && $_GET['action'] == 'delete_user' && isset($_GET['userID'])) {
-    $userID = (int)$_GET['userID'];
+if (isset($_GET['action']) && $_GET['action'] === 'delete_user' && isset($_GET['userID'])) {
+    $userID = (int)($_GET['userID'] ?? 0);
+    $currentUserID = (int)($_SESSION['userID'] ?? 0);
 
-    // Überprüfe, ob der Benutzer existiert
-    $user_check = safe_query("SELECT * FROM users WHERE userID = '$userID'");
+    if ($userID === $currentUserID) nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_delete_own_account', false);
+
+    $user_check = safe_query("SELECT 1 FROM users WHERE userID = $userID LIMIT 1");
     if (mysqli_num_rows($user_check) > 0) {
-        // Zuerst die zugehörigen Einträge aus der rm_216_user_role_assignments Tabelle löschen
-        safe_query("DELETE FROM user_role_assignments WHERE userID = '$userID'");
-
-        // Jetzt den Benutzer aus der user Tabelle löschen
-        safe_query("DELETE FROM users WHERE userID = '$userID'");
-
-        $_SESSION['success_message'] = "<div class=\"alert alert-success\" role=\"alert\">Benutzer wurde erfolgreich gelöscht.</div>";
-    } else {
-        $_SESSION['error_message'] = "<div class=\"alert alert-info\" role=\"alert\">Benutzer nicht gefunden.</div>";
+        safe_query("DELETE FROM user_role_assignments WHERE userID = $userID");
+        safe_query("DELETE FROM users WHERE userID = $userID");
+        nx_audit_delete('user_roles', (string)$userID, (string)$userID, 'admincenter.php?site=user_roles');
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_deleted', false);
     }
 
-    // Weiterleitung zurück zur Benutzerverwaltung
-    header("Location: admincenter.php?site=user_roles");
-    exit();
+    nx_redirect('admincenter.php?site=user_roles', 'info', 'alert_user_not_found', false);
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['ban_user'])) {
-    $userID = $_POST['userID'];
-    $userID = intval($userID);  // Sicherheit: Umwandlung in eine ganze Zahl
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ban_user'])) {
+    $userID = (int)($_POST['userID'] ?? 0);
+    $currentUserID = (int)($_SESSION['userID'] ?? 0);
 
-    // Bann den Benutzer (Setze das Feld 'is_locked' auf 1)
-    $query = "UPDATE users SET is_locked = 1 WHERE userID = $userID";
-    if (safe_query($query)) {
-        $_SESSION['success_message'] = "<div class=\"alert alert-success\" role=\"alert\">Benutzer wurde erfolgreich gebannt.</div>";
-    } else {
-        $_SESSION['error_message'] = "<div class=\"alert alert-info\" role=\"alert\">Fehler beim Bann des Benutzers.</div>";
+    if ($userID === $currentUserID)
+        nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_ban_own_account', false);
+
+    if (safe_query("UPDATE users SET is_locked = 1 WHERE userID = $userID")) {
+        nx_audit_update('user_roles', (string)$userID, true, null, 'admincenter.php?site=user_roles', ['is_locked' => 1]);
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_user_banned', false);
     }
 
-    // Weiterleitung oder Fehleranzeige
-
-    header("Location: admincenter.php?site=user_roles");
-    exit();
+    nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['unban_user'])) {
-    $userID = $_POST['userID'];
-    $userID = intval($userID);  // Sicherheit: Umwandlung in eine ganze Zahl
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['unban_user'])) {
+    $userID = (int)($_POST['userID'] ?? 0);
 
-    // Hebe den Bann des Benutzers auf (Setze das Feld 'is_locked' auf 0)
-    $query = "UPDATE users SET is_locked = 0 WHERE userID = $userID";
-    if (safe_query($query)) {
-        $_SESSION['success_message'] = "<div class=\"alert alert-success\" role=\"alert\">Benutzer wurde erfolgreich entbannt.</div>";
-    } else {
-        $_SESSION['error_message'] = "<div class=\"alert alert-info\" role=\"alert\">Fehler beim Entbannen des Benutzers.</div>";
+    if (safe_query("UPDATE users SET is_locked = 0 WHERE userID = $userID")) {
+        nx_audit_update('user_roles', (string)$userID, true, null, 'admincenter.php?site=user_roles', ['is_locked' => 0]);
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_user_unbanned', false);
     }
 
-    // Weiterleitung oder Fehleranzeige
-    header("Location: admincenter.php?site=user_roles");
-    exit();
+    nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['deactivate_user'])) {
+    $userID = (int)($_POST['userID'] ?? 0);
+    $currentUserID = (int)($_SESSION['userID'] ?? 0);
 
+    if ($userID === $currentUserID)
+        nx_redirect('admincenter.php?site=user_roles', 'warning', 'alert_deactivate_own_account', false);
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['deactivate_user'])) {
-    $userID = intval($_POST['userID']); // Sicherheit: Umwandlung in eine ganze Zahl
-
-    // Deaktiviere den Benutzer (Setze das Feld 'is_active' auf 0)
-    $query = "UPDATE users SET is_active = 0 WHERE userID = $userID";
-    if (safe_query($query)) {
-        $_SESSION['success_message'] = "<div class=\"alert alert-success\" role=\"alert\">Benutzer wurde erfolgreich deaktiviert.</div>";
-    } else {
-        $_SESSION['error_message'] = "<div class=\"alert alert-info\" role=\"alert\">Fehler beim Deaktivieren des Benutzers.</div>";
+    if (safe_query("UPDATE users SET is_active = 0 WHERE userID = $userID")) {
+        nx_audit_update('user_roles', (string)$userID, true, null, 'admincenter.php?site=user_roles', ['is_active' => 0]);
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_deactivated', false);
     }
 
-    header("Location: admincenter.php?site=user_roles");
-    exit();
+    nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
 }
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['activate_user'])) {
-    $userID = intval($_POST['userID']); // Sicherheit: Umwandlung in eine ganze Zahl
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['activate_user'])) {
+    $userID = (int)($_POST['userID'] ?? 0);
 
-    // Aktiviere den Benutzer (Setze das Feld 'is_active' auf 1)
-    $query = "UPDATE users SET is_active = 1 WHERE userID = $userID";
-    if (safe_query($query)) {
-        $_SESSION['success_message'] = "<div class=\"alert alert-success\" role=\"alert\">Benutzer wurde erfolgreich aktiviert.</div>";
-    } else {
-        $_SESSION['error_message'] = "<div class=\"alert alert-info\" role=\"alert\">Fehler beim Aktivieren des Benutzers.</div>";
+    if (safe_query("UPDATE users SET is_active = 1 WHERE userID = $userID")) {
+        nx_audit_update('user_roles', (string)$userID, true, null, 'admincenter.php?site=user_roles', ['is_active' => 1]);
+        nx_redirect('admincenter.php?site=user_roles', 'success', 'alert_activated', false);
     }
 
-    header("Location: admincenter.php?site=user_roles");
-    exit();
+    nx_redirect('admincenter.php?site=user_roles', 'danger', 'alert_save_failed', false);
 }
-
-
-
 // Abfrage der Benutzer für die aktuelle Seite
 $users = safe_query("SELECT * FROM users ORDER BY userID LIMIT $offset, $users_per_page");
 ?>
-<div class="card">
-    <div class="card-header">
-        <i class="bi bi-paragraph"></i> Benutzer- und Rechteverwaltung
-    </div>
-
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb t-5 p-2 bg-light">
-            <li class="breadcrumb-item"><a href="admincenter.php?site=user_roles"><?= $languageService->get('regular_users') ?></a></li>
-            <li class="breadcrumb-item active" aria-current="page">New / Edit</li>
-        </ol>
-    </nav>
-
-    <div class="card-body">
-
-        <div class="form-group row">
-            <label class="col-md-1 control-label"><?= $languageService->get('options') ?>:</label>
-            <div class="col-md-8">
-                <a href="admincenter.php?site=user_roles&action=roles" class="btn btn-primary" type="button"><?= $languageService->get('manage_admin_roles') ?></a>      
-                <a href="admincenter.php?site=user_roles&action=admins" class="btn btn-primary" type="button"><?= $languageService->get('assign_role_to_user') ?></a>
-            </div>
-        </div>
-        <div class="container py-5">
-            <h2 class="mb-4"><?= $languageService->get('regular_users') ?></h2>
-        <!-- Button zum Hinzufügen eines neuen Benutzers -->
-        <div class="mb-3">
-            <a href="admincenter.php?site=user_roles&action=user_create" class="btn btn-success">
-                <?= $languageService->get('add_user') ?>
-            </a>
-        </div>
-
-        <!-- Benutzerliste -->
-        <table class="table table-bordered table-striped bg-white shadow-sm">
-            <thead class="table-light">
-                <tr>
-                    <th><?= $languageService->get('id') ?></th>
-                    <th><?= $languageService->get('username') ?></th>
-                    <th><?= $languageService->get('email') ?></th>
-                    <th><?= $languageService->get('registered_on') ?></th>
-                    <th><?= $languageService->get('activated') ?></th>
-                    <th width="350"><?= $languageService->get('actions') ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($user = mysqli_fetch_assoc($users)) : ?>
-                    <tr>
-                        <td><?= htmlspecialchars($user['userID']) ?></td>
-                        <td><?= htmlspecialchars($user['username']) ?></td>
-                        <td><?= htmlspecialchars($user['email']) ?></td>
-                        <td><?= date('d.m.Y H:i:s', strtotime($user['registerdate'])) ?></td>
-                        <td><?= $user['is_active'] ? '✔️' : '❌' ?>
-
-                            <?php if (!$user['is_active']) : ?>
-                            <form method="POST" action="" class="d-inline">
-                                <input type="hidden" name="userID" value="<?= $user['userID'] ?>">
-                                <button type="submit" name="activate_user" class="btn btn-success">
-                                    <?= $languageService->get('activate_user') ?>
-                                </button>
-                            </form>
-                        <?php else : ?>
-                            <form method="POST" action="" class="d-inline">
-                                <input type="hidden" name="userID" value="<?= $user['userID'] ?>">
-                                <button type="submit" name="deactivate_user" class="btn btn-warning">
-                                    <?= $languageService->get('deactivate_user') ?>
-                                </button>
-                            </form>
-                        <?php endif; ?>
-
-                        </td>
-                        <td>
-
-
-                            <?php if ($user['is_locked']) : ?>
-                                <form method="POST" action="" class="d-inline">
-                                    <input type="hidden" name="userID" value="<?= $user['userID'] ?>">
-                                    <button type="submit" name="unban_user" class="btn btn-success">
-                                        <?= $languageService->get('unban_user') ?>
-                                    </button>
-                                </form>
-                            <?php else : ?>
-                                <form method="POST" action="" class="d-inline">
-                                    <input type="hidden" name="userID" value="<?= $user['userID'] ?>">
-                                    <button type="submit" name="ban_user" class="btn btn-danger">
-                                        <?= $languageService->get('ban_user') ?>
-                                    </button>
-                                </form>
-                            <?php endif; ?>
-
-                            <a href="admincenter.php?site=user_roles&action=edit_user&userID=<?= $user['userID'] ?>" class="btn btn-warning">
-                                <?= $languageService->get('edit') ?>
-                            </a>
-
-                            <a href="admincenter.php?site=user_roles&action=delete_user&userID=<?= $user['userID'] ?>" class="btn btn-danger" onclick="return confirm('<?= $languageService->get('confirm_delete') ?>')">
-                                <?= $languageService->get('delete') ?>
-                            </a>
-                        </td>
-                    </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
+<div class="mb-4 mt-4">
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="admincenter.php?site=user_roles&action=roles" class="btn btn-secondary">
+            <?= $languageService->get('manage_admin_roles') ?>
+        </a>
+        <a href="admincenter.php?site=user_roles&action=admins" class="btn btn-secondary">
+            <?= $languageService->get('assign_role_to_user') ?>
+        </a>
     </div>
 </div>
 
+<div class="card shadow-sm border-0 mb-4 mt-4">
+    <div class="card-header">
+        <div class="card-title">
+            <i class="bi bi-person-gear"></i>
+            <span><?= $languageService->get('user_overview') ?></span>
+        </div>
+    </div>
 
-    <!-- Paginierung -->
-    <nav aria-label="Seiten-Navigation">
-    <ul class="pagination justify-content-center">
-        <li class="page-item <?= ($page == 1) ? 'disabled' : '' ?>">
-            <a class="page-link" href="admincenter.php?site=user_roles&page=1">
-                <?= $languageService->get('first') ?>
-            </a>
-        </li>
-        <li class="page-item <?= ($page == 1) ? 'disabled' : '' ?>">
-            <a class="page-link" href="admincenter.php?site=user_roles&page=<?= ($page - 1) ?>">
-                <?= $languageService->get('previous') ?>
-            </a>
-        </li>
-
-        <!-- Dynamische Seitenzahlen -->
-        <?php for ($i = 1; $i <= $total_pages; $i++) : ?>
-            <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-                <a class="page-link" href="admincenter.php?site=user_roles&page=<?= $i ?>">
-                    <?= $i ?>
+    <div class="card-body p-4">
+            
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                <a href="admincenter.php?site=user_roles&action=user_create" class="btn btn-secondary mt-2">
+                    <?= $languageService->get('add') ?>
                 </a>
-            </li>
-        <?php endfor; ?>
 
-        <li class="page-item <?= ($page == $total_pages) ? 'disabled' : '' ?>">
-            <a class="page-link" href="admincenter.php?site=user_roles&page=<?= ($page + 1) ?>">
-                <?= $languageService->get('next') ?>
-            </a>
-        </li>
-        <li class="page-item <?= ($page == $total_pages) ? 'disabled' : '' ?>">
-            <a class="page-link" href="admincenter.php?site=user_roles&page=<?= $total_pages ?>">
-                <?= $languageService->get('last') ?>
-            </a>
-        </li>
-    </ul>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <div class="input-group input-group-sm" style="min-width: 260px;">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input id="userSearch" type="search" class="form-control" placeholder="<?= $languageService->get('search') ?>">
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th style="width: 72px;"><?= $languageService->get('id') ?></th>
+                        <th><?= $languageService->get('username') ?></th>
+                        <th class="d-none d-md-table-cell"><?= $languageService->get('email') ?></th>
+                        <th class="d-none d-lg-table-cell"><?= $languageService->get('registered_on') ?></th>
+                        <th style="width: 250px;"><?= $languageService->get('status') ?? $languageService->get('activated') ?></th>
+                        <th style="width: 525px;"><?= $languageService->get('actions') ?></th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <?php $currentUserID = (int)($_SESSION['userID'] ?? 0); ?>
+                    <?php while ($user = mysqli_fetch_assoc($users)) : ?>
+                        <?php
+                            $isActive = (int)$user['is_active'] === 1;
+                            $isLocked = (int)$user['is_locked'] === 1;
+                            $isSelf = ((int)$user['userID'] === $currentUserID);
+                        ?>
+                        <tr class="<?= $isLocked ? 'table-danger' : '' ?>">
+                            <td class="text-muted"><?= htmlspecialchars($user['userID']) ?></td>
+
+                            <td>
+                                <div class="fw-semibold"><?= htmlspecialchars($user['username']) ?></div>
+                                <div class="text-muted small d-md-none"><?= htmlspecialchars($user['email']) ?></div>
+                            </td>
+
+                            <td class="d-none d-md-table-cell"><?= htmlspecialchars($user['email']) ?></td>
+
+                            <td class="d-none d-lg-table-cell text-muted">
+                                <?= date('d.m.Y H:i', strtotime($user['registerdate'])) ?>
+                            </td>
+
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <span class="badge <?= $isActive ? 'bg-success' : 'bg-warning' ?>">
+                                        <?= $isActive ? $languageService->get('active') : $languageService->get('inactive') ?>
+                                    </span>
+                                    <span class="badge <?= $isLocked ? 'bg-danger' : 'bg-secondary' ?>">
+                                        <?= $isLocked ? $languageService->get('banned') : $languageService->get('not_banned') ?>
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <!-- Bearbeiten -->
+                                    <a href="admincenter.php?site=user_roles&action=edit_user&userID=<?= (int)$user['userID'] ?>" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 w-auto">
+                                        <i class="bi bi-pencil-square"></i> <?= $languageService->get('edit') ?>
+                                    </a>
+                                    <!-- Aktivieren/Deaktivieren -->
+                                    <?php if ($isSelf) : ?>
+                                        <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 w-auto" disabled>
+                                            <i class="bi bi-person-check"></i> <?= $languageService->get('activate_user') ?>
+                                        </button>
+                                    <?php else : ?>
+                                        <?php if (!$isActive) : ?>
+                                            <form method="POST" action="" class="d-inline">
+                                                <input type="hidden" name="userID" value="<?= (int)$user['userID'] ?>">
+                                                <button type="submit" name="activate_user" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 w-auto">
+                                                    <i class="bi bi-check2-circle"></i> <?= $languageService->get('activate_user') ?>
+                                                </button>
+                                            </form>
+                                        <?php else : ?>
+                                            <form method="POST" action="" class="d-inline">
+                                                <input type="hidden" name="userID" value="<?= (int)$user['userID'] ?>">
+                                                <button type="submit" name="deactivate_user" class="btn btn-sm btn-warning d-inline-flex align-items-center gap-1 w-auto">
+                                                    <i class="bi bi-x-circle"></i> <?= $languageService->get('deactivate_user') ?>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+
+                                    <!-- Sperren/Entsperren -->
+                                    <?php if ($isSelf) : ?>
+                                        <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1 w-auto" disabled>
+                                            <i class="bi bi-shield-lock"></i> <?= $languageService->get('ban_user') ?>
+                                        </button>
+                                    <?php else : ?>
+                                        <?php if ($isLocked) : ?>
+                                            <form method="POST" action="" class="d-inline">
+                                                <input type="hidden" name="userID" value="<?= (int)$user['userID'] ?>">
+                                                <button type="submit" name="unban_user" class="btn btn-sm btn-success d-inline-flex align-items-center gap-1 w-auto">
+                                                    <i class="bi bi-unlock"></i> <?= $languageService->get('unban_user') ?>
+                                                </button>
+                                            </form>
+                                        <?php else : ?>
+                                            <form method="POST" action="" class="d-inline">
+                                                <input type="hidden" name="userID" value="<?= (int)$user['userID'] ?>">
+                                                <button type="submit" name="ban_user" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1 w-auto">
+                                                    <i class="bi bi-ban"></i> <?= $languageService->get('ban_user') ?>
+                                                </button>
+                                            </form>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+
+                                    <!-- Löschen (Modal) -->
+                                    <?php if (!$isSelf): ?>
+                                        <?php $deleteUserUrl = 'admincenter.php?site=user_roles&action=delete_user&userID=' . (int)$user['userID']; ?>
+                                        <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1 w-auto"
+                                                data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                                data-delete-url="<?= htmlspecialchars($deleteUserUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                            <i class="bi bi-trash3"></i> <?= $languageService->get('delete') ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <button type="button" class="btn btn-sm btn-danger d-inline-flex align-items-center gap-1 w-auto" disabled>
+                                            <i class="bi bi-trash3"></i> <?= $languageService->get('delete') ?>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
+    <!-- Pagination -->
+<nav aria-label="Seiten-Navigation">
+  <ul class="pagination justify-content-center">
+
+    <!-- Prev -->
+    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+      <?php if ($page <= 1): ?>
+        <span class="page-link" aria-disabled="true" aria-label="<?= $languageService->get('previous') ?>">
+          <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </span>
+      <?php else: ?>
+        <a class="page-link"
+           href="admincenter.php?site=user_roles&page=<?= $page - 1 ?>"
+           aria-label="<?= $languageService->get('previous') ?>"
+           title="<?= $languageService->get('previous') ?>">
+          <i class="bi bi-chevron-left" aria-hidden="true"></i>
+        </a>
+      <?php endif; ?>
+    </li>
+
+    <!-- Seitenzahlen komplett -->
+    <?php for ($i = 1; $i <= $total_pages; $i++) : ?>
+      <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
+        <?php if ($i == $page): ?>
+          <span class="page-link" aria-current="page"><?= $i ?></span>
+        <?php else: ?>
+          <a class="page-link" href="admincenter.php?site=user_roles&page=<?= $i ?>"><?= $i ?></a>
+        <?php endif; ?>
+      </li>
+    <?php endfor; ?>
+
+    <!-- Next -->
+    <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+      <?php if ($page >= $total_pages): ?>
+        <span class="page-link" aria-disabled="true" aria-label="<?= $languageService->get('next') ?>">
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </span>
+      <?php else: ?>
+        <a class="page-link"
+           href="admincenter.php?site=user_roles&page=<?= $page + 1 ?>"
+           aria-label="<?= $languageService->get('next') ?>"
+           title="<?= $languageService->get('next') ?>">
+          <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        </a>
+      <?php endif; ?>
+    </li>
+
+  </ul>
 </nav>
 </div>
 
 </div></div>
-<?php
-}
+<?php } ?>
 
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  function bindTextSearch(config) {
+    var input = config.inputId ? document.getElementById(config.inputId) : null;
+    if (!input) return;
+
+    function apply() {
+      var q = (input.value || '').toLowerCase().trim();
+      var targets = Array.prototype.slice.call(document.querySelectorAll(config.targets));
+      var visible = 0;
+
+      for (var i = 0; i < targets.length; i++) {
+        var el = targets[i];
+        var txt = (el.textContent || '').toLowerCase();
+        var show = (!q || txt.indexOf(q) !== -1);
+
+        el.style.display = show ? (config.displayAs || '') : 'none';
+        if (show) visible++;
+      }
+
+      if (countEl) countEl.textContent = visible + ' / ' + targets.length;
+
+      if (config.groupSelector && config.groupItemSelector) {
+        var groups = document.querySelectorAll(config.groupSelector);
+        for (var g = 0; g < groups.length; g++) {
+          var group = groups[g];
+          var items = group.querySelectorAll(config.groupItemSelector);
+
+          var anyVisible = false;
+          for (var k = 0; k < items.length; k++) {
+            if (items[k].style.display !== 'none') { anyVisible = true; break; }
+          }
+          group.style.display = (!q || anyVisible) ? '' : 'none';
+        }
+      }
+    }
+
+    input.addEventListener('input', apply);
+    apply();
+  }
+
+  bindTextSearch({ inputId: 'userRoleSearch', targets: '#userRolesTable tbody tr', displayAs: 'table-row' });
+  bindTextSearch({ inputId: 'userSearch',     targets: '#usersTable tbody tr', displayAs: 'table-row' });
+  bindTextSearch({ inputId: 'moduleSearch',   targets: '.module-item', groupSelector: '.accordion-item[data-category]', groupItemSelector: '.module-item' });
+});
+</script>

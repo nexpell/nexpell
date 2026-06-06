@@ -217,6 +217,7 @@ $xml  = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
 $xml .= "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\" xmlns:xhtml=\"http://www.w3.org/1999/xhtml\">\n";
 
 $prefLang = in_array($PREFERRED_LOC_LANG, $languages, true) ? $PREFERRED_LOC_LANG : ($languages[0] ?? 'de');
+$xDefaultLang = $prefLang;
 
 foreach ($pages as $contentKey => $data) {
     $lastmod = '1970-01-01';
@@ -236,6 +237,12 @@ foreach ($pages as $contentKey => $data) {
              . xmlEscape($href) 
              . "\"/>\n";
     }
+    $xDefaultHref = $data['langs'][$xDefaultLang] ?? $locUrl;
+    if ($xDefaultHref !== '') {
+        $xml .= "    <xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\""
+             . xmlEscape($xDefaultHref)
+             . "\"/>\n";
+    }
 
     $xml .= "    <lastmod>{$lastmod}</lastmod>\n";
     $xml .= "  </url>\n";
@@ -243,7 +250,7 @@ foreach ($pages as $contentKey => $data) {
 }
 $xml .= "</urlset>";
 
-$_database->close();
+//$_database->close();
 
 /* ----------------- Ausgabe/Rückgabe ----------------- */
 if (SITEMAP_EMIT) {

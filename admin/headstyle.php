@@ -1,20 +1,12 @@
 <?php
 use nexpell\LanguageService;
-use nexpell\AccessControl;
 
 // Session absichern
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Standard Sprache setzen wenn nicht vorhanden
-$_SESSION['language'] = $_SESSION['language'] ?? 'de';
-
-// Language init
-global $languageService,$_database;;
-$languageService = new LanguageService($_database);
-$languageService->readModule('headstyle', true);
-
+use nexpell\AccessControl;
 // Admin Rechte
 AccessControl::checkAdminAccess('ac_headstyle');
 
@@ -37,9 +29,14 @@ for ($i = 1; $i <= 10; $i++) {
     transition: 0.25s ease;
 }
 
+.style-card .card-title {
+    padding: 0px;
+    min-height: unset;
+}
+
 .style-card.active {
     border: 2px solid #28a745 !important;
-    box-shadow: 0 0 15px rgba(40, 167, 69, 0.45);
+    box-shadow: 0 0 15px rgba(40, 167, 69, 0.45) !important;
     transform: scale(1.01);
 }
 
@@ -47,88 +44,62 @@ for ($i = 1; $i <= 10; $i++) {
     border-color: #fe821d;
 }
 
-/* Bootstrap Toast rechts unten */
-.toast-container {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 99999;
-}
 </style>
 
-<div class="toast-container"></div>
+<div id="ac-live-alert" class="mb-3"></div>
+<div class="card-body">
+    <div class="row row-cols-1 row-cols-md-3 g-4">
+        <?php foreach ($styles as $key => $label): ?>
+            <div class="col">
 
-<div class="card">
-    <div class="card-header">
-        <?= $languageService->get('select_headline_style'); ?>
-    </div>
+                <!-- Klickbare Card -->
+                <label class="card style-card shadow-sm border-0 mt-3 h-100 <?= ($selected === $key ? 'active' : '') ?>">
 
-    <div class="card-body">
-        <div class="container py-5">
+                    <!-- Radio -->
+                    <input type="radio"
+                           name="selected_style"
+                           class="select-radio d-none"
+                           value="<?= htmlspecialchars($key) ?>"
+                           <?= $selected === $key ? 'checked' : '' ?> />
 
-            <div class="row">
-
-            <?php foreach (array_chunk($styles, 5, true) as $column): ?>
-                <div class="col-md-6">
-                    <div class="row row-cols-1">
-                    <?php foreach ($column as $key => $label): ?>
-                        <div class="col">
-
-                            <!-- Klickbare Card -->
-                            <label class="card style-card <?= ($selected === $key ? 'active' : '') ?>">
-
-                                <!-- Radio (unsichtbar, aber klickbar über die Karte) -->
-                                <input type="radio"
-                                       name="selected_style"
-                                       class="select-radio d-none"
-                                       value="<?= htmlspecialchars($key) ?>"
-                                       <?= $selected === $key ? 'checked' : '' ?> />
-
-                                <div class="card-body text-center">
-
-                                    <div class="fw-bold mb-2 custom-height">
-                                        <?= htmlspecialchars($label) ?>
-                                    </div>
-
-                                    <img src="/admin/images/headlines/<?= str_replace('head-boxes-', 'headlines-', $key) ?>.jpg"
-                                        alt="<?= htmlspecialchars($label) ?>"
-                                        class="img-fluid rounded"
-                                        style="max-height: 180px; border:1px solid #dee2e6;">
-                                </div>
-
-                            </label>
-
+                    <div class="card-header">
+                        <div class="card-title">
+                            <div class="fw-semibold mb-2 custom-height">
+                                <?= htmlspecialchars($label) ?>
+                            </div>
                         </div>
-                    <?php endforeach; ?>
                     </div>
-                </div>
-            <?php endforeach; ?>
+
+                    <div class="card-body">
+
+                        <img src="/admin/images/headlines/<?= str_replace('head-boxes-', 'headlines-', $key) ?>.jpg"
+                             alt="<?= htmlspecialchars($label) ?>"
+                             class="img-fluid rounded"
+                             style="max-height: 230px;">
+                    </div>
+
+                </label>
 
             </div>
-
-        </div>
+        <?php endforeach; ?>
     </div>
 </div>
-
 <!-- JAVASCRIPT: Auswahl & Speichern per AJAX -->
 <script>
-// Toast Nachricht anzeigen
-// Toast Nachricht anzeigen
-function showToast(type, message) {
-    const id = "toast-" + Math.random().toString(36).substring(2);
+// Systemmeldung im Seitenkontext anzeigen (Bootstrap Alert)
+function showInlineAlert(type, message) {
+    const host = document.getElementById('ac-live-alert');
+    if (!host) return;
 
-    const toastHTML = `
-        <div id="${id}" class="toast align-items-center text-white bg-${type} border-0 mb-2" role="alert">
-            <div class="d-flex">
-                <div class="toast-body">${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
+    // alte Meldung ersetzen
+    host.innerHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>`;
 
-    document.querySelector(".toast-container").insertAdjacentHTML("beforeend", toastHTML);
-
-    const toastElement = new bootstrap.Toast(document.getElementById(id));
-    toastElement.show();
+    // nach oben scrollen, damit die Meldung "über der Seite" sichtbar ist
+    host.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // Live-Auswahl & Speichern
@@ -154,18 +125,22 @@ document.querySelectorAll('.select-radio').forEach(radio => {
     console.log("Antwort:", msg);
 
     if (msg.trim() === "OK") {
-        showToast('success', '✔ <?= $languageService->get("toast_success") ?>');
+        showInlineAlert('success', '<?= $languageService->get("toast_success") ?>');
+
+        // optional: Seite nach 3 Sekunden neu laden, damit ggf. serverseitige Flash-Alerts / Status sauber reflektiert werden
+        //window.setTimeout(() => {
+        //    window.location.reload();
+        //}, 3000);
     } else {
-        showToast('danger', '❌ <?= $languageService->get("toast_error") ?>'.replace('%s', msg));
+        showInlineAlert('danger', '<?= $languageService->get("toast_error") ?>'.replace('%s', msg));
     }
 })
 .catch(err => {
     console.error(err);
-    showToast('danger', '❌ <?= $languageService->get("toast_ajax_error") ?>');
+    showInlineAlert('danger', '<?= $languageService->get("toast_ajax_error") ?>');
 });
 
     });
 
 });
-
 </script>
