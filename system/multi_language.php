@@ -14,16 +14,10 @@ class multiLanguage {
      * 
      * @param string $text Der zu untersuchende Text mit [[lang:xx]]-Tags
      */
-    public function detectLanguages($text) {
-        // Suche nach Sprach-Tags wie [[lang:xx]]
+    public function detectLanguages(string $text): array
+    {
         preg_match_all('/\[\[lang:([a-z]{2})\]\]/i', $text, $matches);
-        
-        // Wenn keine Sprach-Tags gefunden werden, wird ein leeres Array verwendet
-        if (empty($matches[1])) {
-            $this->availableLanguages = array();
-        } else {
-            $this->availableLanguages = array_unique($matches[1]);
-        }
+        return !empty($matches[1]) ? array_unique($matches[1]) : [];
     }
 
     /**
@@ -32,44 +26,21 @@ class multiLanguage {
      * @param string $text Der mehrsprachige Text
      * @return string Der passende Textausschnitt
      */
-    /*public function getTextByLanguage($text) {
-        // Wenn keine Sprachmarkierungen im Text vorhanden sind, gib den Originaltext zurück
-        if (empty($this->availableLanguages)) {
-            return $text; // Hier wird der Originaltext immer zurückgegeben, wenn keine Sprach-Tags vorhanden sind
-        }
+    public function getTextByLanguage(string $text): string
+    {
+        $availableLanguages = $this->detectLanguages($text);
 
-        // Prüfen, ob die gewählte Sprache verfügbar ist
-        if (in_array($this->language, $this->availableLanguages)) {
-            return $this->getTextByTag($this->language, $text);
-        } 
-        // Wenn keine Übersetzung für die aktuelle Sprache gefunden wird, gibt es den ersten verfügbaren Text zurück
-        elseif (!empty($this->availableLanguages)) {
-            return $this->getTextByTag($this->availableLanguages[0], $text);
-        } 
-        // Wenn keine Übersetzungen vorhanden sind, gib den Originaltext zurück
-        else {
-            return $text;
-        }
-    }*/
-
-    public function getTextByLanguage($text) {
-        // Verfügbare Sprachen aus dem Text erkennen
-        $this->detectLanguages($text);
-
-        // Wenn keine Sprachmarkierungen im Text vorhanden sind, gib den Originaltext zurück
-        if (empty($this->availableLanguages)) {
+        if (empty($availableLanguages)) {
             return $text;
         }
 
-        // Prüfen, ob die gewählte Sprache verfügbar ist
-        if (in_array($this->language, $this->availableLanguages)) {
+        if (in_array($this->language, $availableLanguages, true)) {
             return $this->getTextByTag($this->language, $text);
-        } 
-        // Wenn keine Übersetzung für die aktuelle Sprache gefunden wird, gibt es den ersten verfügbaren Text zurück
-        return $this->getTextByTag($this->availableLanguages[0], $text);
+        }
+
+        return $this->getTextByTag($availableLanguages[0], $text);
     }
-
-
+    
     /**
      * Holt den konkreten Textabschnitt einer Sprache
      * 
@@ -77,14 +48,12 @@ class multiLanguage {
      * @param string $text Ursprünglicher Text mit Sprachblöcken
      * @return string Nur der passende Text
      */
-    private function getTextByTag($language, $text) {
-        // Regex, um den Text für das angegebene Sprachkürzel zu extrahieren
-        $pattern = '/\[\[lang:' . preg_quote($language, '/') . '\]\](.*?)(?=\[\[lang:|$)/is';
-        if (preg_match($pattern, $text, $matches)) {
-            return trim($matches[1]);
-        }
-        return ''; // Falls keine Übereinstimmung gefunden wird, gib einen leeren String zurück
+    private function getTextByTag(string $language, string $text): string
+    {
+        $pattern = '/\[\[lang:' . preg_quote($language, '/') . '\]\](.*?)(?=\[\[lang:[a-z]{2}\]\]|$)/is';
+        return preg_match($pattern, $text, $m) ? trim($m[1]) : '';
     }
+
 }
 
 

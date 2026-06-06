@@ -1,0 +1,43 @@
+<?php
+
+$language_array = array(
+
+    'about_us'           => 'Chi siamo',
+    'archives'           => 'Archivi',
+    'articles'           => 'Articoli',
+    'awards'             => 'Premi',
+    'calendar'           => 'Calendario',
+    'clan'               => 'Clan',
+    'community'          => 'Community',
+    'contact'            => 'Form Contatti',
+    'demos'              => 'Demo',
+    'downloads'          => 'Download',
+    'faq'                => 'FAQ',
+    'fight_us'           => 'Fight Us',
+    'forums'             => 'Forum',
+    'gallery'            => 'Galleria',
+    'guestbook'          => 'Guestbook',
+    'history'            => 'Storia',
+    'imprint'            => 'Imprint',
+    'join_us'            => 'Entra con noi',
+    'links'              => 'Links',
+    'links_us'           => 'Collegaci',
+    'main'               => 'Home',
+    'matches'            => 'Matches',
+    'media'              => 'Media',
+    'members'            => 'Utenti',
+    'miscellaneous'      => 'Varie',
+    'news'               => 'Notizie',
+    'newsletter'         => 'Newsletter',
+    'polls'              => 'Qurstionari',
+    'privacy_policy'     => 'Informativa sulla privacy',
+    'registered_users'   => 'Utenti Registrati',
+    'search'             => 'Ricerca',
+    'servers'            => 'Server',
+    'sponsors'           => 'Sponsor',
+    'squads'             => 'Squadre',
+    'whoisonline'        => 'Chi è online?',
+    'login'              => 'Login',
+    'overview'           => 'Panoramica'
+);
+

@@ -12,110 +12,104 @@ function show_var($var) {
 }
 
 
-
-
-
-
-
-function headfiles($var, $path)
+function headfiles(string $type, string $path): string
 {
-    // =========================================
-    // GLOBALE NAVIGATION SETTINGS LADEN
-    // =========================================
-    if (!isset($GLOBALS['nx_settings'])) {
+    
 
-        global $_database;
-        $GLOBALS['nx_settings'] = [];
+    /* =========================================
+       SAFE SETTINGS
+    ========================================= */
+    $settings    = $GLOBALS['nx_settings'] ?? [];
+    $themeEngine = (int)($settings['theme_engine_enabled'] ?? 0);
 
-        $res = $_database->query("
-            SELECT setting_key, setting_value
-            FROM navigation_website_settings
-        ");
+    /* =========================================
+       CSS
+    ========================================= */
+    if ($type === 'css') {
 
-        while ($row = $res->fetch_assoc()) {
-            $GLOBALS['nx_settings'][$row['setting_key']] = $row['setting_value'];
+        $cssPath = is_dir($path . 'css/') ? $path . 'css/' : $path;
+
+        // Theme Engine FULL → nur stylesheet.css
+        if ($themeEngine === 2) {
+            $file = $cssPath . 'stylesheet.css';
+            return is_file($file)
+                ? '<link rel="stylesheet" href="/' . $file . '">' . PHP_EOL
+                : '';
+        }
+
+        $out = '';
+        foreach (glob($cssPath . '*.css') ?: [] as $f) {
+            $out .= '<link rel="stylesheet" href="/' . $f . '">' . PHP_EOL;
+        }
+        return $out;
+    }
+
+    /* =========================================
+       JS
+    ========================================= */
+    if ($type === 'js') {
+
+        $jsPath = is_dir($path . 'js/') ? $path . 'js/' : $path;
+
+        $out = '';
+        foreach (glob($jsPath . '*.js') ?: [] as $f) {
+            $out .= '<script defer src="/' . $f . '"></script>' . PHP_EOL;
+        }
+        return $out;
+    }
+
+    return '';
+}
+
+
+
+function detectSite(): string
+{
+    if (!isset($_GET['site']) || $_GET['site'] === '' || $_GET['site'] === 'index') {
+        $res = safe_query("SELECT startpage FROM settings LIMIT 1");
+        $row = mysqli_fetch_assoc($res);
+        return $row['startpage'] ?? 'index';
+    }
+
+    return preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['site']);
+}
+
+function detectPluginForSite(string $site): ?array
+{
+    $res = safe_query("
+        SELECT path, index_link
+        FROM settings_plugins
+        WHERE activate = '1'
+    ");
+
+    while ($row = mysqli_fetch_assoc($res)) {
+        $links = array_map('trim', explode(',', $row['index_link']));
+        if (in_array($site, $links, true)) {
+            return $row; // Plugin gefunden
         }
     }
-    
-    $css = "";
-    $js  = "\n";
 
-    // SETTINGS LADEN
-    $settings = $GLOBALS['nx_settings'] ?? [];
-
-    // Theme-Engine ON/OFF
-    $themeEngine = $settings['theme_engine_enabled'] ?? "1";
-
-    switch ($var) {
-
-        /* ======================================================
-           CSS LADEN (kontrolliert!)
-        ====================================================== */
-        case "css":
-
-            $css = "";
-
-            // SETTINGS LADEN
-            $settings = $GLOBALS['nx_settings'] ?? [];
-
-            // Theme-Engine Status (0 = aus, 1 = basic, 2 = full-theme)
-            $themeEngine = (int)($settings['theme_engine_enabled'] ?? 0);
-
-            // Theme-Pfad erkennen
-            $subf = is_dir($path . "css/") ? "css/" : "";
-            $cssPath = $path . $subf;
-
-            /* ======================================================
-               THEME ENGINE = 2  
-               => Nur stylesheet.css laden
-            ====================================================== */
-            if ($themeEngine === 2) {
-
-                $file = $cssPath . "stylesheet.css";
-
-                if (file_exists($file)) {
-                    return '<link rel="stylesheet" href="/' . $file . '">' . "\n";
-                }
-
-                // Fallback falls stylesheet nicht existiert
-                return "<!-- stylesheet.css nicht gefunden -->\n";
-            }
+    return null; // kein Plugin
+}
 
 
-            /* ======================================================
-               THEME ENGINE = 0 oder 1  
-               => Alle CSS aus dem Ordner laden
-            ====================================================== */
-            $files = glob($cssPath . '*.css');
+function registerModuleAssets(string $module): void
+{
+    $basePath = 'includes/modules/' . $module . '/';
 
-            if (!empty($files)) {
-                foreach ($files as $f) {
-                    $css .= '<link type="text/css" rel="stylesheet" href="/' . $f . '">' . "\n";
-                }
-            }
+    if (!isset($GLOBALS['nx_module_assets'])) {
+        $GLOBALS['nx_module_assets'] = [
+            'css' => [],
+            'js'  => []
+        ];
+    }
 
-            return $css;
+    if (is_dir($basePath . 'css')) {
+        $GLOBALS['nx_module_assets']['css'][] = $basePath;
+    }
 
-        /* ======================================================
-           JS AUTOMATISCH LADEN (wie gehabt)
-        ====================================================== */
-        case "js":
-
-            $subf = is_dir($path . "js/") ? "js/" : "";
-            $files = glob($path . $subf . '*.js');
-
-            if (!empty($files)) {
-                foreach ($files as $file) {
-                    $js .= '<script defer src="/' . $file . '"></script>' . "\n";
-                }
-            }
-
-            return $js;
-
-
-
-        default:
-            return "<!-- invalid parameter -->";
+    if (is_dir($basePath . 'js')) {
+        $GLOBALS['nx_module_assets']['js'][] = $basePath;
     }
 }
 
@@ -147,8 +141,6 @@ function systeminc($file) {
 // Direkt prüfen & laden
 systeminc('session');
 systeminc('ip');
-
-
 
 // Funktion zur Zählung des Vorkommens eines Substrings in einem mehrdimensionalen Array
 function substri_count_array($haystack, $needle)
@@ -199,8 +191,6 @@ function percent($sub, $total, $dec = 2)
     // Runde den Prozentsatz auf die angegebene Dezimalstellenanzahl
     return round($perc, $dec);
 }
-
-
 
 // Funktion, die eine Seite im Wartungsmodus anzeigt
 function showlock(string $reason, int $time)
@@ -285,21 +275,6 @@ function mail_protect($mailaddress)
     // Rückgabe der verschlüsselten E-Mail-Adresse
     return $protected_mail;
 }
-
-// zum Prüfen
-#echo mail_protect("example@example.com");
-
-// Funktion zur Überprüfung, ob eine URL gültig ist
-/*function validate_url($url)
-{
-    // Regulärer Ausdruck zur Validierung einer URL
-    return preg_match(
-        // @codingStandardsIgnoreStart
-        "/^(ht|f)tps?:\/\/([^:@]+:[^:@]+@)?(?!\.)(\.?(?!-)[0-9\p{L}-]+(?<!-))+(:[0-9]{2,5})?(\/[^#\?]*(\?[^#\?]*)?(#.*)?)?$/sui",
-        // @codingStandardsIgnoreEnd
-        $url
-    );
-}*/
 
 function validate_url(string $url): bool {
     // 1. Grundlegende URL-Validierung
@@ -499,13 +474,12 @@ systeminc('classes/LanguageService');
 systeminc('classes/LanguageManager');
 systeminc('classes/SeoUrlHandler');
 systeminc('classes/PluginManager');
-//systeminc('classes/UpdaterFileInstaller');
 systeminc('classes/CMSUpdater');
 systeminc('classes/CMSDatabaseMigration');
+systeminc('classes/PluginMigrationHelper');
 
 // Besucherstatistik
 systeminc('visitor_log_statistic');
-
 
 function getCurrentLanguage(): string
 {
@@ -519,31 +493,21 @@ function getCurrentLanguage(): string
     return $lang;
 }
 
-// Funktion zur Bereinigung des Textes vor dem Speichern in der Datenbank
-function cleanTextForStorage($text) {
-    // Entferne alle Carriage-Return-Zeichen (\r)
-    $text = str_replace("\r", "", $text);
-
-    // Optional: Alle Zeilenumbrüche durch <br> ersetzen, wenn du HTML-Ausgabe möchtest
-    $text = str_replace("\n", "<br>", $text);
-
-    return $text;
-}
-
-// Funktion zur Bereinigung des Textes für die Anzeige
-function cleanTextForDisplay($text) {
-    // Falls du HTML-Zeilenumbrüche im Text hast, wandle sie in echte Zeilenumbrüche um
-    $text = str_replace("<br>", "\n", $text);
-
-    // Umwandlung von \n in HTML <br> für korrekte Darstellung im Browser
-    $text = nl2br($text);
-
-    return $text;
-}
-
-function getinput($text)
+function getinput(?string $text): string
 {
-    return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    return htmlspecialchars($text ?? '', ENT_QUOTES, 'UTF-8');
+}
+
+function render_text(?string $text): string
+{
+    if ($text === null || $text === '') {
+        return '';
+    }
+
+    return nl2br(
+        htmlspecialchars($text, ENT_QUOTES, 'UTF-8'),
+        false
+    );
 }
 
 // -- SITE VARIABLE -- //
@@ -553,8 +517,6 @@ if (isset($_GET['site'])) {
 } else {
     $site = '';
 }
-
-
 
 // Setzt Standardwerte für HTTP_REFERER und REQUEST_URI
 if (!isset($_SERVER['HTTP_REFERER'])) {
@@ -568,7 +530,6 @@ if (!isset($_SERVER['REQUEST_URI'])) {
     }
 }
 
-
 // -- BANNED IPs -- //
 // Löscht abgelaufene Einträge in der Tabelle für gesperrte IPs
 //safe_query("DELETE FROM banned_ips WHERE deltime < '" . time() . "'");
@@ -579,7 +540,6 @@ safe_query("
     AND `deltime` < NOW()
 ");
 
-
 // =======================
 // SEO / PAGE TITLE
 // =======================
@@ -589,15 +549,6 @@ if (stristr($_SERVER['PHP_SELF'], "/admin/") === false) {
 } else {
     define('PAGETITLE', $GLOBALS['hp_title']);
 }
-
-// =======================
-// RSS FEEDS
-// =======================
-/*if (file_exists('func/feeds.php')) {
-    systeminc('func/feeds');
-} else {
-    systeminc('/system/func/feeds');
-}*/
 
 // =======================
 // EMAIL
@@ -639,8 +590,6 @@ function httpprotokoll($string) {
         return 'https://'; // Fallback
     }
 }
-
-
 
 // =======================
 // TABLE EXISTENCE CHECK

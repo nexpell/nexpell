@@ -24,6 +24,7 @@ use nexpell\SeoUrlHandler;
 global $_database, $languageService;
 
 $lang = $languageService->detectLanguage();
+
 $languageService->readModule('register');
 
 $get = mysqli_fetch_assoc(safe_query("SELECT * FROM settings"));
@@ -293,7 +294,7 @@ $data_array = [
     'enter_your_name' => $languageService->get('enter_your_name'),
     'enter_password' => $languageService->get('enter_password'),
     'enter_password_repeat' => $languageService->get('enter_password_repeat'),
-    'pass_text' => $languageService->get('pass_text'),
+    'password_hint' => $languageService->get('password_hint'),
     'register' => $languageService->get('register'),
     'terms_of_use_text' => $languageService->get('terms_of_use_text'),
     'termsofuse' => $termsofuse,

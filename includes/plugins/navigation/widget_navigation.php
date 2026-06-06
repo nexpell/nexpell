@@ -96,12 +96,12 @@ while ($m = $main->fetch_assoc()) {
  * ---------------------------------------------- */
 function nav_user(): string
 {
-    if (empty($_SESSION["userID"])) {
+    if (empty($_SESSION['userID'])) {
         return "<li class='nav-item'><a class='nav-link' href='index.php?site=login'>Login</a></li>";
     }
 
-    $uid     = (int)$_SESSION["userID"];
-    $isAdmin = AccessControl::userHasRole($uid, "Admin");
+    $uid = (int)$_SESSION['userID'];
+    $canAdmin = !empty($_SESSION['roles']) && min($_SESSION['roles']) <= 2;
 
     return "
     <li class='nav-item dropdown'>
@@ -113,12 +113,13 @@ function nav_user(): string
 
         <ul class='dropdown-menu dropdown-menu-end'>
             <li><a class='dropdown-item' href='" . SeoUrlHandler::convertToSeoUrl("index.php?site=profile&userID={$uid}") . "'>Profil</a></li>
-            " . ($isAdmin ? "<li><a class='dropdown-item' href='/admin/admincenter.php' target='_blank'>Admincenter</a></li>" : "") . "
+            " . ($canAdmin ? "<li><a class='dropdown-item' href='/admin/admincenter.php' target='_blank'>Admincenter</a></li>" : "") . "
             <li><hr class='dropdown-divider'></li>
             <li><a class='dropdown-item' href='index.php?site=logout'>Logout</a></li>
         </ul>
     </li>";
 }
+
 
 /* ----------------------------------------------
  * LANGUAGE SELECTOR
@@ -155,22 +156,29 @@ foreach ($languages as $l) {
  * ---------------------------------------------- */
 function nav_messenger_badge(): string
 {
-    if (!PluginManager::isActive('messenger')) return "";
-    if (empty($_SESSION['userID'])) return "";
+    // Plugin aktiv & User eingeloggt?
+    if (!PluginManager::isActive('messenger')) {
+        return '';
+    }
+
+    if (empty($_SESSION['userID'])) {
+        return '';
+    }
 
     global $_database;
 
-    // 🔒 Tabelle existiert?
+    // 🔒 Tabelle vorhanden?
     $check = $_database->query("
         SHOW TABLES LIKE 'plugins_messages'
     ");
 
     if (!$check || $check->num_rows === 0) {
-        return ""; // Messenger nicht vollständig installiert
+        return '';
     }
 
     $uid = (int)$_SESSION['userID'];
 
+    // 📬 Ungelesene Nachrichten zählen
     $row = mysqli_fetch_assoc(safe_query("
         SELECT COUNT(*) AS unread
         FROM plugins_messages
@@ -179,20 +187,30 @@ function nav_messenger_badge(): string
     "));
 
     $unread = (int)($row['unread'] ?? 0);
-    if ($unread === 0) return "";
 
-    $badge = ($unread > 99) ? "99+" : $unread;
+    // Badge nur wenn > 0
+    $badgeHtml = '';
+    if ($unread > 0) {
+        $badge = ($unread > 99) ? '99+' : $unread;
+        $badgeHtml = "<span class='badge rounded-pill bg-danger'>{$badge}</span>";
+    }
 
+    $messengerUrl = SeoUrlHandler::convertToSeoUrl(
+        'index.php?site=messenger'
+    );
+
+    // 🔔 ICON IMMER ANZEIGEN
     return "
     <li class='nav-item'>
-        <a class='nav-link nav-icon-badge' href='index.php?site=messenger'>
+        <a class='nav-link nav-icon-badge' href='$messengerUrl'>
             <span class='icon-wrapper'>
                 <i class='bi bi-envelope fs-5'></i>
-                <span class='badge rounded-pill bg-danger'>{$badge}</span>
+                {$badgeHtml}
             </span>
         </a>
     </li>";
 }
+
 
 
 /* ----------------------------------------------
@@ -200,17 +218,26 @@ function nav_messenger_badge(): string
  * ---------------------------------------------- */
 function nav_forum_badge(): string
 {
-    if (!PluginManager::isActive('forum')) return "";
-    if (empty($_SESSION['userID'])) return "";
+    // Plugin aktiv & User eingeloggt?
+    if (!PluginManager::isActive('forum')) {
+        return '';
+    }
+
+    if (empty($_SESSION['userID'])) {
+        return '';
+    }
 
     global $_database;
 
-    // 🔒 Tabellen prüfen
+    // 🔒 Tabelle prüfen
     $check = $_database->query("SHOW TABLES LIKE 'plugins_forum_read'");
-    if (!$check || $check->num_rows === 0) return "";
+    if (!$check || $check->num_rows === 0) {
+        return '';
+    }
 
     $uid = (int)$_SESSION['userID'];
 
+    // 🆕 Neue Beiträge zählen
     $row = mysqli_fetch_assoc(safe_query("
         SELECT COUNT(*) AS new_posts
         FROM plugins_forum_posts p
@@ -225,20 +252,30 @@ function nav_forum_badge(): string
     "));
 
     $count = (int)($row['new_posts'] ?? 0);
-    if ($count === 0) return "";
 
-    $badge = ($count > 99) ? "99+" : $count;
+    // Badge nur wenn > 0
+    $badgeHtml = '';
+    if ($count > 0) {
+        $badge = ($count > 99) ? '99+' : $count;
+        $badgeHtml = "<span class='badge rounded-pill bg-danger'>{$badge}</span>";
+    }
 
+    $forumUrl = SeoUrlHandler::convertToSeoUrl(
+        "index.php?site=forum"
+    );
+
+    // 💬 ICON IMMER ANZEIGEN
     return "
     <li class='nav-item'>
-        <a class='nav-link nav-icon-badge' href='index.php?site=forum'>
+        <a class='nav-link nav-icon-badge' href='$forumUrl'>
             <span class='icon-wrapper'>
                 <i class='bi bi-chat-dots fs-5'></i>
-                <span class='badge rounded-pill bg-danger'>{$badge}</span>
+                {$badgeHtml}
             </span>
         </a>
     </li>";
 }
+
 
 
 

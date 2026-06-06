@@ -154,14 +154,14 @@ document.querySelectorAll('.select-radio').forEach(radio => {
     console.log("Antwort:", msg);
 
     if (msg.trim() === "OK") {
-        showToast('success', '✔ Stil gespeichert!');
+        showToast('success', '✔ <?= $languageService->get("toast_success") ?>');
     } else {
-        showToast('danger', '❌ Fehler: ' + msg);
+        showToast('danger', '❌ <?= $languageService->get("toast_error") ?>'.replace('%s', msg));
     }
 })
 .catch(err => {
     console.error(err);
-    showToast('danger', '❌ AJAX Fehler');
+    showToast('danger', '❌ <?= $languageService->get("toast_ajax_error") ?>');
 });
 
     });

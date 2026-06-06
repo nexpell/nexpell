@@ -10,8 +10,8 @@ use nexpell\SeoUrlHandler;
 
 // Initialisieren
 global $_database, $languageService;
-$lang = $languageService->detectLanguage();
 $languageService = new LanguageService($_database);
+$lang = $languageService->detectLanguage();
 
 // Admin-Modul laden
 $languageService->readModule('login', false);
@@ -47,58 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = $stmt->get_result();
         $user = $result->fetch_assoc();
 
-        /*if ($user) {
-            if (!empty($user['is_locked']) && (int)$user['is_locked'] === 1) {
-                $message = '<div class="alert alert-danger" role="alert">' . $languageService->get('error_account_locked') . '</div>';
-                $isIpBanned = true;
-            } else {
-                // Session setzen
-                $_SESSION['userID']   = (int)$user['userID'];
-                $_SESSION['username'] = $user['username'];
-                $_SESSION['email']    = $user['email'];
-
-                // Rolle auslesen (Beispiel mit Tabelle user_role_assignments)
-                $stmtRole = $_database->prepare("SELECT roleID FROM user_role_assignments WHERE userID = ? LIMIT 1");
-                $stmtRole->bind_param("i", $user['userID']);
-                $stmtRole->execute();
-                $resultRole = $stmtRole->get_result();
-                if ($resultRole && $rowRole = $resultRole->fetch_assoc()) {
-                    $_SESSION['roleID'] = (int)$rowRole['roleID'];
-                } else {
-                    $_SESSION['roleID'] = null; // oder Default-Rolle
-                }
-                $stmtRole->close();
-
-                // Session absichern
-                LoginSecurity::saveSession($user['userID']);
-
-                // --- Login erfolgreich → Zeitstempel setzen ---
-                $login_time = date('Y-m-d H:i:s');
-                $is_online  = 1;
-
-                $updateStmt = $_database->prepare("
-                    UPDATE users 
-                    SET 
-                        lastlogin = ?,       -- Datum des letzten Logins
-                        login_time = ?,      -- Start der aktuellen Session
-                        last_activity = ?,   -- erste Aktivität = Loginzeit
-                        is_online = ?        -- User ist eingeloggt
-                    WHERE userID = ?
-                ");
-                $updateStmt->bind_param("sssii", $login_time, $login_time, $login_time, $is_online, $user['userID']);
-                $updateStmt->execute();
-                $updateStmt->close();
-
-                // Erfolgsmeldung
-                $_SESSION['success_message'] = $languageService->get('success_login');
-
-                // Weiterleitung
-                header("Location: /");
-                exit;
-            }
-        } else {
-            $message = '<div class="alert alert-danger" role="alert">' . $languageService->get('error_not_found') . '</div>';
-        }*/
         if ($user) {
             if (!empty($user['is_locked']) && (int)$user['is_locked'] === 1) {
                 $message = '<div class="alert alert-danger" role="alert">' . $languageService->get('error_account_locked') . '</div>';
@@ -160,9 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // ===========================================
                 // 🧩 Rückwärtskompatibilität + textbasierte Rolle
                 // ===========================================
-                $_SESSION['roleID'] = $_SESSION['is_admin'] ? 1 : (($_SESSION['is_registered'] ?? false) ? 12 : null);
+                //$_SESSION['roleID'] = $_SESSION['is_admin'] ? 1 : (($_SESSION['is_registered'] ?? false) ? 12 : null);
+                $_SESSION['roleID'] = !empty($roles) ? min($roles) : null;
 
-                if ($_SESSION['is_admin']) {
+                /*if ($_SESSION['is_admin']) {
                     $_SESSION['userrole'] = 'admin';
                 } elseif ($_SESSION['is_moderator']) {
                     $_SESSION['userrole'] = 'moderator';
@@ -172,7 +121,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['userrole'] = 'user';
                 } else {
                     $_SESSION['userrole'] = 'guest';
+                }*/
+
+                if ($_SESSION['is_admin']) {
+                    $_SESSION['userrole'] = 'admin';
+                } elseif ($_SESSION['is_coadmin']) {
+                    $_SESSION['userrole'] = 'coadmin';
+                } elseif ($_SESSION['is_moderator']) {
+                    $_SESSION['userrole'] = 'moderator';
+                } elseif ($_SESSION['is_editor']) {
+                    $_SESSION['userrole'] = 'editor';
+                } elseif ($_SESSION['is_registered']) {
+                    $_SESSION['userrole'] = 'user';
+                } else {
+                    $_SESSION['userrole'] = 'guest';
                 }
+
 
                 // ===========================================
                 // 🧩 Fallback – falls User keine Rolle hat

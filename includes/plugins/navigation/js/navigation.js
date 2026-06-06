@@ -71,8 +71,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (nav) {
         const classes = nav.classList.value;
-        // Find class like: fade, slide, slidefade, zoom
-        animation = classes.match(/(fade|slide|slidefade|zoom)/)
+        // Find class like: nx-fade, nx-slide, nx-slidefade, nx-zoom
+        animation = classes.match(/nx-(fade|slide|slidefade|zoom)/)
             ? RegExp.$1
             : "fade";
     }
@@ -87,14 +87,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (window.innerWidth < 992) return;
             drop.classList.add("show");
             const menu = drop.querySelector(".dropdown-menu");
-            if (menu) menu.classList.add("show", "" + animation);
+            if (menu) menu.classList.add("show", "nx-" + animation);
         });
 
         drop.addEventListener("mouseleave", () => {
             if (window.innerWidth < 992) return;
             drop.classList.remove("show");
             const menu = drop.querySelector(".dropdown-menu");
-            if (menu) menu.classList.remove("show", "" + animation);
+            if (menu) menu.classList.remove("show", "nx-" + animation);
         });
 
         // Mobile CLICK – Bootstrap regelt das

@@ -2,72 +2,162 @@
 
 // Sprach-Array für das Modul 'page_statistic'
 $language_array = array(
-    'access_denied' => 'Zugriff verweigert',
-    'database' => 'Datenbank',
-    'database' => 'Datenbankstatistiken',
-    'demos' => 'Demos',
-    'mysql_version' => 'MySQL Version',
-    'optimize' => 'jetzt optimieren!',
-    'overhead' => 'Überschuss',
-    'page_stats' => 'Tabellenzeilen-Statistiken',
-    'plugins_about_us' => 'About Us',
-    'plugins_articles' => 'Artikel',
-    'plugins_awards' => 'Auszeichnungen',
-    'plugins_banner' => 'Banner',
-    'plugins_bannerrotation' => 'Banner Rotation',
-    'plugins_fight_us_challenge' => 'Herausforderungen',
-    'plugins_clanwars' => 'Clanwars',
-    'comments' => 'Kommentare',
-    'contact' => 'Kontakte',
-    'settings_countries' => 'Länder',
-    'plugins_faq' => 'FAQs',
-    'plugins_faq_categories' => 'FAQ Kategorien',
-    'plugins_files' => 'Dateien',
-    'plugins_files_categories' => 'Datei Kategorien',
-    'plugins_forum_announcements' => 'Forum Ankündigungen',
-    'plugins_forum_boards' => 'Foren',
-    'plugins_forum_categories' => 'Forum Kategorien',
-    'plugins_forum_groups' => 'Forum Gruppen',
-    'plugins_forum_moderators' => 'Forum Moderatoren',
-    'plugins_forum_posts' => 'Forum Einträge',
-    'plugins_forum_ranks' => 'Forum Ränge',
-    'plugins_forum_topics' => 'Forum Themen',
-    'plugins_gallery' => 'Galerie Bilder',
-    'plugins_gallery_categorys' => 'Galerie Kategorien',
-    'plugins_gallery_pictures' => 'Galerie Bilder',
-    'settings_games' => 'Spiele',
-    'plugins_guestbook' => 'Gästebuch Einträge',
-    'plugins_links' => 'Links',
-    'plugins_links_categorys' => 'Link Kategorien',
-    'plugins_linkus' => 'Verlinke uns Banner',
-    'plugins_messenger' => 'gesendete Nachrichten',
-    'plugins_news' => 'Neuigkeiten',
-    'news_languages' => 'Neuigkeiten-Sprachen',
-    'plugins_news_rubrics' => 'Neuigkeiten Rubriken',
-    'plugins_news_comments' => 'Neuigkeiten Kommentare',
-    'plugins_partners' => 'Partner',
-    'plugins_poll' => 'Umfragen',
-    'plugins_servers' => 'Server',
-    'plugins_shoutbox' => 'Shoutbox Einträge',
-    'plugins_clan_rules' => 'Clan Regeln',
-    'size' => 'Größe',
-    'smileys' => 'Smilies',
-    'plugins_sponsors' => 'Sponsoren',
-    'squads' => 'Teams',
-    'static' => 'Statische Seiten',
-    'tables' => 'Tabellen',
-    'users' => 'registrierte Benutzer',
-    'user_gbook' => 'Benutzer-Gästebuch Einträge',
-    'plugins_videos' => 'Videos',
-    'plugins_videos_categories' => 'Video Kategorien',
-    'plugins_videos_comments' => 'Videos Kommentare',
-    'plugins_todo' => 'Todo',
-    'plugins_streams' => 'Streams',
-    'plugins_pic_update' => 'Bilder update',
-    'property' => 'Eigenschaft',
-    'value' => 'Wert',
-    'table_size_chart' => 'Tabellengrößen-Diagramm',
-    'serverinfo' => 'Server-Informationen',
+        /* =========================
+       GENERIC / ACCESS
+    ========================= */
+    'access_denied'            => 'Zugriff verweigert',
+
+    /* =========================
+       HEADLINES
+    ========================= */
+    'database'                 => 'Datenbank',
+    'database_statistics'      => 'Datenbankstatistiken',
+    'serverinfo'               => 'Server-Informationen',
+
+    /* =========================
+       PROPERTIES
+    ========================= */
+    'property'                 => 'Eigenschaft',
+    'value'                    => 'Wert',
+    'mysql_version'            => 'MySQL-Version',
+    'size'                     => 'Größe',
+    'overhead'                 => 'Overhead',
+    'tables'                   => 'Tabellen',
+    'optimize'                 => 'Jetzt optimieren',
+
+    /* =========================
+       DASHBOARD / SUMMARY
+    ========================= */
+    'total_size'               => 'Gesamtgröße',
+    'total_tables'             => 'Gesamtanzahl Tabellen',
+    'table_health'             => 'Tabellen-Zustand',
+
+    /* =========================
+       TABS
+    ========================= */
+    'core_tables'              => 'Core',
+    'plugin_tables'            => 'Plugins',
+    'other_tables'             => 'Sonstige',
+
+    /* =========================
+       TABLE LIST
+    ========================= */
+    'page_stats'               => 'Tabellen-Statistiken',
+    'rows'                     => 'Zeilen',
+    'engine'                   => 'Engine',
+    'status'                   => 'Status',
+
+    /* =========================
+       TABLE STATUS
+    ========================= */
+    'status_ok'                => 'OK',
+    'status_empty'             => 'Leer',
+    'status_large'             => 'Groß',
+
+    /* =========================
+       CHARTS
+    ========================= */
+    'table_size_chart'         => 'Tabellengröße',
+    'table_distribution'       => 'Tabellen-Verteilung',
+    'engine_distribution'      => 'Engine-Verteilung',
+    'dynamic_table_chart'      => 'Tabellengröße (aktueller Bereich)',
+    'top_tables'               => 'Größte Tabellen',
+
+    /* =========================
+       CORE TABLE NAMES
+    ========================= */
+    'users'                    => 'Benutzer',
+    'user_roles'               => 'Benutzerrollen',
+    'user_role_assignments'    => 'Rollen-Zuordnungen',
+    'user_role_admin_navi_rights' => 'Admin-Navigationsrechte',
+    'system_update_history'    => 'Update-Verlauf',
+    'download_stats_universal' => 'Download-Statistiken',
+
+    /* =========================
+       SETTINGS
+    ========================= */
+    'settings'                 => 'Einstellungen',
+    'settings_languages'       => 'Sprachen',
+    'settings_plugins'         => 'Plugins',
+    'settings_widgets'         => 'Widgets',
+    'settings_seo_meta'        => 'SEO Meta-Daten',
+    'settings_headstyle_config'=> 'Headstyle-Konfiguration',
+    'settings_themes'          => 'Themes',
+    'settings_navigation'      => 'Navigation',
+
+    /* =========================
+       NAVIGATION
+    ========================= */
+    'navigation_website'       => 'Website-Navigation',
+    'navigation_website_sub'   => 'Website-Untermenüs',
+    'navigation_dashboard_links'=> 'Dashboard-Navigation',
+
+    /* =========================
+       FORUM (NEU)
+    ========================= */
+    'plugins_forum_boards'     => 'Foren',
+    'plugins_forum_categories' => 'Forum-Kategorien',
+    'plugins_forum_threads'    => 'Forum-Themen',
+    'plugins_forum_posts'      => 'Forum-Beiträge',
+    'plugins_forum_read'       => 'Gelesene Themen',
+    'plugins_forum_post_likes' => 'Beitrags-Likes',
+    'plugins_forum_moderators' => 'Moderatoren',
+
+    'plugins_forum_permissions_board'     => 'Forum-Rechte (Board)',
+    'plugins_forum_permissions_categories'=> 'Forum-Rechte (Kategorie)',
+    'plugins_forum_permissions_threads'   => 'Forum-Rechte (Thread)',
+
+    /* =========================
+       NEWS
+    ========================= */
+    'plugins_news'             => 'News',
+    'plugins_news_categories'  => 'News-Kategorien',
+    'plugins_news_comments'    => 'News-Kommentare',
+
+    /* =========================
+       CONTENT / COMMUNITY
+    ========================= */
+    'plugins_about_us'         => 'Über uns',
+    'plugins_articles'         => 'Artikel',
+    'plugins_faq'              => 'FAQ',
+    'plugins_faq_categories'   => 'FAQ-Kategorien',
+    'plugins_guestbook'        => 'Gästebuch',
+    'plugins_shoutbox'         => 'Shoutbox',
+    'plugins_poll'             => 'Umfragen',
+
+    /* =========================
+       MEDIA
+    ========================= */
+    'plugins_gallery'          => 'Galerie',
+    'plugins_gallery_categories'=> 'Galerie-Kategorien',
+    'plugins_files'            => 'Dateien',
+    'plugins_files_categories' => 'Datei-Kategorien',
+    'plugins_videos'           => 'Videos',
+    'plugins_videos_categories'=> 'Video-Kategorien',
+    'plugins_videos_comments'  => 'Video-Kommentare',
+
+    /* =========================
+       LINKS / PARTNER
+    ========================= */
+    'plugins_links'            => 'Links',
+    'plugins_links_categories' => 'Link-Kategorien',
+    'plugins_linkus'           => 'Link uns',
+    'plugins_partners'         => 'Partner',
+    'plugins_sponsors'         => 'Sponsoren',
+
+    /* =========================
+       SERVER / GAME
+    ========================= */
+    'plugins_servers'          => 'Server',
+    'settings_games'           => 'Spiele',
+
+    /* =========================
+       TOOLS
+    ========================= */
+    'plugins_messenger'        => 'Messenger',
+    'plugins_todo'             => 'ToDo',
+    'plugins_streams'          => 'Streams',
+    'plugins_pic_update'       => 'Bild-Updates',
 );
 
 

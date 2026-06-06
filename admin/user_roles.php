@@ -486,50 +486,69 @@ function nx_getForumPermissionsByRole(int $roleID): string
 {
     global $_database;
 
-    // 🛡 Tabelle prüfen (verhindert Fatal Error, wenn Forum-Plugin fehlt)
-    $check = $_database->query("SHOW TABLES LIKE 'plugins_forum_permissions'");
-    if (!$check || $check->num_rows === 0) {
-        // Tabelle existiert nicht → Plugin Forum nicht installiert
-        return '<span class="text-muted">Forum-Plugin nicht installiert</span>';
+    $tables = [
+        'plugins_forum_permissions_board',
+        'plugins_forum_permissions_categories',
+        'plugins_forum_permissions_threads'
+    ];
+
+    $rights = [
+        'can_view'   => 0,
+        'can_read'   => 0,
+        'can_post'   => 0,
+        'can_reply'  => 0,
+        'can_edit'   => 0,
+        'can_delete' => 0,
+        'is_mod'     => 0
+    ];
+
+    foreach ($tables as $table) {
+
+        // 🛡 Tabelle prüfen
+        $check = $_database->query("SHOW TABLES LIKE '{$table}'");
+        if (!$check || $check->num_rows === 0) {
+            continue;
+        }
+
+        $res = safe_query("
+            SELECT
+                MAX(can_view)   AS can_view,
+                MAX(can_read)   AS can_read,
+                MAX(can_post)   AS can_post,
+                MAX(can_reply)  AS can_reply,
+                MAX(can_edit)   AS can_edit,
+                MAX(can_delete) AS can_delete,
+                MAX(is_mod)     AS is_mod
+            FROM {$table}
+            WHERE role_id = " . (int)$roleID
+        );
+
+        if ($res && ($row = mysqli_fetch_assoc($res))) {
+            foreach ($rights as $k => $v) {
+                if ((int)$row[$k] === 1) {
+                    $rights[$k] = 1;
+                }
+            }
+        }
     }
 
-    // 🔹 Rechte abfragen
-    $res = safe_query("
-        SELECT 
-            MAX(can_view)   AS can_view,
-            MAX(can_read)   AS can_read,
-            MAX(can_post)   AS can_post,
-            MAX(can_reply)  AS can_reply,
-            MAX(is_mod)     AS is_mod,
-            MAX(can_delete) AS can_delete
-        FROM plugins_forum_permissions
-        WHERE role_id = $roleID
-    ");
+    // 🔸 Badges
+    $out = [];
 
-    if (!$res || mysqli_num_rows($res) === 0) {
-        return '<span class="text-muted">Keine</span>';
-    }
+    if ($rights['can_view'])   $out[] = '<span class="badge bg-light text-dark"><i class="bi bi-eye"></i> Ansicht</span>';
+    if ($rights['can_read'])   $out[] = '<span class="badge bg-success"><i class="bi bi-book"></i> Lesen</span>';
+    if ($rights['can_post'])   $out[] = '<span class="badge bg-primary"><i class="bi bi-plus-circle"></i> Thema</span>';
+    if ($rights['can_reply'])  $out[] = '<span class="badge bg-info text-dark"><i class="bi bi-chat"></i> Antworten</span>';
+    if ($rights['can_edit'])   $out[] = '<span class="badge bg-secondary"><i class="bi bi-pencil"></i> Bearbeiten</span>';
+    if ($rights['can_delete']) $out[] = '<span class="badge bg-danger"><i class="bi bi-trash"></i> Löschen</span>';
+    if ($rights['is_mod'])     $out[] = '<span class="badge bg-warning text-dark"><i class="bi bi-shield-lock"></i> Moderator</span>';
 
-    $p = mysqli_fetch_assoc($res);
-    $rights = [];
-
-    // 🔸 Rechte-Badges
-    if (!empty($p['can_view']))   $rights[] = '<span class="badge bg-light text-dark">👁 Ansicht</span>';
-    if (!empty($p['can_read']))   $rights[] = '<span class="badge bg-success">📖 Lesen</span>';
-    if (!empty($p['can_post']))   $rights[] = '<span class="badge bg-primary">📝 Thema erstellen</span>';
-    if (!empty($p['can_reply']))  $rights[] = '<span class="badge bg-info text-dark">💬 Antworten</span>';
-    if (!empty($p['can_delete'])) $rights[] = '<span class="badge bg-danger">🗑 Löschen</span>';
-
-    // 🔸 Moderator-Rechte
-    if (!empty($p['is_mod'])) {
-        $rights[] = '<span class="badge bg-warning text-dark">🛡 Moderator</span>';
-    }
-
-    // 🔸 Ausgabe
-    return !empty($rights)
-        ? implode(' ', $rights)
+    return !empty($out)
+        ? implode(' ', $out)
         : '<span class="text-muted">Keine Rechte</span>';
 }
+
+
 
 
     ?>

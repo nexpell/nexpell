@@ -24,11 +24,8 @@ use nexpell\AccessControl;
 // Den Admin-Zugriff für das Modul überprüfen
 AccessControl::checkAdminAccess('ac_overview');
 
-require_once __DIR__ . '/../system/version.php';
-
-$coreVersion = defined('NEXPELL_CORE_VERSION')
-    ? NEXPELL_CORE_VERSION
-    : '0.0.0';
+$version = require __DIR__ . '/../system/version.php';
+$coreVersion = trim((string)$version);    
 
 $phpversion = phpversion() < '4.3' ? '<font color="#FF0000">' . phpversion() . '</font>' :
     '<font color="#008000">' . phpversion() . '</font>';
@@ -51,15 +48,9 @@ $get_file_uploads = get_cfg_var('file_uploads') ? '<font color="#008000">' . $la
     '<font color="#FF0000">' . $languageService->module[ 'off' ] . '</font>';
 $get_log_errors = get_cfg_var('log_errors') ? '<font color="#008000">' . $languageService->module[ 'on' ] . '</font>' :
     '<font color="#FF0000">' . $languageService->module[ 'off' ] . '</font>';
-#$get_magic_quotes =
-#    get_cfg_var('magic_quotes_gpc') ? '<font color="#008000">' . $languageService->module[ 'on' ] . '</font>' :
-#        '<font color="#FFA500">' . $languageService->module[ 'off' ] . '</font>';
 $get_max_execution_time = get_cfg_var('max_execution_time') < 30 ?
     '<font color="#FF0000">' . get_cfg_var('max_execution_time') . '</font> <small>(min. > 30)</small>' :
     '<font color="#008000">' . get_cfg_var('max_execution_time') . '</font>';
-#$get_memory_limit =
-#    get_cfg_var('memory_limit') > 128 ? '<font color="#FFA500">' . get_cfg_var('memory_limit') . '</font>' :
-#        '<font color="#008000">' . get_cfg_var('memory_limit') . '</font>';
 $get_open_basedir = get_cfg_var('open_basedir') ? '<font color="#008000">' . $languageService->module[ 'on' ] . '</font>' :
     '<font color="#FFA500">' . $languageService->module[ 'off' ] . '</font>';
 $get_post_max_size =
@@ -68,8 +59,6 @@ $get_post_max_size =
 $get_register_globals =
     get_cfg_var('register_globals') ? '<font color="#FF0000">' . $languageService->module[ 'on' ] . '</font>' :
         '<font color="#008000">' . $languageService->module[ 'off' ] . '</font>';
-#$get_safe_mode = get_cfg_var('safe_mode') ? '<font color="#008000">' . $languageService->module[ 'on' ] . '</font>' :
-#    '<font color="#FF0000">' . $languageService->module[ 'off' ] . '</font>';
 $get_short_open_tag =
     get_cfg_var('short_open_tag') ? '<font color="#008000">' . $languageService->module[ 'on' ] . '</font>' :
         '<font color="#FFA500">' . $languageService->module[ 'off' ] . '</font>';

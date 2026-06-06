@@ -12,6 +12,8 @@ require_once BASE_PATH . '/system/core/init.php';
 require_once BASE_PATH . '/system/core/builder_live.php';
 
 use nexpell\AccessControl;
+#AccessControl::checkAdminAccess('ac_plugin_widgets_setting');
+
 
 // --- Builder-Modus aktiv? ---
 $isBuilder = (isset($_GET['builder']) && $_GET['builder'] === '1');
@@ -50,6 +52,48 @@ require_once 'header.php';
 </script>
 <!-- === Zonen-Restriktions-Logik / Builder-Flag ENDE === -->
 <?php endif; ?>
+
+<?php /*if (!empty($_SESSION['userID'])): ?>
+<div class="card mt-3 border-warning">
+    <div class="card-header bg-warning text-dark fw-bold">
+        🔐 Deine Login- & Rollenrechte
+    </div>
+    <div class="card-body small">
+        <ul class="mb-0">
+            <li><strong>UserID:</strong> <?= (int)$_SESSION['userID'] ?></li>
+            <li><strong>Username:</strong> <?= htmlspecialchars($_SESSION['username'] ?? '') ?></li>
+            <li><strong>roleID (höchste):</strong> <?= $_SESSION['roleID'] ?? '–' ?></li>
+            <li><strong>userrole (Text):</strong> <?= $_SESSION['userrole'] ?? '–' ?></li>
+
+            <hr class="my-2">
+
+            <li><strong>Alle Rollen (IDs):</strong>
+                <?= !empty($_SESSION['roles']) ? implode(', ', $_SESSION['roles']) : 'keine' ?>
+            </li>
+
+            <li><strong>Alle Rollen (Namen):</strong>
+                <?= !empty($_SESSION['role_names']) ? implode(', ', $_SESSION['role_names']) : 'keine' ?>
+            </li>
+
+            <hr class="my-2">
+
+            <?php
+            $flags = [
+                'is_admin','is_coadmin','is_leader','is_coleader','is_squadleader',
+                'is_warorg','is_moderator','is_editor','is_member','is_trial',
+                'is_guest','is_registered','is_honor','is_streamer',
+                'is_designer','is_technician'
+            ];
+            foreach ($flags as $flag):
+                if (!empty($_SESSION[$flag])):
+            ?>
+                <li class="text-success">✅ <?= $flag ?></li>
+            <?php endif; endforeach; ?>
+        </ul>
+    </div>
+</div>
+<?php endif;*/ ?>
+
 
   <!-- === UnderTop Widgets === -->
   <?php if ($isBuilder || !empty($widgetsByPosition['undertop'])): ?>

@@ -228,12 +228,18 @@ foreach ($pages as $contentKey => $data) {
 
     $xml .= "  <url>\n";
     $xml .= "    <loc>" . xmlEscape($locUrl) . "</loc>\n";
+
     foreach ($data['langs'] as $lang => $href) {
-        $xml .= "    <xhtml:link rel=\"alternate\" hreflang=\"" . xmlEscape($lang) . "\" href=\"" . xmlEscape($href) . "\"/>\n";
+        $xml .= "    <xhtml:link rel=\"alternate\" hreflang=\"" 
+             . xmlEscape($lang) 
+             . "\" href=\"" 
+             . xmlEscape($href) 
+             . "\"/>\n";
     }
-    $xml .= "    <xhtml:link rel=\"alternate\" hreflang=\"x-default\" href=\"" . xmlEscape(joinUrl($BASE)) . "\"/>\n";
+
     $xml .= "    <lastmod>{$lastmod}</lastmod>\n";
     $xml .= "  </url>\n";
+
 }
 $xml .= "</urlset>";
 

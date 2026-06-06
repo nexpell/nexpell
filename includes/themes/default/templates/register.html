@@ -61,15 +61,22 @@
                                     <div class="mb-3">
                                         <label for="password" class="form-label">{password_label}</label>
                                         <input type="password" name="password" class="form-control" id="password"
-                                               placeholder="{enter_password}" required>
-                                        <small class="form-text text-muted">{pass_text}</small>
-                                        <div id="passwordStrength" class="mt-2 bg-secondary"></div>
+                                               placeholder="{enter_password}" required>                                        
+                                        <!--<div id="passwordStrength" class="mt-2 bg-secondary"></div>-->
+                                    </div>
+                                    <div class="progress mt-1" style="height:6px;">
+                                        <div id="pw-strength-bar" class="progress-bar"></div>
                                     </div>
 
                                     <div class="mb-3">
                                         <label for="password_repeat" class="form-label">{password_repeat_label}</label>
                                         <input type="password" name="password_repeat" class="form-control"
                                                id="password_repeat" placeholder="{enter_password_repeat}" required>
+                                    </div>
+
+                                    <div class="alert alert-info small mt-2" role="alert">
+                                        <i class="bi bi-shield-lock me-1"></i>
+                                        {password_hint}
                                     </div>
 
                                     <div class="form-check mb-3">
@@ -104,5 +111,59 @@
         </div>
     </div>
 </div>
+<script>
+const pwInput = document.querySelector('input[name="password"]');
+const bar  = document.getElementById('pw-strength-bar');
+const text = document.getElementById('pw-strength-text');
 
+pwInput?.addEventListener('input', () => {
+    const v = pwInput.value;
+    const len = v.length;
+
+    // Zeichenarten
+    const hasLower   = /[a-z]/.test(v);
+    const hasUpper   = /[A-Z]/.test(v);
+    const hasNumber  = /[0-9]/.test(v);
+    const hasSpecial = /[^A-Za-z0-9]/.test(v);
+
+    const typesCount = [hasLower, hasUpper, hasNumber, hasSpecial].filter(Boolean).length;
+
+    // 🔁 Wiederholungen prüfen
+    const freq = {};
+    for (const c of v) freq[c] = (freq[c] || 0) + 1;
+    const maxRepeat = Math.max(...Object.values(freq), 0);
+    const repeatRatio = maxRepeat / len;
+
+    let level = 0;
+
+    // ❌ hart blockieren
+    if (len < 6 || typesCount === 1) {
+        level = 0; // rot
+    }
+    // ⚠️ schwach
+    else if (len < 8 || repeatRatio > 0.7) {
+        level = 1; // gelb
+    }
+    // 🟠 mittel
+    else if (len < 10 || typesCount < 3) {
+        level = 2;
+    }
+    // 🟢 stark
+    else {
+        level = 3;
+    }
+
+    const states = [
+        { c: 'bg-danger',  w: '25%',  t: 'Sehr schwach' },
+        { c: 'bg-warning', w: '50%',  t: 'Schwach' },
+        { c: 'bg-info',    w: '75%',  t: 'Mittel' },
+        { c: 'bg-success', w: '100%', t: 'Stark' }
+    ];
+
+    const s = states[level];
+    bar.className = 'progress-bar ' + s.c;
+    bar.style.width = s.w;
+    text.textContent = 'Passwortstärke: ' + s.t;
+});
+</script>
 <!-- END -->

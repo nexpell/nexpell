@@ -20,7 +20,7 @@
     margin: 0 -11px -11px;
     padding: 15px 0 10px 0;
     text-transform: uppercase;
-    border-bottom: 1px solid rgba(var(--bs-primary-rgb), 1);
+    border-bottom: 1px solid var(--primary);
     
 }
 
@@ -38,7 +38,7 @@
 .head-boxes-2 span.head-boxes-head {
   position: absolute;
   top: 30px;
-  /*color: rgba(var(--bs-primary-rgb), 1);*/
+  /*color: var(--primary);*/
   left: 0;
   right: 0;
   z-index: 1;
@@ -59,7 +59,7 @@
   text-transform: uppercase;
   margin-bottom: 15px;
   padding-bottom: 0;
-  color: rgba(var(--bs-primary-rgb), 1);
+  color: var(--primary);
   position: relative;
   z-index: 2;
  
@@ -106,7 +106,7 @@
   font-size: 16px;
   font-weight: 700;
   font-family: "Playfair Display", serif;
-  color: var(--bs-link-color); /* Bootstrap-konform */
+  color: var(--primary);
   margin: 0 0 -30px 0;
 }
 
@@ -136,7 +136,7 @@
   width: 100px;
   height: 1px;
   display: inline-block;
-  background: rgba(var(--bs-primary-rgb), 1);
+  background: var(--primary);
   margin: 4px 10px;
 }
 
@@ -165,7 +165,7 @@
   font-weight: bold;
   position: relative;
   margin-bottom: 30px;
-  color: rgba(var(--bs-primary-rgb), 1);
+  color: var(--primary);
   z-index: 2;
 }
 
@@ -213,7 +213,7 @@
   display: block;
   width: 200px;
   height: 1px;
-  background: rgba(var(--bs-primary-rgb), 1);
+  background: var(--primary);
   bottom: 0;
   left: calc(50% - 100px);
 }
@@ -259,7 +259,7 @@
   display: block;
   width: 40px;
   height: 3px;
-  background: rgba(var(--bs-primary-rgb), 1);
+  background: var(--primary);
   left: calc(50% - 20px);
 }
 
@@ -287,7 +287,7 @@
 
 .head-boxes-8 span.head-boxes-title {
   
-  border-bottom: 0px solid rgba(var(--bs-primary-rgb), 1);    
+  border-bottom: 0px solid var(--primary);    
 }
 
 .head-boxes-8 h2,
@@ -299,6 +299,7 @@
   /*text-transform: lowercase;*/
   text-transform: uppercase;
   margin-top: 12px;
+  color: var(--primary);
 }
 
 .head-boxes-8 p.head-boxes-foot {
@@ -328,7 +329,7 @@
   content: "";
   width: 50px;
   height: 2px;
-  background: rgba(var(--bs-primary-rgb), 1);    
+  background: var(--primary);    
   display: inline-block;
 }
 
@@ -378,7 +379,7 @@
   display: block;
   width: 60px;
   height: 5px;
-  background: rgba(var(--bs-primary-rgb), 1);    
+  background: var(--primary);    
   
   left: calc(50% - 30px);
 }

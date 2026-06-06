@@ -16,22 +16,6 @@ $languageService = new LanguageService($_database);
 // Admin-Modul laden
 $languageService->readModule('imprint', true);
 
-// CAPTCHA Dummy-Klasse (bitte durch dein System ersetzen)
-class Captcha {
-    public function checkCaptcha($id, $hash) {
-        // Hier echte Prüfung einbauen
-        return true;
-    }
-    public function createTransaction() {
-        // Dummy hash
-        return "dummyhash";
-    }
-    public function getHash() {
-        return "dummyhash";
-    }
-}
-$CAPCLASS = new Captcha();
-
 // Fehler und Erfolgsmeldung
 $errors = [];
 $success = false;

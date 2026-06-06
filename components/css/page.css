@@ -176,3 +176,26 @@ body, .sticky-footer-wrapper {
   max-width: 500px;
   width: 90%;
 }
+
+
+/* LIGHT MODE – altes School Book Theme */
+[data-bs-theme="light"] pre,
+[data-bs-theme="light"] .hljs {
+  
+  border-top: 2px solid #d2e8b9;
+  border-bottom: 1px solid #d2e8b9;
+  color: #3E5915;
+}
+
+/* DARK MODE – modernes Code-Theme */
+[data-bs-theme="dark"] pre,
+[data-bs-theme="dark"] .hljs {
+  
+  border-top: 2px solid #d2e8b9;
+  border-bottom: 1px solid #d2e8b9;
+  color: #3E5915;
+}
+
+pre.bg-light {
+  padding: 16px 8px 8px 30px !important;
+}

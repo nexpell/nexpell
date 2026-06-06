@@ -127,7 +127,7 @@ if ($site != "search") {
 // -- SECURITY SLASHES FUNCTION -- //
 // Diese Funktion stellt sicher, dass alle Eingabewerte aus $_POST, $_GET, $_COOKIE und $_REQUEST
 // gegen SQL-Injektionen geschützt werden, indem sie Escaping durchführen.
-function security_slashes(&$array)
+/*function security_slashes(&$array)
 {
     global $_database;
 
@@ -154,11 +154,11 @@ function security_slashes(&$array)
 security_slashes($_POST);
 security_slashes($_COOKIE);
 security_slashes($_GET);
-security_slashes($_REQUEST);
+security_slashes($_REQUEST);*/
 
 // -- ESCAPE QUERY FUNCTION FOR TABLE -- //
 // Diese Funktion sorgt dafür, dass SQL-Abfragen vor der Ausführung sicher sind
-function escapestring($mquery) {
+/*function escapestring($mquery) {
     global $_database;
     
     // Überprüfe, ob mysqli_real_escape_string verfügbar ist und verwende es
@@ -169,7 +169,7 @@ function escapestring($mquery) {
         $mquery = addslashes($mquery);
     }
     return $mquery;
-}
+}*/
 
 // -- MYSQL FETCH FUNCTION -- //
 // Diese Funktion fetcht ein assoziatives Array aus einem MySQL-Abfrageergebnis

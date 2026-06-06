@@ -346,23 +346,23 @@ private static function hasAnyRoleAccess(string $modulname, int $userID): bool
         return $refs;
     }
 
-    public static function userHasRole(int $userID, string $roleName): bool
+public static function userHasRoleID(int $userID, int $roleID): bool
 {
     global $_database;
 
-    $roleName = self::escape($roleName);
-
-    $query = "
-        SELECT r.role_name
-        FROM user_roles r
-        JOIN user_role_assignments ura ON ura.roleID = r.roleID
-        WHERE ura.userID = $userID
-          AND r.role_name = '$roleName'
+    $stmt = $_database->prepare("
+        SELECT 1
+        FROM user_role_assignments
+        WHERE userID = ?
+          AND roleID = ?
         LIMIT 1
-    ";
+    ");
+    $stmt->bind_param("ii", $userID, $roleID);
+    $stmt->execute();
+    $stmt->store_result();
 
-    $res = $_database->query($query);
-    return ($res && $res->num_rows > 0);
+    return $stmt->num_rows > 0;
 }
+
 
 }

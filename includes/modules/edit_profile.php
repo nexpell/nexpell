@@ -33,18 +33,22 @@ if (!$userID) die('Nicht eingeloggt.');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // POST-Daten holen
-    $firstname = escape($_POST['firstname'] ?? '');
-    $lastname  = escape($_POST['lastname'] ?? '');
-    $location  = escape($_POST['location'] ?? '');
-    $about_me  = escape($_POST['about_me'] ?? '');
-    $birthday  = escape($_POST['birthday'] ?? '');
-    $gender    = escape($_POST['gender'] ?? '');
-    $signatur  = escape($_POST['signatur'] ?? '');
-    $twitter   = escape($_POST['twitter'] ?? '');
-    $facebook  = escape($_POST['facebook'] ?? '');
-    $website   = escape($_POST['website'] ?? '');
-    $github    = escape($_POST['github'] ?? '');
-    $instagram = escape($_POST['instagram'] ?? '');
+    $firstname = $_POST['firstname'] ?? '';
+    $lastname  = $_POST['lastname'] ?? '';
+    $location  = $_POST['location'] ?? '';
+    $about_me  = $_POST['about_me'] ?? '';
+    $birthday  = $_POST['birthday'] ?? '';
+    $gender    = $_POST['gender'] ?? '';
+
+
+$signatur = TextFormatter::htmlNormalize($_POST['signatur'] ?? '');
+
+
+    $twitter   = $_POST['twitter'] ?? '';
+    $facebook  = $_POST['facebook'] ?? '';
+    $website   = $_POST['website'] ?? '';
+    $github    = $_POST['github'] ?? '';
+    $instagram = $_POST['instagram'] ?? '';
 
     $croppedAvatar = $_POST['croppedAvatar'] ?? null;
     $avatar_url = null;
@@ -171,7 +175,7 @@ $data_array = [
     'gender_select_male'   => $gender_options['gender_selected_male'],
     'gender_select_female' => $gender_options['gender_selected_female'],
     'gender_select_other'  => $gender_options['gender_selected_other'],
-    'signatur' => htmlspecialchars($signatur ?? ($user['signatur'] ?? '')),
+    'signatur' => $signatur,
     
     // Avatar-URL: wenn $avatar gesetzt, sonst aus $user['avatar']
     'avatar_url' => !empty($avatar) ? $avatar : (!empty($user['avatar']) ? '/path/to/avatars/' . htmlspecialchars($user['avatar']) : ''),

@@ -78,10 +78,6 @@ $_language = $languageService;
 $page = $_GET['site'] ?? 'index';
 $page_escaped = mysqli_real_escape_string($GLOBALS['_database'], $page);
 
-
-
-
-
 // ==========================================================
 // HTML-THEME aus DB übernehmen
 // auto = startet immer als light (wichtig – JS switcht später)
@@ -98,6 +94,29 @@ while ($row = $res->fetch_assoc()) {
 }
 $dbTheme = $settings['navbar_modus'] ?? 'auto';
 $htmlTheme = ($dbTheme === 'auto') ? 'light' : $dbTheme;
+
+
+// =========================================
+// NX SETTINGS – GLOBAL INIT (SAFE)
+// =========================================
+if (!isset($GLOBALS['nx_settings'])) {
+
+    global $_database;
+    $GLOBALS['nx_settings'] = [];
+
+    if (isset($_database)) {
+        $res = $_database->query("
+            SELECT setting_key, setting_value
+            FROM navigation_website_settings
+        ");
+
+        if ($res) {
+            while ($row = $res->fetch_assoc()) {
+                $GLOBALS['nx_settings'][$row['setting_key']] = $row['setting_value'];
+            }
+        }
+    }
+}
 
 // ==========================================================
 // Widgets für die aktuelle Seite aus DB laden
@@ -124,30 +143,6 @@ foreach ($allPositions as $position) {
 }
 
 // ==========================================================
-// Hauptinhalt des Plugins laden (site=xyz)
-// ==========================================================
-if (!function_exists('get_mainContent')) {
-    function get_mainContent(): string
-    {
-        global $pluginManager, $currentSite;
-
-        $pluginFile = $pluginManager->loadPluginPage($currentSite);
-        if ($pluginFile) {
-            $pluginName = basename($pluginFile, '.php');
-
-            // Plugin-CSS/JS registrieren, aber NICHT ausgeben
-            $pluginManager->loadPluginAssets($pluginName);
-
-            ob_start();
-            include $pluginFile;
-            return ob_get_clean();
-        }
-
-        return '';
-    }
-}
-
-// ==========================================================
 // Aktives Website-Theme ermitteln (default, lux etc.)
 // ==========================================================
 $currentTheme = 'lux';
@@ -162,6 +157,19 @@ if ($row = mysqli_fetch_assoc($result)) {
 // ==========================================================
 require_once BASE_PATH.'/system/seo_meta_helper.php';
 $meta = getSeoMeta($page);
+
+// ==========================================================
+// Plugin-CSS/JS für Startpage / Plugineinbindung
+// ==========================================================
+
+$site = detectSite();
+
+$plugin = detectPluginForSite($site);
+if ($plugin) {
+    $pluginManager->loadPluginAssets($site);
+} else {
+    registerModuleAssets($site);
+}
 
 // ==========================================================
 // Plugin-CSS/JS für späteren <head> Ausgaben vorbereiten

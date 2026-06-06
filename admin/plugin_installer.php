@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 use nexpell\LanguageService;
 use nexpell\AccessControl;
 use nexpell\PluginUninstaller;
+use nexpell\PluginMigrationHelper;
 
 /* ======================================================
    BOOTSTRAP
@@ -92,7 +93,9 @@ function pluginIsInstallable(array $p, string $adminEmail, string $coreVersion, 
     $adminEmail = strtolower(trim($adminEmail));
     $version    = $p['version'] ?? 'unknown';
 
-    // Core min
+    /* ===============================
+       CORE-KOMPATIBILITÄT
+    =============================== */
     if (!empty($p['core']['min']) &&
         version_compare($coreVersion, $p['core']['min'], '<')) {
 
@@ -100,7 +103,6 @@ function pluginIsInstallable(array $p, string $adminEmail, string $coreVersion, 
         return false;
     }
 
-    // Core max (NULL erlaubt!)
     if (!empty($p['core']['max']) &&
         version_compare($coreVersion, $p['core']['max'], '>')) {
 
@@ -108,27 +110,41 @@ function pluginIsInstallable(array $p, string $adminEmail, string $coreVersion, 
         return false;
     }
 
-    $visibleFor = strtoupper($p['visible_for'] ?? 'ALL');
+    /* ===============================
+       SICHTBARKEIT / RECHTE
+    =============================== */
 
-    if ($visibleFor === 'ALL') {
-        $dbg[] = "✅ {$p['modulname']} {$version}: visible_for ALL";
-        return true;
-    }
+    $visibleFor = strtoupper((string)($p['visible_for'] ?? 'ALL'));
+    $emails     = array_map('strtolower', $p['visible_emails'] ?? []);
 
-    if ($visibleFor === 'CUSTOM') {
-        $emails = array_map('strtolower', $p['visible_emails'] ?? []);
-        if (in_array($adminEmail, $emails, true)) {
-            $dbg[] = "✅ {$p['modulname']} {$version}: CUSTOM match {$adminEmail}";
-            return true;
-        }
-
-        $dbg[] = "❌ {$p['modulname']} {$version}: CUSTOM no match ({$adminEmail})";
+    // 🚫 Komplett deaktiviert
+    if ($visibleFor === 'DISABLED') {
+        $dbg[] = "❌ {$p['modulname']} {$version}: DISABLED";
         return false;
     }
 
-    $dbg[] = "❌ {$p['modulname']} {$version}: unknown visible_for";
-    return false;
+    // 👻 Sichtbar, aber NICHT installierbar (optional, falls genutzt)
+    if ($visibleFor === 'HIDDEN') {
+        $dbg[] = "⚠️ {$p['modulname']} {$version}: HIDDEN";
+        return false;
+    }
+
+    // 📧 Einschränkung per E-Mail (hat Priorität!)
+    if (!empty($emails)) {
+        if ($adminEmail !== '' && in_array($adminEmail, $emails, true)) {
+            $dbg[] = "✅ {$p['modulname']} {$version}: email match ({$adminEmail})";
+            return true;
+        }
+
+        $dbg[] = "❌ {$p['modulname']} {$version}: email no match ({$adminEmail})";
+        return false;
+    }
+
+    // 🌍 Öffentlich (ALL / leer / nicht gesetzt)
+    $dbg[] = "✅ {$p['modulname']} {$version}: public";
+    return true;
 }
+
 
 
 
@@ -154,6 +170,7 @@ function loadPluginsRegistry(string $url): array
     if (curl_getinfo($ch, CURLINFO_HTTP_CODE) !== 200) {
         throw new RuntimeException('Registry HTTP error');
     }
+    curl_close($ch);
 
     $data = json_decode($json, true);
     if (!isset($data['plugins']) || !is_array($data['plugins'])) {
@@ -347,6 +364,14 @@ if (!empty($_SESSION['flash'])): ?>
 <?php unset($_SESSION['redirect_after']); ?>
 <?php endif;
 
+
+
+
+
+
+
+
+
 /* =========================================
    1) GLOBAL SORTIEREN (VOR PAGINATION)
 ========================================= */
@@ -356,6 +381,8 @@ usort($plugins, fn($a, $b) =>
         (string)($b['modulname'] ?? '')
     )
 );
+
+
 
 /* ======================================================
    HTML / PAGINATION
@@ -402,6 +429,17 @@ $pluginsPage = array_slice($plugins, $offset, $cardsPerPage);
                 foreach ($pluginsPage as $p):
 
                     $inst = $installed[$p['modulname']] ?? null;
+
+                    /* =========================================
+                       1) Update Abfrage
+                    ========================================= */
+
+                    $installedVersion = $inst['version'] ?? null;
+                    $latestVersion    = $p['version'];
+
+                    $isInstalled = (bool)$inst;
+                    $hasUpdate   = $isInstalled && version_compare($latestVersion, $installedVersion, '>');
+
 
                     // Beschreibung übersetzen
                     $desc = $ml->getTextByLanguage($p['description']);
@@ -450,19 +488,39 @@ $pluginsPage = array_slice($plugins, $offset, $cardsPerPage);
 
                                     <div class="mt-auto">
 
-                                    <?php if ($inst): ?>
+                                        <?php if ($isInstalled && !$hasUpdate): ?>
 
+                                        <!-- ✅ Installiert & aktuell -->
                                         <div class="d-grid gap-2">
                                             <button class="btn btn-outline-secondary btn-sm" disabled>
-                                                Installiert (<?= htmlspecialchars($inst['version']) ?>)
+                                                Installiert (<?= htmlspecialchars($installedVersion) ?>)
                                             </button>
 
                                             <a class="btn btn-warning btn-sm"
-   onclick="return confirm('Plugin wirklich neu installieren? Alle Dateien werden ersetzt.')"
-   href="?site=plugin_installer&reinstall=<?= urlencode($p['modulname']) ?>">
-   Reinstall
-</a>
+                                               onclick="return confirm('Plugin wirklich neu installieren? Alle Dateien werden ersetzt.')"
+                                               href="?site=plugin_installer&reinstall=<?= urlencode($p['modulname']) ?>">
+                                               Reinstall
+                                            </a>
 
+                                            <a class="btn btn-danger btn-sm"
+                                               onclick="return confirm('Plugin wirklich deinstallieren?')"
+                                               href="?site=plugin_installer&uninstall=<?= urlencode($p['modulname']) ?>">
+                                                Deinstallieren
+                                            </a>
+                                        </div>
+
+                                    <?php elseif ($hasUpdate): ?>
+
+                                        <!-- 🔄 Update verfügbar -->
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-outline-info btn-sm" disabled>
+                                                Installiert: <?= htmlspecialchars($installedVersion) ?>
+                                            </button>
+
+                                            <a class="btn btn-primary btn-sm"
+                                               href="?site=plugin_installer&update=<?= urlencode($p['modulname']) ?>">
+                                                Update auf <?= htmlspecialchars($latestVersion) ?>
+                                            </a>
 
                                             <a class="btn btn-danger btn-sm"
                                                onclick="return confirm('Plugin wirklich deinstallieren?')"
@@ -473,6 +531,7 @@ $pluginsPage = array_slice($plugins, $offset, $cardsPerPage);
 
                                     <?php elseif (pluginIsInstallable($p, $adminEmail, $coreVersion)): ?>
 
+                                        <!-- ➕ Noch nicht installiert -->
                                         <a class="btn btn-success btn-sm w-100"
                                            href="?site=plugin_installer&install=<?= urlencode($p['modulname']) ?>">
                                             Installieren
@@ -480,6 +539,7 @@ $pluginsPage = array_slice($plugins, $offset, $cardsPerPage);
 
                                     <?php else: ?>
 
+                                        <!-- ⛔ Nicht verfügbar -->
                                         <button class="btn btn-secondary btn-sm w-100" disabled>
                                             Nicht verfügbar
                                         </button>

@@ -29,7 +29,6 @@ if (file_exists($achievements_plugin_path)) {
 global $_database, $languageService;
 
 $lang = $languageService->detectLanguage();
-$languageService->readModule('profile');
 
 // Style aus settings holen
 $config = mysqli_fetch_array(safe_query("SELECT selected_style FROM settings_headstyle_config WHERE id=1"));
@@ -115,7 +114,7 @@ $firstname = htmlspecialchars($user_profile['firstname'] ?? $languageService->ge
 $lastname  = htmlspecialchars($user_profile['lastname'] ?? $languageService->get('not_specified'));
 
 $about_me = !empty($user_profile['about_me']) 
-    ? htmlspecialchars($user_profile['about_me']) 
+    ? $user_profile['about_me'] 
     : '<p class="text-muted fst-italic">"' . $languageService->get('no_information_about_me') . '"</p>';
 
 $register_date = (!empty($register_date_raw) && strtotime($register_date_raw) !== false)

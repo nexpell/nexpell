@@ -1,10 +1,25 @@
 <?php
 
-namespace nexpell;
+/*namespace nexpell;
 
 // PHPMailer einbinden
 if (file_exists('components/PHPMailer/PHPMailerAutoload.php')) {
     require 'components/PHPMailer/PHPMailerAutoload.php';
+}*/
+
+namespace nexpell;
+
+/* =========================================================
+   PHPMailer ABSOLUT LADEN (Frontend + Admin)
+========================================================= */
+
+$phpmailerBase = $_SERVER['DOCUMENT_ROOT'] . '/components/PHPMailer/';
+
+if (!class_exists(\PHPMailer::class)) {
+
+    require_once $phpmailerBase . 'class.phpmailer.php';
+    require_once $phpmailerBase . 'class.smtp.php';
+    require_once $phpmailerBase . 'class.pop3.php';
 }
 
 class Email

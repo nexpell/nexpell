@@ -9,7 +9,6 @@ use nexpell\LanguageService;
 global $languageService;
 
 $lang = $languageService->detectLanguage();
-$languageService->readModule('contact');
 
 $get = mysqli_fetch_assoc(safe_query("SELECT * FROM settings"));
     $webkey = $get['webkey'];
@@ -24,7 +23,7 @@ $class = htmlspecialchars($config['selected_style']);
 // Header-Daten
 $data_array = [
     'class'    => $class,
-    'title' => $languageService->module['title'],
+    'title' => $languageService->get('title'),
     'subtitle' => 'Contact Us',
 ];
 echo $tpl->loadTemplate("contact", "head", $data_array, 'theme');
@@ -47,14 +46,14 @@ if ($action == "send") {
     $run = 0;
 
     $fehler = array();
-    if (!mb_strlen(trim($name))) $fehler[] = $languageService->module['enter_name'];
-    if (!validate_email($from)) $fehler[] = $languageService->module['enter_mail'];
-    if (!mb_strlen(trim($subject))) $fehler[] = $languageService->module['enter_subject'];
-    if (!mb_strlen(trim($text))) $fehler[] = $languageService->module['enter_message'];
+    if (!mb_strlen(trim($name))) $fehler[] = $languageService->get('enter_name');
+    if (!validate_email($from)) $fehler[] = $languageService->get('enter_mail');
+    if (!mb_strlen(trim($subject))) $fehler[] = $languageService->get('enter_subject');
+    if (!mb_strlen(trim($text))) $fehler[] = $languageService->get('enter_message');
 
     $ergebnis = safe_query("SELECT * FROM contact WHERE email='" . $getemail . "'");
     if (mysqli_num_rows($ergebnis) == 0) {
-        $fehler[] = $languageService->module['unknown_receiver'];
+        $fehler[] = $languageService->get('unknown_receiver');
     }
 
     if ($loggedin) {
@@ -112,19 +111,19 @@ if ($action == "send") {
         if ($sendmail['result'] == 'fail') {
             $fehler[] = $sendmail['error'];
             if (isset($sendmail['debug'])) $fehler[] = $sendmail['debug'];
-            $showerror = generateErrorBoxFromArray($languageService->module['errors_there'], $fehler);
+            $showerror = generateErrorBoxFromArray($languageService->get('errors_there'), $fehler);
         } else {
             if (isset($sendmail['debug'])) {
                 $fehler[] = $sendmail['debug'];
-                redirect('index.php?site=contact', generateBoxFromArray($languageService->module['send_successfull'], 'alert-success', $fehler), 3);
+                redirect('index.php?site=contact', generateBoxFromArray($languageService->get('send_successfull'), 'alert-success', $fehler), 3);
             } else {
-                echo '<div class="alert alert-success" role="alert">' . $languageService->module['send_successfull']. '</div>';
+                echo '<div class="alert alert-success" role="alert">' . $languageService->get('send_successfull'). '</div>';
                 redirect('index.php?site=contact', '', 3);
             }
             unset($_POST['name'], $_POST['from'], $_POST['text'], $_POST['subject']);
         }
     } else {
-        $showerror = generateErrorBoxFromArray($languageService->module['errors_there'], $fehler);
+        $showerror = generateErrorBoxFromArray($languageService->get('errors_there'), $fehler);
     }
 }
 
@@ -132,7 +131,7 @@ $getemail = '';
 $ergebnis = safe_query("SELECT * FROM contact ORDER BY `sort`");
 if (mysqli_num_rows($ergebnis) < 1) {
     $data_array = array();
-    $data_array['$showerror'] = generateErrorBoxFromArray($languageService->module['errors_there'], [$languageService->module['no_contact_setup']]);
+    $data_array['$showerror'] = generateErrorBoxFromArray($languageService->get('errors_there'), [$languageService->get('no_contact_setup')]);
     echo $tpl->loadTemplate("contact", "failure", $data_array);
     return false;
 } else {
@@ -151,19 +150,19 @@ if ($loggedin) {
 
 // Template vorbereiten
 $data_array = [
-    'description' => $languageService->module['description'],
+    'description' => $languageService->get('description'),
     'showerror' => $showerror ?? '',
     'getemail' => $getemail,
     'name' => htmlspecialchars($name ?? ''),
     'from' => htmlspecialchars($from ?? ''),
     'subject' => htmlspecialchars($subject ?? ''),
     'text' => htmlspecialchars($text ?? ''),
-    'security_code' => $languageService->module['security_code'],
-    'user' => $languageService->module['user'],
-    'mail' => $languageService->module['mail'],
-    'e_mail_info' => $languageService->module['e_mail_info'],
-    'lang_subject' => $languageService->module['subject'],
-    'message' => $languageService->module['message'],
+    'security_code' => $languageService->get('security_code'),
+    'user' => $languageService->get('user'),
+    'mail' => $languageService->get('mail'),
+    'e_mail_info' => $languageService->get('e_mail_info'),
+    'lang_subject' => $languageService->get('subject'),
+    'message' => $languageService->get('message'),
     'lang_GDPRinfo' => $languageService->get('GDPRinfo'),
     'send' => $languageService->get('send'),
     'info_captcha' => !$loggedin

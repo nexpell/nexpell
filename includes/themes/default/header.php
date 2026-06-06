@@ -73,7 +73,6 @@ header('X-UA-Compatible: IE=edge');
 
         echo $theme_css ?? '';
     ?>
-    <link type="text/css" rel="stylesheet" href="/includes/themes/<?= htmlspecialchars($theme_name, ENT_QUOTES, 'UTF-8'); ?>/css/stylesheet.css" />
     
 
 </head>

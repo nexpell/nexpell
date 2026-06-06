@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 
-/** Provider: Articles aus plugins_articles */
+/** Provider: Articles (NUR Detailseiten /watch/{id}) */
 return function (array &$pages, array $CTX): void {
+
     /** @var mysqli $db */
     $db         = $CTX['db'];
     $languages  = $CTX['languages'];
@@ -10,94 +11,85 @@ return function (array &$pages, array $CTX): void {
     $useSeoUrls = $CTX['useSeoUrls'];
     $SLUG_MAP   = $CTX['SLUG_MAP'];
 
-    $table            = 'plugins_articles';
-    $idCandidates     = ['idPrimärschlüssel','id','article_id','post_id','news_id'];
-    $slugCandidates   = ['slug'];
-    $dateCandidates   = ['updated_at','last_modified','modified','changed','created_at','created','date'];
-    $statusCandidates = ['is_active','status','published','visible','is_visible'];
+    $table = 'plugins_articles';
 
-    // Spalten ermitteln
+    /* ---------------- Spalten erkennen ---------------- */
     $cols = [];
     $cr = $db->query("SHOW COLUMNS FROM `{$table}`");
-    if (!$cr) { error_log('[sitemap] articles: Tabelle fehlt'); return; }
+    if (!$cr) return;
+
     while ($c = $cr->fetch_assoc()) {
         $cols[strtolower($c['Field'])] = $c['Field'];
     }
     $cr->free();
 
-    $idCol = null; foreach ($idCandidates as $c) if (isset($cols[strtolower($c)])) { $idCol = $cols[strtolower($c)]; break; }
-    if (!$idCol) { error_log('[sitemap] articles: keine ID-Spalte gefunden'); return; }
+    $idCol      = $cols['id'] ?? $cols['article_id'] ?? null;
+    $updatedCol = $cols['updated_at'] ?? $cols['created_at'] ?? null;
+    $activeCol  = $cols['is_active'] ?? $cols['published'] ?? null;
 
-    $slugCol = null; foreach ($slugCandidates as $c) if (isset($cols[strtolower($c)])) { $slugCol = $cols[strtolower($c)]; break; }
+    if (!$idCol) return;
 
-    $dateUse = [];
-    foreach ($dateCandidates as $c) if (isset($cols[strtolower($c)])) $dateUse[] = $cols[strtolower($c)];
+    /* ---------------- SELECT ---------------- */
+    $select = ["`{$idCol}`"];
+    if ($updatedCol) $select[] = "`{$updatedCol}`";
 
-    $statusCol = null; foreach ($statusCandidates as $c) if (isset($cols[strtolower($c)])) { $statusCol = $cols[strtolower($c)]; break; }
-
-    // SELECT
-    $selectCols = [$idCol];
-    if ($slugCol) $selectCols[] = $slugCol;
-    foreach ($dateUse as $dc) if (!in_array($dc, $selectCols, true)) $selectCols[] = $dc;
-    if ($statusCol && !in_array($statusCol, $selectCols, true)) $selectCols[] = $statusCol;
-
-    $select  = implode(',', array_map(fn($c)=>"`{$c}`", $selectCols));
-    $orderBy = $dateUse ? " ORDER BY `{$dateUse[0]}` DESC" : "";
-
-    // nur aktive Artikel, wenn Spalte vorhanden
-    $where = '';
-    if ($statusCol) {
-        $where = " WHERE `{$statusCol}` IN (1,'1','true','TRUE')";
+    $sql = "SELECT " . implode(',', $select) . " FROM `{$table}`";
+    if ($activeCol) {
+        $sql .= " WHERE `{$activeCol}` = 1";
     }
 
-    $added = 0;
-    $batch = 1000; $offset = 0;
-    while (true) {
-        $sql = "SELECT {$select} FROM `{$table}`{$where}{$orderBy} LIMIT {$batch} OFFSET {$offset}";
-        $res = $db->query($sql);
-        if (!$res) break;
+    $res = $db->query($sql);
+    if (!$res) return;
 
-        $count = 0;
-        while ($row = $res->fetch_assoc()) {
-            $count++;
+    /* ---------------- Articles registrieren ---------------- */
+    while ($row = $res->fetch_assoc()) {
 
-            $id = (string)$row[$idCol];
-            if ($id === '') continue;
+        $id = (int)$row[$idCol];
+        if ($id <= 0) continue;
 
-            $slug = $slugCol ? trim((string)$row[$slugCol]) : '';
-
-            // lastmod: updated_at ist int(14) → Unix-Timestamp
-            $lastmod = date('Y-m-d');
-            if ($dateUse) {
-                $val = $row[$dateUse[0]] ?? null;
-                if ($val !== null && $val !== '') {
-                    if (is_numeric($val)) $lastmod = date('Y-m-d', (int)$val);
-                    else {
-                        $ts = strtotime((string)$val);
-                        if ($ts !== false) $lastmod = date('Y-m-d', $ts);
-                    }
+        // lastmod
+        $lastmod = date('Y-m-d');
+        if ($updatedCol && !empty($row[$updatedCol])) {
+            if (is_numeric($row[$updatedCol])) {
+                $lastmod = date('Y-m-d', (int)$row[$updatedCol]);
+            } else {
+                $ts = strtotime((string)$row[$updatedCol]);
+                if ($ts !== false) {
+                    $lastmod = date('Y-m-d', $ts);
                 }
             }
-
-            // Content-Key + non-SEO-Query
-            $contentKey = $slug !== '' ? "articles/{$slug}" : "articles/articleid/{$id}";
-            $qBase = ['site'=>'articles'];
-            if ($slug === '') $qBase['articleid'] = $id;
-
-            // keine Sprachspalte → für alle aktiven Sprachen
-            foreach ($languages as $lang) {
-                $loc = sitemap_build_loc($contentKey, $lang, $BASE, $useSeoUrls, $SLUG_MAP, $qBase);
-                if (!isset($pages[$contentKey])) $pages[$contentKey] = ['lastmods'=>[],'langs'=>[]];
-                $pages[$contentKey]['langs'][$lang]    = $loc;
-                $pages[$contentKey]['lastmods'][$lang] = $lastmod;
-            }
-            $added++;
         }
-        $res->free();
 
-        if ($count < $batch) break;
-        $offset += $batch;
+        /**
+         * 🔥 ECHTE Detailseite
+         * SEO:     /de/articles/watch/6
+         * non-SEO: index.php?site=articles&action=watch&id=6
+         */
+        $contentKey = "articles/watch/{$id}";
+        $qBase = [
+            'site'   => 'articles',
+            'action' => 'watch',
+            'id'     => $id
+        ];
+
+        foreach ($languages as $lang) {
+            $loc = sitemap_build_loc(
+                $contentKey,
+                $lang,
+                $BASE,
+                $useSeoUrls,
+                $SLUG_MAP,
+                $qBase
+            );
+
+            if (!isset($pages[$contentKey])) {
+                $pages[$contentKey] = ['langs'=>[], 'lastmods'=>[]];
+            }
+
+            $pages[$contentKey]['langs'][$lang]    = $loc;
+            $pages[$contentKey]['lastmods'][$lang] = $lastmod;
+        }
     }
 
-    error_log("[sitemap] articles: hinzugefügt {$added} keys");
+    $res->free();
 };

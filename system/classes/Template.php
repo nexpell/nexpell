@@ -505,39 +505,77 @@ class Template
     }
 
 
-    public function renderPagination(string $baseUrl, int $currentPage, int $totalPages, string $pageParam = 'page'): string
-    {
-        if ($totalPages <= 1) {
-            return ''; // Keine Pagination nötig
-        }
+    public static function renderPagination(
+    string $baseUrl,
+    int $currentPage,
+    int $totalPages,
+    string $pageParam = 'page'
+): string {
 
-        $html = '<nav><ul class="pagination pagination-sm justify-content-center mt-4">';
+    if ($totalPages <= 1) {
+        return '';
+    }
 
-        // Zurück-Button
-        $prevDisabled = ($currentPage <= 1) ? ' disabled' : '';
-        $prevPage = max(1, $currentPage - 1);
-        $html .= '<li class="page-item' . $prevDisabled . '">';
-        $html .= '<a class="page-link" href="' . htmlspecialchars($baseUrl) . '&' . $pageParam . '=' . $prevPage . '" aria-label="Previous">&laquo;</a>';
+    $isSeo = str_starts_with($baseUrl, '/');
+
+    if ($isSeo) {
+        $baseUrl = rtrim($baseUrl, '/') . '/';
+        $buildUrl = fn(int $p) => $baseUrl . $pageParam . '/' . $p;
+    } else {
+        $sep = str_contains($baseUrl, '?') ? '&' : '?';
+        $buildUrl = fn(int $p) => $baseUrl . $sep . $pageParam . '=' . $p;
+    }
+
+    $html = '<nav class="mt-3">';
+    $html .= '<ul class="pagination pagination-sm justify-content-center gap-1">';
+
+    /* ======================
+       ◀ Previous
+    ====================== */
+    if ($currentPage > 1) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link" href="' . htmlspecialchars($buildUrl($currentPage - 1)) . '">← Vorherige</a>';
         $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">← Vorherige</span>';
+        $html .= '</li>';
+    }
 
-        // Seiten-Buttons
-        for ($i = 1; $i <= $totalPages; $i++) {
-            $active = ($i === $currentPage) ? ' active' : '';
-            $html .= '<li class="page-item' . $active . '">';
-            $html .= '<a class="page-link" href="' . htmlspecialchars($baseUrl) . '&' . $pageParam . '=' . $i . '">' . $i . '</a>';
+    /* ======================
+       Seitenzahlen
+    ====================== */
+    for ($i = 1; $i <= $totalPages; $i++) {
+        if ($i === $currentPage) {
+            $html .= '<li class="page-item active">';
+            $html .= '<span class="page-link">' . $i . '</span>';
+            $html .= '</li>';
+        } else {
+            $html .= '<li class="page-item">';
+            $html .= '<a class="page-link" href="' . htmlspecialchars($buildUrl($i)) . '">' . $i . '</a>';
             $html .= '</li>';
         }
-
-        // Weiter-Button
-        $nextDisabled = ($currentPage >= $totalPages) ? ' disabled' : '';
-        $nextPage = min($totalPages, $currentPage + 1);
-        $html .= '<li class="page-item' . $nextDisabled . '">';
-        $html .= '<a class="page-link" href="' . htmlspecialchars($baseUrl) . '&' . $pageParam . '=' . $nextPage . '" aria-label="Next">&raquo;</a>';
-        $html .= '</li>';
-
-        $html .= '</ul></nav>';
-
-        return $html;
     }
+
+    /* ======================
+       Next ▶
+    ====================== */
+    if ($currentPage < $totalPages) {
+        $html .= '<li class="page-item">';
+        $html .= '<a class="page-link" href="' . htmlspecialchars($buildUrl($currentPage + 1)) . '">Nächste →</a>';
+        $html .= '</li>';
+    } else {
+        $html .= '<li class="page-item disabled">';
+        $html .= '<span class="page-link">Nächste →</span>';
+        $html .= '</li>';
+    }
+
+    $html .= '</ul></nav>';
+
+    return $html;
+}
+
+
+
 
 }

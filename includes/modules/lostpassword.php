@@ -1,141 +1,225 @@
 <?php
+declare(strict_types=1);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-use nexpell\LoginSecurity;
 use nexpell\Email;
-use nexpell\LanguageService;
 use nexpell\SeoUrlHandler;
 
 global $_database, $languageService, $tpl;
 
-$lang = $languageService->detectLanguage();
 $languageService->readModule('lostpassword');
 
-// Einstellungen laden
-$settings_result = safe_query("SELECT * FROM `settings`");
-$settings = mysqli_fetch_assoc($settings_result);
+/* ===============================
+   SETTINGS
+=============================== */
+$settings = mysqli_fetch_assoc(
+    safe_query("SELECT * FROM settings LIMIT 1")
+);
 
-$hp_title = $settings['hptitle'] ?? 'nexpell';
-$hp_url = $settings['hpurl'] ?? 'https://' . $_SERVER['HTTP_HOST'];
-$admin_email = $settings['adminemail'] ?? 'info@' . $_SERVER['HTTP_HOST'];
+$hp_title    = $settings['hptitle'] ?? 'nexpell';
+$hp_url      = rtrim($settings['hpurl'] ?? ('https://' . $_SERVER['HTTP_HOST']), '/');
+$admin_email = $settings['adminemail'] ?? ('info@' . $_SERVER['HTTP_HOST']);
 
-// Erfolg nach Passwort-Zurücksetzung
-$success = isset($_GET['success']) && $_GET['success'] == 1;
+/* ===============================
+   SUCCESS PAGE
+=============================== */
+if (isset($_GET['success'], $_SESSION['success_message'])) {
 
-if ($success && isset($_SESSION['success_message'])) {
-    $data_array = [
-        'title' => $languageService->module['title'],
-        'forgotten_your_password' => $languageService->module['forgotten_your_password'],
-        'message' => '<div class="alert alert-success" role="alert">' . $_SESSION['success_message'] . '</div>',
-        'return_to_login' => '<a href="' . SeoUrlHandler::convertToSeoUrl('index.php?site=login') . '" class="btn btn-success">' . $languageService->module['login'] . '</a>'
-    ];
+    echo $tpl->loadTemplate(
+        'lostpassword',
+        'success',
+        [
+            'title' => $languageService->get('title'),
+            'forgotten_your_password' => $languageService->get('forgotten_your_password'),
+            'message' =>
+                '<div class="alert alert-success">' .
+                htmlspecialchars($_SESSION['success_message']) .
+                '</div>',
+            'return_to_login' =>
+                '<a href="' .
+                SeoUrlHandler::convertToSeoUrl('index.php?site=login') .
+                '" class="btn btn-success">' .
+                $languageService->get('login') .
+                '</a>'
+        ],
+        'theme'
+    );
+
     unset($_SESSION['success_message']);
-    echo $tpl->loadTemplate("lostpassword", "success", $data_array, 'theme');
     return;
 }
 
-// Formular abgeschickt
-if (isset($_POST['submit'])) {
-    $email_input = strtolower(trim($_POST['email']));
+/* ===============================
+   FORM SUBMIT
+=============================== */
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    if ($email_input !== '') {
-        // Benutzer in der Datenbank suchen
-        $query = "SELECT * FROM `users` WHERE email = '" . mysqli_real_escape_string($_database, $email_input) . "'";
-        $result = safe_query($query);
+    $email = strtolower(trim($_POST['email'] ?? ''));
+    $ip    = $_SERVER['REMOTE_ADDR'];
 
-        if ($result && mysqli_num_rows($result) > 0) {
-            $ds = mysqli_fetch_array($result);
+    // ✅ IMMER gleiche Meldung (kein User-Leak)
+    $genericSuccess = $languageService->get('reset_mail_sent');
 
-            if (!empty($ds['password_pepper'])) {
-                // Neues lesbares Passwort
-                $new_password_plain = LoginSecurity::generateReadablePassword();
+    /* ---------- Rate Limit ---------- */
+    $maxAttempts = 5;
+    $cooldown    = 15 * 60;
 
-                // Pepper entschlüsseln
-                $pepper_plain = LoginSecurity::decryptPepper($ds['password_pepper']);
-                if ($pepper_plain === false || $pepper_plain === '') {
-                    $_SESSION['error_message'] = '❌ Fehler beim Entschlüsseln des Peppers.';
-                    header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword'));
-                    exit;
-                }
+    $stmt = $_database->prepare("
+        SELECT attempts, last_attempt
+        FROM password_reset_attempts
+        WHERE ip = ?
+    ");
+    $stmt->bind_param("s", $ip);
+    $stmt->execute();
+    $attempt = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 
-                // Neues Passwort hashen
-                $new_password_hash = password_hash($new_password_plain . $ds['email'] . $pepper_plain, PASSWORD_BCRYPT);
-
-                // Passwort in der DB aktualisieren
-                safe_query("
-                    UPDATE `users`
-                    SET `password_hash` = '" . LoginSecurity::escape($new_password_hash) . "'
-                    WHERE `userID` = '" . intval($ds['userID']) . "'
-                ");
-
-                // E-Mail senden
-                $vars = ['%pagetitle%', '%email%', '%new_password%', '%homepage_url%'];
-                $repl = [$hp_title, $ds['email'], $new_password_plain, $hp_url];
-
-                $subject = str_replace($vars, $repl, $languageService->module['email_subject']);
-                $message = str_replace($vars, $repl, $languageService->module['email_text']);
-
-                $sendmail = Email::sendEmail($admin_email, 'Passwort zurückgesetzt', $ds['email'], $subject, $message);
-
-                if ($sendmail['result'] === 'fail') {
-                    $_SESSION['error_message'] = $languageService->module['email_failed'] . ' ' . $sendmail['error'];
-                    header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword'));
-                    exit;
-                } else {
-                    $_SESSION['success_message'] = str_replace($vars, $repl, $languageService->module['successful']);
-                    header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword&success=1'));
-                    exit;
-                }
-            } else {
-                $_SESSION['error_message'] = '❌ Kein Pepper in der Datenbank.';
-                header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword'));
-                exit;
-            }
-        } else {
-            $_SESSION['error_message'] = $languageService->module['no_user_found'];
-            header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword'));
-            exit;
-        }
-    } else {
-        $_SESSION['error_message'] = $languageService->module['no_mail_given'];
-        header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword'));
+    if (
+        $attempt &&
+        $attempt['attempts'] >= $maxAttempts &&
+        (time() - strtotime($attempt['last_attempt'])) < $cooldown
+    ) {
+        $_SESSION['success_message'] = $genericSuccess;
+        header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword&success=1'));
         exit;
     }
+
+    if ($email !== '') {
+
+        /* ---------- Attempt zählen ---------- */
+        $_database->query("
+            INSERT INTO password_reset_attempts (ip, attempts)
+            VALUES ('$ip', 1)
+            ON DUPLICATE KEY UPDATE
+                attempts = attempts + 1,
+                last_attempt = NOW()
+        ");
+
+        /* ---------- User suchen ---------- */
+        $stmt = $_database->prepare("
+            SELECT userID, email
+            FROM users
+            WHERE email = ?
+            LIMIT 1
+        ");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $user = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($user) {
+
+            /* ---------- TOKEN ---------- */
+            $token   = bin2hex(random_bytes(32));
+            $expires = date('Y-m-d H:i:s', time() + 3600); // 60 Minuten
+
+            $stmt = $_database->prepare("
+                INSERT INTO password_resets (userID, token, expires_at)
+                VALUES (?, ?, ?)
+            ");
+            $stmt->bind_param("iss", $user['userID'], $token, $expires);
+            $stmt->execute();
+            $stmt->close();
+
+            /* ---------- RESET-LINK ---------- */
+            $hp_url = rtrim($hp_url, '/');
+
+            $seoPath = SeoUrlHandler::convertToSeoUrl(
+                'index.php?site=reset_password&token=' . $token
+            );
+
+            // Sicherheitsnetz: Pfad MUSS mit /
+            $seoPath = '/' . ltrim($seoPath, '/');
+
+            $resetLink = $hp_url . $seoPath;
+
+            /* ---------- MAIL ---------- */
+            $vars = [
+                '%pagetitle%',
+                '%reset_link%',
+                '%homepage_url%'
+            ];
+
+            $repl = [
+                $hp_title,
+                $resetLink,
+                $hp_url
+            ];
+
+            $subject = str_replace(
+                '%pagetitle%',
+                $hp_title,
+                $languageService->get('email_subject')
+            );
+
+            $body = str_replace(
+                $vars,
+                $repl,
+                $languageService->get('email_text')
+            );
+
+            Email::sendEmail(
+                $admin_email,
+                $hp_title,
+                $user['email'],
+                $subject,
+                $body
+            );
+        }
+
+    }
+
+    /* ---------- Immer Erfolg ---------- */
+    $_SESSION['success_message'] = $genericSuccess;
+    header("Location: " . SeoUrlHandler::convertToSeoUrl('index.php?site=lostpassword&success=1'));
+    exit;
 }
 
-// Fehlernachricht vorbereiten
-$message = '';
+/* ===============================
+   ERROR MESSAGE
+=============================== */
+$errorHtml = '';
 if (isset($_SESSION['error_message'])) {
-    $message = '<div class="alert alert-danger" role="alert">' . $_SESSION['error_message'] . '</div>';
+    $errorHtml =
+        '<div class="alert alert-danger">' .
+        htmlspecialchars($_SESSION['error_message']) .
+        '</div>';
     unset($_SESSION['error_message']);
 }
 
-// Links
-$registerlink = '<a href="' . SeoUrlHandler::convertToSeoUrl('index.php?site=register') . '">' . $languageService->get('register_link') . '</a>';
-$loginlink = '<a href="' . SeoUrlHandler::convertToSeoUrl('index.php?site=login') . '">' . $languageService->get('login') . '</a>';
+/* ===============================
+   TEMPLATE DATA
+=============================== */
+echo $tpl->loadTemplate(
+    'lostpassword',
+    'content_area',
+    [
+        'title' => $languageService->get('title'),
+        'forgotten_your_password' => $languageService->get('forgotten_your_password'),
+        'info1' => $languageService->get('info1'),
+        'info2' => $languageService->get('info2'),
+        'info3' => $languageService->get('info3'),
+        'your_email' => $languageService->get('your_email'),
+        'get_password' => $languageService->get('get_password'),
 
-// Formular anzeigen
-$data_array = [
-    'title' => $languageService->module['title'],
-    'forgotten_your_password' => $languageService->module['forgotten_your_password'],
-    'info1' => $languageService->module['info1'],
-    'info2' => $languageService->module['info2'],
-    'info3' => $languageService->module['info3'],
-    'your_email' => $languageService->module['your_email'],
-    'get_password' => $languageService->module['get_password'],
-    'return_to' => $languageService->module['return_to'],
-    'loginlink' => $loginlink,
-    'email-address' => $languageService->module['email-address'],
-    'reg' => $languageService->module['reg'],
-    'need_account' => $languageService->module['need_account'],
-    'error_message' => $message,
-    'lastpassword_txt' => $languageService->module['lastpassword_txt'],
-    'registerlink' => $registerlink,
-    'welcome_back' => $languageService->module['welcome_back'],
-    'reg_text' => $languageService->module['reg_text'],
-    'login_text' => $languageService->module['login_text'],
-];
+        'lastpassword_txt' => $languageService->get('lastpassword_txt'),
+        'welcome_back' => $languageService->get('welcome_back'),
+        'reg_text' => $languageService->get('reg_text'),
+        'login_text' => $languageService->get('login_text'),
 
-echo $tpl->loadTemplate("lostpassword", "content_area", $data_array, 'theme');
+
+        'error_message' => $errorHtml,
+        'loginlink' =>
+            '<a href="' .
+            SeoUrlHandler::convertToSeoUrl('index.php?site=login') .
+            '">' . $languageService->get('login') . '</a>',
+        'registerlink' =>
+            '<a href="' .
+            SeoUrlHandler::convertToSeoUrl('index.php?site=register') .
+            '">' . $languageService->get('register_link') . '</a>',
+    ],
+    'theme'
+);

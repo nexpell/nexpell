@@ -17,7 +17,9 @@ $language_array = array(
     'enter_your_name' => 'Wähle einen Benutzernamen',
     'enter_password' => 'Passwort eingeben',
     'enter_password_repeat' => 'Passwort erneut eingeben',
-    'pass_text' => 'Das Passwort muss mindestens 8 Zeichen lang sein, eine Zahl und einen Großbuchstaben enthalten.',
+    'password_hint' =>
+        'Verwende mindestens 8 Zeichen mit Groß- und Kleinbuchstaben, Zahlen oder Sonderzeichen. <br>
+Vermeide einfache oder sich wiederholende Passwörter wie „aaaaaa“ oder „123456“.',
 
     // Terms / Hinweise
     'terms_of_use_text' => 'Ich akzeptiere die Nutzungsbedingungen',
@@ -32,25 +34,115 @@ $language_array = array(
     'mail' => 'E-Mail',
     'mail_subject' => 'Aktiviere deinen Account auf %hp_title%',
     'mail_text' => '
-<html>
-  <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; background-color: #f9f9f9;">
-    <h2 style="color: #fe821d;">Hallo %username%,</h2>
-    <p>vielen Dank für deine Registrierung bei <strong>%hp_title%</strong>.</p>
-    <p>Bitte klicke auf den folgenden Link, um deinen Account zu aktivieren:</p>
-    <p>
-      <a href="%activation_link%" style="display: inline-block; padding: 10px 20px; background-color: #fe821d; color: #000; text-decoration: none; border-radius: 4px;">
-        Account aktivieren
-      </a>
-    </p>
-    <p>Falls du dich nicht registriert hast, kannst du diese Nachricht ignorieren.</p>
-    <p>Viele Grüße,<br>Dein %hp_title%-Team</p>
-    <hr style="border:none; border-top:1px solid #ddd; margin: 20px 0;">
-    <p style="font-size: 0.9em; color: #777;">
-      <a href="%hp_url%" style="color: #fe821d; text-decoration: none;">%hp_url%</a>
-    </p>
+<!DOCTYPE html>
+<html lang="de">
+  <body style="margin:0;padding:0;background-color:#f4f6f8;">
+    <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f4f6f8" style="padding:30px 0;">
+      <tr>
+        <td align="center">
+
+          <!-- Container -->
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 bgcolor="#ffffff"
+                 style="max-width:620px;background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif;">
+
+            <!-- Header -->
+            <tr>
+              <td
+                bgcolor="#fe821d"
+                style="
+                  background-color:#fe821d;
+                  background-image:linear-gradient(135deg,#fe821d,#ff9b3d);
+                  padding:28px 32px;
+                "
+              >
+                <h1 style="margin:0;font-size:22px;color:#ffffff;font-weight:600;">
+                  %hp_title%
+                </h1>
+                <p style="margin:6px 0 0;color:#ffffff;font-size:14px;">
+                  Registrierung bestätigen
+                </p>
+              </td>
+            </tr>
+
+            <!-- Content -->
+            <tr>
+              <td style="padding:32px;color:#333333;font-size:15px;line-height:1.6;">
+
+                <h2 style="margin-top:0;font-size:20px;color:#222;">
+                  Willkommen, %username%!
+                </h2>
+
+                <p>
+                  vielen Dank für deine Registrierung bei
+                  <strong>%hp_title%</strong>.
+                </p>
+
+                <p>
+                  Bitte bestätige deine E-Mail-Adresse, um deinen Account zu aktivieren:
+                </p>
+
+                <!-- Button -->
+                <table cellpadding="0" cellspacing="0" style="margin:24px 0;">
+                  <tr>
+                    <td
+                      align="center"
+                      bgcolor="#fe821d"
+                      style="
+                        background-color:#fe821d;
+                        border-radius:6px;
+                      "
+                    >
+                      <a href="%activation_link%"
+                         style="
+                           display:inline-block;
+                           padding:14px 26px;
+                           font-size:15px;
+                           font-weight:600;
+                           color:#000000;
+                           text-decoration:none;
+                         ">
+                        Account aktivieren
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="font-size:14px;color:#555;">
+                  Falls du dich nicht selbst registriert hast, kannst du diese E-Mail
+                  ignorieren.
+                </p>
+
+                <p style="margin-top:28px;">
+                  Viele Grüße<br>
+                  <strong>Dein %hp_title%-Team</strong>
+                </p>
+
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td bgcolor="#f9fafb"
+                  style="padding:18px 32px;font-size:13px;color:#777;text-align:center;">
+                <a href="%hp_url%" style="color:#fe821d;text-decoration:none;">
+                  %hp_url%
+                </a>
+                <div style="margin-top:6px;">
+                  © %hp_title% · Alle Rechte vorbehalten
+                </div>
+              </td>
+            </tr>
+
+          </table>
+
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
 ',
+
     'mail_from_module' => 'Registrierung',
     'mail_failed' => 'Die Aktivierungs-E-Mail konnte nicht versendet werden. Bitte kontaktiere den Administrator.',
 

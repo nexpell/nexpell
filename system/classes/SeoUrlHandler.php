@@ -5,348 +5,425 @@ namespace nexpell;
 class SeoUrlHandler {
 
 
-public static function route(?string $uri = null): void 
-{
-    $uri = $uri ?? $_SERVER['REQUEST_URI'];
-    $path = parse_url($uri, PHP_URL_PATH);
-    $segments = explode('/', trim($path, '/'));
+    public static function route(?string $uri = null): void 
+    {
+        $uri = $uri ?? $_SERVER['REQUEST_URI'];
+        $path = parse_url($uri, PHP_URL_PATH);
+        $segments = explode('/', trim($path, '/'));
 
-    if (isset($segments[0]) && preg_match('/^[a-z]{2}$/i', $segments[0])) {
-        $_GET['lang'] = strtolower($segments[0]);
-        $_GET['site'] = $segments[1] ?? 'index';
+        if (isset($segments[0]) && preg_match('/^[a-z]{2}$/i', $segments[0])) {
+            $_GET['lang'] = strtolower($segments[0]);
+            $_GET['site'] = $segments[1] ?? 'index';
 
-        // WICHTIG: Hier sowohl alte als auch neue Aktionsnamen erlauben
-        $knownActions = [
-            'show','watch','deletecomment','edit','new','list',
-            // Forum-Varianten:
-            'thread','post','category',
-            'showthread','showpost','showcategory',
-        ];
-        $_GET['action'] = (isset($segments[2]) && in_array(strtolower($segments[2]), $knownActions, true))
-            ? strtolower($segments[2])
-            : null;
+            // WICHTIG: Hier sowohl alte als auch neue Aktionsnamen erlauben
+            $knownActions = [
+                'show','watch','deletecomment','edit','new','list',
 
-        /* =======================
-         * NEWS: Slug/ID/Pagination
-         * ======================= */
-        if (($_GET['site'] ?? '') === 'news') {
-            $s2 = $segments[2] ?? null;
-            $s3 = $segments[3] ?? null;
-            $s4 = $segments[4] ?? null;
+                // Forum
+                'thread','post','category',
+                'showthread','showpost','showcategory',
 
-            // /{lang}/news/page/2 -> Übersicht
-            if ($s2 !== null && strtolower($s2) === 'page' && ctype_digit((string)$s3)) {
-                $_GET['page'] = (int)$s3;
-                return;
-            }
-            // /{lang}/news/{slug|id}/page/2 -> Kategorie-Pagination
-            if ($s2 !== null && $s3 !== null && strtolower($s3) === 'page' && ctype_digit((string)$s4)) {
-                if (ctype_digit((string)$s2)) {
-                    $_GET['id'] = (int)$s2;
-                    $_GET['newsID'] = (int)$s2; // Kompatibilität
-                } else {
-                    $_GET['slug'] = $s2;
-                }
-                $_GET['page'] = (int)$s4;
-                return;
-            }
-            // /{lang}/news/{slug|id}
-            if ($s2 !== null && !in_array(strtolower($s2), $knownActions, true)) {
-                if (ctype_digit((string)$s2)) {
-                    $_GET['id'] = (int)$s2;
-                    $_GET['newsID'] = (int)$s2; // Kompatibilität
-                } else {
-                    $_GET['slug'] = $s2;
-                }
-                return;
-            }
+                // WICHTIG
+                'new_thread',
+                'quote',
+                'quote_reply', 
+                'edit_post',
+                'delete_post',
+                'reply',
+            ];
+            $_GET['action'] = (isset($segments[2]) && in_array(strtolower($segments[2]), $knownActions, true))
+                ? strtolower($segments[2])
+                : null;
+
+            /* =======================
+             * NEWS: Slug/ID/Pagination
+             * ======================= */
+            if (($_GET['site'] ?? '') === 'news') {
+
+    $s2 = $segments[2] ?? null;
+    $s3 = $segments[3] ?? null;
+    $s4 = $segments[4] ?? null;
+
+    $reservedNewsKeywords = ['page'];
+
+    /* --------------------------------------------------
+     * /{lang}/news/page/5  → Übersicht
+     * -------------------------------------------------- */
+    if ($s2 !== null && strtolower($s2) === 'page' && ctype_digit((string)$s3)) {
+        $_GET['page'] = (int)$s3;
+
+        // 🔒 ABSOLUTER SCHUTZ
+        $_GET['action'] = null;
+        unset($_GET['id'], $_GET['newsID'], $_GET['slug']);
+
+        return;
+    }
+
+    /* --------------------------------------------------
+     * /{lang}/news/{slug|id}/page/2 → Kategorie
+     * -------------------------------------------------- */
+    if (
+        $s2 !== null
+        && $s3 !== null
+        && !in_array(strtolower($s2), $reservedNewsKeywords, true)
+        && strtolower($s3) === 'page'
+        && ctype_digit((string)$s4)
+    ) {
+        if (ctype_digit((string)$s2)) {
+            $_GET['id'] = (int)$s2;
+            $_GET['newsID'] = (int)$s2;
+        } else {
+            $_GET['slug'] = $s2;
         }
 
-        /* =======================
-         * FORUM: Threads/Posts/etc.
-         * Setzt IMMER alle kompatiblen Keys,
-         * damit alte Controller-Branches weiter laufen.
-         * ======================= */
-        if (($_GET['site'] ?? '') === 'forum') {
-            $s2 = $segments[2] ?? null; // thread | post | category | showthread | showpost | showcategory | page
-            $s3 = $segments[3] ?? null; // id | id | id | id | id | id | number
-            $s4 = $segments[4] ?? null; // page |    | page | page |     | page | (optional "page")
-            $s5 = $segments[5] ?? null; // number |  | number | number | | number | (page number)
+        $_GET['page'] = (int)$s4;
+        return;
+    }
 
-            // Helper zum Setzen aller Varianten für Thread/Post/Category
-            $setThreadKeys = function(int $id) {
-                $_GET['thread']   = $id;   // legacy
-                $_GET['threadID'] = $id;   // häufig verwendet
-                $_GET['id']       = $id;   // manche Controller nehmen id
-            };
-            $setPostKeys = function(int $id) {
-                $_GET['post']   = $id;
-                $_GET['postID'] = $id;
-                $_GET['id']     = $id;
-            };
-            $setCategoryKeys = function(int $id) {
-                $_GET['category']   = $id;
-                $_GET['categoryID'] = $id;
-                $_GET['id']         = $id;
-            };
-
-            // A) /{lang}/forum/thread/{id}[/page/{n}]
-            if ($s2 !== null && strtolower($s2) === 'thread' && ctype_digit((string)$s3)) {
-                $tid = (int)$s3;
-                $setThreadKeys($tid);
-                // beide Aktions-Varianten setzen:
-                $_GET['action'] = $_GET['action'] ?? 'thread';
-                $_GET['action_showthread'] = 'showthread'; // nur Info; stört nicht
-                // optional page
-                if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
-                    $_GET['page'] = (int)$s5;
-                }
-                return;
-            }
-
-            // B) /{lang}/forum/post/{id}
-            if ($s2 !== null && strtolower($s2) === 'post' && ctype_digit((string)$s3)) {
-                $pid = (int)$s3;
-                $setPostKeys($pid);
-                $_GET['action'] = $_GET['action'] ?? 'post';   // legacy
-                $_GET['action_showpost'] = 'showpost';
-                return;
-            }
-
-            // C) /{lang}/forum/category/{id}[/page/{n}]
-            if ($s2 !== null && strtolower($s2) === 'category' && ctype_digit((string)$s3)) {
-                $cid = (int)$s3;
-                $setCategoryKeys($cid);
-                $_GET['action'] = $_GET['action'] ?? 'category';
-                $_GET['action_showcategory'] = 'showcategory';
-                if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
-                    $_GET['page'] = (int)$s5;
-                }
-                return;
-            }
-
-            // D) /{lang}/forum/page/{n}  → Foren-Übersicht paginiert
-            if ($s2 !== null && strtolower($s2) === 'page' && ctype_digit((string)$s3)) {
-                $_GET['page'] = (int)$s3;
-                return;
-            }
-
-            // E) Direkt-Aktionspfade:
-            //    /{lang}/forum/showthread/{id}[/page/{n}]
-            if ($s2 !== null && strtolower($s2) === 'showthread' && ctype_digit((string)$s3)) {
-                $tid = (int)$s3;
-                $setThreadKeys($tid);
-                $_GET['action'] = 'showthread';
-                if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
-                    $_GET['page'] = (int)$s5;
-                }
-                return;
-            }
-            //    /{lang}/forum/showpost/{id}
-            if ($s2 !== null && strtolower($s2) === 'showpost' && ctype_digit((string)$s3)) {
-                $pid = (int)$s3;
-                $setPostKeys($pid);
-                $_GET['action'] = 'showpost';
-                return;
-            }
-            //    /{lang}/forum/showcategory/{id}[/page/{n}]
-            if ($s2 !== null && strtolower($s2) === 'showcategory' && ctype_digit((string)$s3)) {
-                $cid = (int)$s3;
-                $setCategoryKeys($cid);
-                $_GET['action'] = 'showcategory';
-                if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
-                    $_GET['page'] = (int)$s5;
-                }
-                return;
-            }
-            // ansonsten weiter zu Standard-Pairs
+    /* --------------------------------------------------
+     * /{lang}/news/{slug|id} → Detail / Kategorie
+     * -------------------------------------------------- */
+    if (
+        $s2 !== null
+        && !in_array(strtolower($s2), $reservedNewsKeywords, true)
+        && !in_array(strtolower($s2), $knownActions, true)
+    ) {
+        if (ctype_digit((string)$s2)) {
+            $_GET['id'] = (int)$s2;
+            $_GET['newsID'] = (int)$s2;
+        } else {
+            $_GET['slug'] = $s2;
         }
-
-        /* --------------------------------------
-         * FORUM OVERVIEW PAGINATION
-         * /{lang}/forum/overview/{page}
-         * -------------------------------------- */
-        $s2 = $segments[2] ?? null;
-        $s3 = $segments[3] ?? null;
-
-        if ($s2 !== null && strtolower($s2) === 'overview' && isset($s3) && ctype_digit($s3)) {
-            $_GET['action'] = 'overview';
-            $_GET['page']   = (int)$s3;
-            return;
-        }
-
-
-        /* ============================================================
-         * PROFILE ROUTING – SEO + SLUG + KOMPATIBEL + CANONICAL
-         * ============================================================ */
-        if (($_GET['site'] ?? '') === 'profile') {
-
-            $s2 = $segments[2] ?? null;
-            $s3 = $segments[3] ?? null;
-
-            // --------------------------------------------
-            // 1. /{lang}/profile/{id}
-            // --------------------------------------------
-            if ($s2 !== null && ctype_digit($s2)) {
-                $_GET['userID'] = (int)$s2;
-                return;
-            }
-
-            // --------------------------------------------
-            // 2. /{lang}/profile/{slug}/{id}
-            // --------------------------------------------
-            if ($s2 !== null && $s3 !== null && ctype_digit($s3)) {
-                $_GET['userID'] = (int)$s3;
-                $_GET['slug'] = $s2;
-                return;
-            }
-
-            // --------------------------------------------
-            // 3. /{lang}/profile/{slug} → slug = username
-            //    Prüfen, ob slug eindeutig einem User zugeordnet ist
-            // --------------------------------------------
-            if ($s2 !== null && !ctype_digit($s2)) {
-
-                global $_database;
-
-                $stmt = $_database->prepare("
-                    SELECT userID 
-                    FROM user 
-                    WHERE LOWER(username) = LOWER(?)
-                    LIMIT 1
-                ");
-                $stmt->bind_param("s", $s2);
-                $stmt->execute();
-                $stmt->bind_result($uid);
-                $stmt->fetch();
-                $stmt->close();
-
-                if (!empty($uid)) {
-                    $_GET['userID'] = (int)$uid;
-                    $_GET['slug'] = $s2;
-                    return;
-                }
-            }
-
-            // --------------------------------------------
-            // 4. Alte URL-Variante: /profile/id/2
-            // --------------------------------------------
-            if ($s2 === "id" && $s3 !== null && ctype_digit($s3)) {
-                $_GET['userID'] = (int)$s3;
-                return;
-            }
-
-            // --------------------------------------------
-            // 5. Wenn nichts passt → Profil 404
-            // --------------------------------------------
-            $_GET['userID'] = null;
-            $_GET['profile_error'] = "not_found";
-            return;
-        }
-
-        /* =======================
-         * GAMETRACKER ROUTING
-         * ======================= */
-        if (($_GET['site'] ?? '') === 'gametracker') {
-
-            $s2 = $segments[2] ?? null;
-            $s3 = $segments[3] ?? null;
-
-            // /{lang}/gametracker/serverdetails/{id}
-            if ($s2 && strtolower($s2) === 'serverdetails' && $s3 && ctype_digit($s3)) {
-                $_GET['action'] = 'serverdetails';
-                $_GET['id'] = (int)$s3;
-                $_GET['serverID'] = (int)$s3;
-                return;
-            }
-
-            // /{lang}/gametracker/server/{id}
-            if ($s2 && strtolower($s2) === 'server' && $s3 && ctype_digit($s3)) {
-                $_GET['action'] = 'serverdetails';
-                $_GET['id'] = (int)$s3;
-                $_GET['serverID'] = (int)$s3;
-                return;
-            }
-
-            // /{lang}/gametracker/details/{id}
-            if ($s2 && strtolower($s2) === 'details' && $s3 && ctype_digit($s3)) {
-                $_GET['action'] = 'serverdetails';
-                $_GET['id'] = (int)$s3;
-                $_GET['serverID'] = (int)$s3;
-                return;
-            }
-
-            // Übersicht bleibt wie sie ist
-            return;
-        }
-
-        /* =======================
-         * DOWNLOADS
-         * /{lang}/downloads/detail/{id}
-         * /{lang}/downloads/{id}
-         * ======================= */
-        /* DOWNLOADS Routing (HIER MUSS ES HIN) */
-        if (($_GET['site'] ?? '') === 'downloads') {
-            $s2 = $segments[2] ?? null;
-            $s3 = $segments[3] ?? null;
-
-            if ($s2 === 'cat_list' && ctype_digit((string)$s3)) {
-                $_GET['action']     = 'cat_list';
-                $_GET['categoryID'] = (int)$s3;
-                return;
-            }
-
-            // restliche download-routen: detail, id, page ...
-            if ($s2 === 'detail' && ctype_digit((string)$s3)) {
-                $_GET['action'] = 'detail';
-                $_GET['id']     = (int)$s3;
-                return;
-            }
-            if ($s2 !== null && ctype_digit((string)$s2)) {
-                $_GET['action'] = 'detail';
-                $_GET['id']     = (int)$s2;
-                return;
-            }
-            if ($s2 === 'page' && ctype_digit((string)$s3)) {
-                $_GET['page'] = (int)$s3;
-                return;
-            }
-        }
-
-
-
-
-        // ===== Standard Key/Value-Paare ab Segment 2/3 =====
-        $start = ($_GET['action'] === null) ? 2 : 3;
-        for ($i = $start; $i < count($segments); $i += 2) {
-            $key = $segments[$i] ?? null;
-            $val = $segments[$i + 1] ?? null;
-            if ($key === null || $val === null) continue;
-            if (preg_match('/^([a-z]+)id$/i', $key, $m)) $key = $m[1] . 'ID';
-            $_GET[$key] = is_numeric($val) ? (int)$val : $val;
-        }
-    } else {
-        // klassische query-Parameter
-        parse_str(parse_url($uri, PHP_URL_QUERY) ?: '', $queryParams);
-        foreach ($queryParams as $k => $v) $_GET[$k] = $v;
-
-        // Kompatibilität für News (Non-SEO)
-        if (($_GET['site'] ?? '') === 'news') {
-            if (!empty($_GET['newsID']) && empty($_GET['id']))     $_GET['id']     = (int) $_GET['newsID'];
-            if (!empty($_GET['id'])     && empty($_GET['newsID'])) $_GET['newsID'] = (int) $_GET['id'];
-            if (!empty($_GET['newsID']) && empty($_GET['action'])) $_GET['action'] = 'show';
-        }
-
-        $_GET['lang'] = $_GET['lang'] ?? 'de';
+        return;
     }
 }
 
 
+            /* =======================
+             * FORUM: Threads/Posts/etc.
+             * Setzt IMMER alle kompatiblen Keys,
+             * damit alte Controller-Branches weiter laufen.
+             * ======================= */
+            if (($_GET['site'] ?? '') === 'forum') {
+                $s2 = $segments[2] ?? null; // thread | post | category | showthread | showpost | showcategory | page
+                $s3 = $segments[3] ?? null; // id | id | id | id | id | id | number
+                $s4 = $segments[4] ?? null; // page |    | page | page |     | page | (optional "page")
+                $s5 = $segments[5] ?? null; // number |  | number | number | | number | (page number)
+
+                // Helper zum Setzen aller Varianten für Thread/Post/Category
+                $setThreadKeys = function(int $id) {
+                    $_GET['thread']   = $id;   // legacy
+                    $_GET['threadID'] = $id;   // häufig verwendet
+                    $_GET['id']       = $id;   // manche Controller nehmen id
+                };
+                $setPostKeys = function(int $id) {
+                    $_GET['post']   = $id;
+                    $_GET['postID'] = $id;
+                    $_GET['id']     = $id;
+                };
+                $setCategoryKeys = function(int $id) {
+                    $_GET['category']   = $id;
+                    $_GET['categoryID'] = $id;
+                    $_GET['id']         = $id;
+                };
+
+                // A) /{lang}/forum/thread/{id}[/page/{n}]
+                if ($s2 !== null && strtolower($s2) === 'thread' && ctype_digit((string)$s3)) {
+                    $tid = (int)$s3;
+                    $setThreadKeys($tid);
+                    // beide Aktions-Varianten setzen:
+                    $_GET['action'] = $_GET['action'] ?? 'thread';
+                    $_GET['action_showthread'] = 'showthread'; // nur Info; stört nicht
+                    // optional page
+                    if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
+                        $_GET['page'] = (int)$s5;
+                    }
+                    return;
+                }
+
+                // B) /{lang}/forum/post/{id}
+                if ($s2 !== null && strtolower($s2) === 'post' && ctype_digit((string)$s3)) {
+                    $pid = (int)$s3;
+                    $setPostKeys($pid);
+                    $_GET['action'] = $_GET['action'] ?? 'post';   // legacy
+                    $_GET['action_showpost'] = 'showpost';
+                    return;
+                }
+
+                // C) /{lang}/forum/category/{id}[/page/{n}]
+                if ($s2 !== null && strtolower($s2) === 'category' && ctype_digit((string)$s3)) {
+                    $cid = (int)$s3;
+                    $setCategoryKeys($cid);
+                    $_GET['action'] = $_GET['action'] ?? 'category';
+                    $_GET['action_showcategory'] = 'showcategory';
+                    if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
+                        $_GET['page'] = (int)$s5;
+                    }
+                    return;
+                }
+
+                // D) /{lang}/forum/page/{n}  → Foren-Übersicht paginiert
+                if ($s2 !== null && strtolower($s2) === 'page' && ctype_digit((string)$s3)) {
+                    $_GET['page'] = (int)$s3;
+                    return;
+                }
+
+                // E) Direkt-Aktionspfade:
+                //    /{lang}/forum/showthread/{id}[/page/{n}]
+                if ($s2 !== null && strtolower($s2) === 'showthread' && ctype_digit((string)$s3)) {
+                    $tid = (int)$s3;
+                    $setThreadKeys($tid);
+                    $_GET['action'] = 'showthread';
+                    if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
+                        $_GET['page'] = (int)$s5;
+                    }
+                    return;
+                }
+                //    /{lang}/forum/showpost/{id}
+                if ($s2 !== null && strtolower($s2) === 'showpost' && ctype_digit((string)$s3)) {
+                    $pid = (int)$s3;
+                    $setPostKeys($pid);
+                    $_GET['action'] = 'showpost';
+                    return;
+                }
+                //    /{lang}/forum/showcategory/{id}[/page/{n}]
+                if ($s2 !== null && strtolower($s2) === 'showcategory' && ctype_digit((string)$s3)) {
+                    $cid = (int)$s3;
+                    $setCategoryKeys($cid);
+                    $_GET['action'] = 'showcategory';
+                    if ($s4 !== null && strtolower($s4) === 'page' && ctype_digit((string)$s5)) {
+                        $_GET['page'] = (int)$s5;
+                    }
+                    return;
+                }
+
+                // F) /{lang}/forum/quote/postid/{pid}/threadid/{tid}
+                if ($s2 !== null && strtolower($s2) === 'quote') {
+
+                    $_GET['action'] = 'quote';
+
+                    // ❗ KEIN return hier
+                    // postid / threadid werden im Standard-Pair-Parser verarbeitet
+                }
+                // G) /{lang}/forum/quote_reply/threadid/{tid}
+                if ($s2 !== null && strtolower($s2) === 'quote_reply') {
+
+                    $_GET['action'] = 'quote_reply';
+
+                    // KEIN return!
+                    // threadid wird unten im Standard-Key/Value-Parser gesetzt
+                }
+
+                // G) /{lang}/forum/edit_post/postid/{pid}
+                if ($s2 !== null && strtolower($s2) === 'edit_post') {
+                    $_GET['action'] = 'edit_post';
+                    // KEIN return → postid wird unten gemappt
+                }
+
+                // H) /{lang}/forum/new_thread/catid/{id}
+                // /{lang}/forum/new_thread/catid/{id} → host/.../forum/new_thread/catid/1
+                if ($s2 !== null && strtolower($s2) === 'new_thread') {
+                    // Setze die richtige Action
+                    $_GET['action'] = 'new_thread';
+
+                    // KEIN return – damit unten catid/1 als Key/Value geparst wird
+                    // und zu $_GET['catID'] wird
+                }
+
+                // ansonsten weiter zu Standard-Pairs
+            }
+
+            /* --------------------------------------
+             * FORUM OVERVIEW PAGINATION
+             * /{lang}/forum/overview/{page}
+             * -------------------------------------- */
+            $s2 = $segments[2] ?? null;
+            $s3 = $segments[3] ?? null;
+
+            if ($s2 !== null && strtolower($s2) === 'overview' && isset($s3) && ctype_digit($s3)) {
+                $_GET['action'] = 'overview';
+                $_GET['page']   = (int)$s3;
+                return;
+            }
+
+
+            /* ============================================================
+             * PROFILE ROUTING – SEO + SLUG + KOMPATIBEL + CANONICAL
+             * ============================================================ */
+            if (($_GET['site'] ?? '') === 'profile') {
+
+                $s2 = $segments[2] ?? null;
+                $s3 = $segments[3] ?? null;
+
+                // --------------------------------------------
+                // 1. /{lang}/profile/{id}
+                // --------------------------------------------
+                if ($s2 !== null && ctype_digit($s2)) {
+                    $_GET['userID'] = (int)$s2;
+                    return;
+                }
+
+                // --------------------------------------------
+                // 2. /{lang}/profile/{slug}/{id}
+                // --------------------------------------------
+                if ($s2 !== null && $s3 !== null && ctype_digit($s3)) {
+                    $_GET['userID'] = (int)$s3;
+                    $_GET['slug'] = $s2;
+                    return;
+                }
+
+                // --------------------------------------------
+                // 3. /{lang}/profile/{slug} → slug = username
+                //    Prüfen, ob slug eindeutig einem User zugeordnet ist
+                // --------------------------------------------
+                if ($s2 !== null && !ctype_digit($s2)) {
+
+                    global $_database;
+
+                    $stmt = $_database->prepare("
+                        SELECT userID 
+                        FROM user 
+                        WHERE LOWER(username) = LOWER(?)
+                        LIMIT 1
+                    ");
+                    $stmt->bind_param("s", $s2);
+                    $stmt->execute();
+                    $stmt->bind_result($uid);
+                    $stmt->fetch();
+                    $stmt->close();
+
+                    if (!empty($uid)) {
+                        $_GET['userID'] = (int)$uid;
+                        $_GET['slug'] = $s2;
+                        return;
+                    }
+                }
+
+                // --------------------------------------------
+                // 4. Alte URL-Variante: /profile/id/2
+                // --------------------------------------------
+                if ($s2 === "id" && $s3 !== null && ctype_digit($s3)) {
+                    $_GET['userID'] = (int)$s3;
+                    return;
+                }
+
+                // --------------------------------------------
+                // 5. Wenn nichts passt → Profil 404
+                // --------------------------------------------
+                $_GET['userID'] = null;
+                $_GET['profile_error'] = "not_found";
+                return;
+            }
+
+            /* =======================
+             * GAMETRACKER ROUTING
+             * ======================= */
+            if (($_GET['site'] ?? '') === 'gametracker') {
+
+                $s2 = $segments[2] ?? null;
+                $s3 = $segments[3] ?? null;
+
+                // /{lang}/gametracker/serverdetails/{id}
+                if ($s2 && strtolower($s2) === 'serverdetails' && $s3 && ctype_digit($s3)) {
+                    $_GET['action'] = 'serverdetails';
+                    $_GET['id'] = (int)$s3;
+                    $_GET['serverID'] = (int)$s3;
+                    return;
+                }
+
+                // /{lang}/gametracker/server/{id}
+                if ($s2 && strtolower($s2) === 'server' && $s3 && ctype_digit($s3)) {
+                    $_GET['action'] = 'serverdetails';
+                    $_GET['id'] = (int)$s3;
+                    $_GET['serverID'] = (int)$s3;
+                    return;
+                }
+
+                // /{lang}/gametracker/details/{id}
+                if ($s2 && strtolower($s2) === 'details' && $s3 && ctype_digit($s3)) {
+                    $_GET['action'] = 'serverdetails';
+                    $_GET['id'] = (int)$s3;
+                    $_GET['serverID'] = (int)$s3;
+                    return;
+                }
+
+                // Übersicht bleibt wie sie ist
+                return;
+            }
+
+            /* =======================
+             * DOWNLOADS
+             * /{lang}/downloads/detail/{id}
+             * /{lang}/downloads/{id}
+             * ======================= */
+            /* DOWNLOADS Routing (HIER MUSS ES HIN) */
+            if (($_GET['site'] ?? '') === 'downloads') {
+                $s2 = $segments[2] ?? null;
+                $s3 = $segments[3] ?? null;
+
+                // ✅ DOWNLOAD DATEI
+                if ($s2 === 'download' && ctype_digit((string)$s3)) {
+                    $_GET['action'] = 'download';
+                    $_GET['id']     = (int)$s3;
+                    return;
+                }
+
+                // Kategorie
+                if ($s2 === 'cat_list' && ctype_digit((string)$s3)) {
+                    $_GET['action']     = 'cat_list';
+                    $_GET['categoryID'] = (int)$s3;
+                    return;
+                }
+
+                // Detailseite
+                if ($s2 === 'detail' && ctype_digit((string)$s3)) {
+                    $_GET['action'] = 'detail';
+                    $_GET['id']     = (int)$s3;
+                    return;
+                }
+
+                // Kurzform: /downloads/{id}
+                if ($s2 !== null && ctype_digit((string)$s2)) {
+                    $_GET['action'] = 'detail';
+                    $_GET['id']     = (int)$s2;
+                    return;
+                }
+
+                // Pagination
+                if ($s2 === 'page' && ctype_digit((string)$s3)) {
+                    $_GET['page'] = (int)$s3;
+                    return;
+                }
+            }
 
 
 
 
 
+            // ===== Standard Key/Value-Paare ab Segment 2/3 =====
+            $start = ($_GET['action'] === null) ? 2 : 3;
+            for ($i = $start; $i < count($segments); $i += 2) {
+                $key = $segments[$i] ?? null;
+                $val = $segments[$i + 1] ?? null;
+                if ($key === null || $val === null) continue;
+                if (preg_match('/^([a-z]+)id$/i', $key, $m)) $key = $m[1] . 'ID';
+                $_GET[$key] = is_numeric($val) ? (int)$val : $val;
+            }
+        } else {
+            // klassische query-Parameter
+            parse_str(parse_url($uri, PHP_URL_QUERY) ?: '', $queryParams);
+            foreach ($queryParams as $k => $v) $_GET[$k] = $v;
+
+            // Kompatibilität für News (Non-SEO)
+            if (($_GET['site'] ?? '') === 'news') {
+                if (!empty($_GET['newsID']) && empty($_GET['id']))     $_GET['id']     = (int) $_GET['newsID'];
+                if (!empty($_GET['id'])     && empty($_GET['newsID'])) $_GET['newsID'] = (int) $_GET['id'];
+                if (!empty($_GET['newsID']) && empty($_GET['action'])) $_GET['action'] = 'show';
+            }
+
+            $_GET['lang'] = $_GET['lang'] ?? 'de';
+        }
+    }
 
     /**
      * Wandelt einen Query-String in eine SEO-URL um
@@ -448,7 +525,7 @@ public static function route(?string $uri = null): void
             if ($key === '' || $val === null) continue;
 
             switch ($key) {
-                case 'postid':
+                case 'postID':
                     $params['postID'] = $val;
                     if ($params['action'] === 'quote') {
                         $params['id'] = $val;
@@ -653,19 +730,19 @@ public static function route(?string $uri = null): void
         return $threadID ?? 0;
     }
 
-    private static function getPostTitle(int $postId): ?string
+    private static function getPostTitle(int $postID): ?string
     {
         $db = $GLOBALS['db'] ?? null; // DB-Objekt holen
         if (!$db) return null; // kein DB-Objekt vorhanden
 
         $query = $db->prepare("SELECT title FROM " . PREFIX . "plugins_forum_posts WHERE id = ?");
-        $query->execute([$postId]);
+        $query->execute([$postID]);
         $row = $query->fetch();
 
         return $row ? $row['title'] : null;
     }
 
-    private static function getThreadTitle(int $threadId): ?string
+    private static function getThreadTitle(int $threadID): ?string
     {
         global $db;
 
@@ -677,7 +754,7 @@ public static function route(?string $uri = null): void
     }
 
     // Beispiel für News
-    private static function getNewsTitle(int $newsId): ?string
+    private static function getNewsTitle(int $newsID): ?string
     {
         global $db;
 

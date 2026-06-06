@@ -36,6 +36,30 @@ if (!function_exists('nx_core_log')) {
     }
 }
 
+if (!function_exists('nx_delete_dir')) {
+    function nx_delete_dir(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = scandir($dir);
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+
+            $path = $dir . '/' . $file;
+            if (is_dir($path)) {
+                nx_delete_dir($path);
+            } else {
+                @unlink($path);
+            }
+        }
+
+        @rmdir($dir);
+    }
+}
 
 
 /* =====================================================
@@ -391,6 +415,14 @@ $updates = array_values(array_filter(
         // ------------------------------
         // Neue Version → immer anzeigen
         if (version_compare($version, CURRENT_VERSION, '>')) {
+            return true;
+        }
+
+        // Gleiche Version → nur höherer Build
+        if (
+            version_compare($version, CURRENT_VERSION, '==') &&
+            $build > ($installedBuilds[$version] ?? 0)
+        ) {
             return true;
         }
 
@@ -839,6 +871,14 @@ $updates = array_values(array_filter(
         // ------------------------------
         // Neue Version → immer anzeigen
         if (version_compare($version, CURRENT_VERSION, '>')) {
+            return true;
+        }
+
+        // Gleiche Version → nur höherer Build
+        if (
+            version_compare($version, CURRENT_VERSION, '==') &&
+            $build > ($installedBuilds[$version] ?? 0)
+        ) {
             return true;
         }
 
@@ -1514,6 +1554,7 @@ if ($all_updates_succeeded) {
 // 🔒 Flags IMMER initialisieren
 $requiresNewUpdater = false;
 $requiresVersion    = null;
+$hardStopAfterLogs  = false;
 $updatesToRun       = [];
 
 /* ---------------------------------------
@@ -1669,19 +1710,6 @@ foreach ($updatesToRun as $update) {
 
 
 $steps_log[] = "</div></div>";
-
-
-
-
-
-
-
-    // ============================================================
-    // 🧩 Schritt 4: Dateien entpacken & Änderungen auflisten
-    // ============================================================
-/* ============================================================
-   🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
-   ============================================================ */
 /* ============================================================
    🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
    ============================================================ */
@@ -1778,6 +1806,16 @@ foreach ($updatesToRun as $update) {
             }
         }
     }
+    /* ===============================
+       🗑️ delete_Ordner
+    ================================ */
+    if (!empty($update['delete_dirs'])) {
+        foreach ($update['delete_dirs'] as $rel) {
+            $full = $extract_path . '/' . ltrim($rel, '/');
+            nx_delete_dir($full);
+            $files_deleted[] = $rel . ' (Ordner)';
+        }
+    }
 
     /* ====================================================
        ✅ UPDATE-HISTORY (IMMER VOR HARD STOP)
@@ -1807,36 +1845,12 @@ foreach ($updatesToRun as $update) {
        ⛔ HARD STOP – NUR NACH HISTORY
     ===================================================== */
     if (!empty($update['requires_new_updater'])) {
-
-        $lockDir = __DIR__ . '/../admin/update_core';
-        if (!is_dir($lockDir)) {
-            mkdir($lockDir, 0755, true);
-        }
-
-        file_put_contents(
-            $lockDir . '/.updater_lock',
-            json_encode([
-                'version' => $version,
-                'time'    => time()
-            ])
-        );
-
-        $data_array['content'] = "
-        <div class='alert alert-warning'>
-            <i class='bi bi-exclamation-triangle-fill me-2'></i>
-            <b>Updater {$version} wurde installiert.</b><br><br>
-            Der Update-Prozess wurde bewusst angehalten,
-            damit der neue Updater neu geladen wird.
-        </div>
-
-        <a href='admincenter.php?site=update_core&action=start'
-           class='btn btn-secondary mt-3'>
-            Neuer Updater laden
-        </a>";
-
-        echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
-        exit;
+        $requiresNewUpdater = true;
+        $requiresVersion    = $version;
+        $hardStopAfterLogs  = true;
+        break; // PATCH: nur Update-Schleife stoppen
     }
+
 }
 
 /* ---------------------------------------
@@ -1869,6 +1883,42 @@ if ($changes) {
 }
 
 $steps_log[] = "</div></div>";
+
+/* ====================================================
+   ⛔ HARD STOP NACH LOG-AUSGABE (PATCH)
+==================================================== */
+if ($hardStopAfterLogs === true && $requiresVersion !== null) {
+
+    $lockDir = __DIR__ . '/../admin/update_core';
+    if (!is_dir($lockDir)) {
+        mkdir($lockDir, 0755, true);
+    }
+
+    file_put_contents(
+        $lockDir . '/.updater_lock',
+        json_encode([
+            'version' => $requiresVersion,
+            'time'    => time()
+        ])
+    );
+
+    $steps_log[] = "
+    <div class='alert alert-warning mt-3'>
+        <i class='bi bi-exclamation-triangle-fill me-2'></i>
+        <b>Updater {$requiresVersion} wurde installiert.</b><br><br>
+        Alle Updates wurden protokolliert.<br>
+        Der Update-Prozess wird jetzt bewusst angehalten,
+        damit der neue Updater geladen werden kann.
+    </div>
+
+    <div class='text-center mt-3'>
+        <a href='admincenter.php?site=update_core&action=start'
+           class='btn btn-secondary'>
+            Neuer Updater laden
+        </a>
+    </div>";
+}
+
 
 /* ====================================================
    🏁 Version final setzen (NUR wenn kein Hard-Stop)

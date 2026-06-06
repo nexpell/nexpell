@@ -25,8 +25,9 @@ function get_sitetitle(): string
     return strtr($title, $replacements);
 }
 
-function get_mainContent() {
-    global $tpl;
+function get_mainContent()
+{
+    global $tpl, $languageService, $pluginManager;
 
     $settings = safe_query("SELECT * FROM `settings`");
     if (!$settings) {
@@ -34,8 +35,7 @@ function get_mainContent() {
     }
     $ds = mysqli_fetch_array($settings);
 
-    #$site = isset($_GET['site']) ? htmlspecialchars($_GET['site'], ENT_QUOTES, 'UTF-8') : $ds['startpage'];
-
+    // Site ermitteln
     if (!isset($_GET['site']) || $_GET['site'] === 'index' || empty($_GET['site'])) {
         $site = $ds['startpage'];
     } else {
@@ -45,33 +45,72 @@ function get_mainContent() {
     $site = preg_replace('/[^a-zA-Z0-9_-]/', '', $site);
 
     $module_dir = realpath(__DIR__ . '/../includes/modules');
-    $plugin_dir = realpath(__DIR__ . '/../includes/plugins');
 
-    // 1. Prüfe Modul direkt
-    $module_path = $module_dir . "/$site.php";
+    /* ==========================================================
+       1) CORE-MODUL
+    ========================================================== */
+    $module_path = $module_dir . "/{$site}.php";
     if (file_exists($module_path)) {
+
+        // 🔥 aktives Modul merken
+        $GLOBALS['nx_active_module'] = $site;
+
+        // 🔥 Sprache automatisch laden
+        if (isset($languageService)) {
+            $languageService->autoLoadActiveModule(false);
+        }
+
+        // 🔥 Modul-Assets registrieren
+        if (function_exists('registerModuleAssets')) {
+            registerModuleAssets($site);
+        }
+
         ob_start();
         include $module_path;
         return ob_get_clean();
     }
 
-    // 2. Plugin prüfen per settings_plugins (index_link + path)
+    /* ==========================================================
+       2) PLUGIN-SEITE
+    ========================================================== */
     $plugin_query = safe_query("SELECT * FROM settings_plugins WHERE activate='1'");
     while ($row = mysqli_fetch_array($plugin_query)) {
-        $links = explode(",", $row['index_link']);
-        if (in_array($site, $links)) {
-            $plugin_file = rtrim($row['path'], '/') . '/' . $site . '.php';
-            if (file_exists($plugin_file)) {
+
+        $links = array_map('trim', explode(',', $row['index_link']));
+        if (in_array($site, $links, true)) {
+
+            // 🔥 aktives Plugin wie Modul behandeln
+            $GLOBALS['nx_active_module'] = $site;
+
+            // 🔥 Plugin-Sprache automatisch laden
+            if (isset($languageService)) {
+                $languageService->autoLoadActiveModule(false);
+            }
+
+            $pluginFile = $pluginManager->loadPluginPage($site);
+            if ($pluginFile) {
+
+                // 🔥 Plugin-Assets
+                $pluginManager->loadPluginAssets($site);
+
                 ob_start();
-                include $plugin_file;
+                include $pluginFile;
                 return ob_get_clean();
             }
         }
     }
 
-    // 3. Fallback 404
+    /* ==========================================================
+       3) 404
+    ========================================================== */
     $error_page = $module_dir . "/404.php";
     if (file_exists($error_page)) {
+        $GLOBALS['nx_active_module'] = '404';
+
+        if (isset($languageService)) {
+            $languageService->autoLoadActiveModule(false);
+        }
+
         ob_start();
         include $error_page;
         return ob_get_clean();
@@ -79,6 +118,7 @@ function get_mainContent() {
 
     return "<h1>404 - Seite nicht gefunden</h1>";
 }
+
 
 
 // CKEditor Konfiguration (je nach Superadmin)

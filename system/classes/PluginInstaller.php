@@ -121,10 +121,4 @@ class PluginInstaller
             )
         ");
     }
-
-    public static function reinstall(string $modulname, string $plugin_folder_path): void
-{
-    // Reinstall = Dateien neu + DB nicht anfassen
-    self::copyPluginFiles($plugin_folder_path);
-}
 }

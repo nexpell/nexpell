@@ -1,0 +1,38 @@
+<?php
+
+$language_array = array(
+
+  'access_denied'                 => 'Accesso negato',
+  'actions'                       => 'Azioni',
+  'apply_module_setting'          => 'Applica impostazione modulo',
+  'content_foot_activated'        => 'Sezione contenuto piè di pagina &#8595;',
+  'content_head_activated'        => 'Sezione contenuto intestazione &#8593;',
+  'delete'                        => 'Elimina plugin',
+  'edit'                          => 'Modifica impostazione',
+  'foot_section_activated'        => 'Sezione piè di pagina &#8595;',
+  'head_activated'                => 'Intestazione pagina &#8593;',
+  'head_section_activated'        => 'Sezione intestazione &#8593;',
+  'id'                            => 'ID',
+  'left'                          => 'Sinistra',
+  'left_sidebar_activated'        => '&#8592; Barra laterale sinistra',
+  'module_overview'               => 'Panoramica modulo',
+  'name'                          => 'Nome',
+  'off'                           => 'Spento',
+  'on'                            => 'Acceso',
+  'overview'                      => 'Panoramica',
+  'plugin'                        => 'Plugin',
+  'plugin_module_widget_overview' => 'Panoramica modulo & widget plugin',
+  'plugin_name'                   => 'Nome plugin',
+  'plugin_widget_overview'        => 'Panoramica widget plugin',
+  'right'                         => 'Destra',
+  'right_left_active'             => 'Destra & Sinistra attivi',
+  'right_left_not_active'         => 'Destra & Sinistra non attivi',
+  'right_sidebar_activated'       => 'Barra laterale destra &#8594;',
+  'sort'                          => 'Ordinamento',
+  'sorting'                       => 'Ordinare',
+  'transaction_invalid'           => 'ID transazione non valida',
+  'via_navigation'                => 'Sopra la navigazione &#8593;',
+  'widget'                        => 'Gestione widget',
+  'widget_sort'                   => 'Ordinamento widget',
+
+);
