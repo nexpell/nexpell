@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 /* =====================================================
@@ -13,14 +14,18 @@ $lockFile = __DIR__ . '/.updater_lock';
 if (file_exists($lockFile)) {
 
     $data = json_decode(file_get_contents($lockFile), true);
-    unlink($lockFile); // ONE-SHOT
+
+    $version = $data['version'] ?? 'unbekannt';
+
+    unlink($lockFile);
 
     echo "
     <div class='alert alert-warning text-center mt-4'>
         <i class='bi bi-exclamation-triangle-fill me-2'></i>
-        <strong>Updater wurde aktualisiert</strong><br><br>
+        <strong>Updater {$version} wurde installiert</strong><br><br>
         Bitte lade die Seite jetzt neu (F5), um mit dem neuen Updater fortzufahren.
     </div>";
+
     exit;
 }
 
@@ -209,49 +214,71 @@ if (!function_exists('nx_normalize_github_tag_version')) {
 }
 
 if (!function_exists('nx_build_github_update_info')) {
-    function nx_build_github_update_info(array $tags): array
-    {
-        $updates = [];
+function nx_build_github_update_info(array $tags): array
+{
+$updates = [];
 
-        foreach ($tags as $tag) {
-            if (!is_array($tag)) {
-                continue;
-            }
 
-            $tagName = (string)($tag['name'] ?? '');
-            $version = nx_normalize_github_tag_version($tagName);
-            if ($tagName === '' || !preg_match('/^\d+\.\d+\.\d+(?:[.\-+][A-Za-z0-9._-]+)?$/', $version)) {
-                continue;
-            }
+    $jsonFile = __DIR__ . '/updates/git_update_core.json';
 
-            $zipUrl = 'https://github.com/nexpell/nexpell/archive/refs/tags/' . rawurlencode($tagName) . '.zip';
-            $channel = preg_match('/[a-z]/i', $version) ? 'beta' : 'stable';
-
-            $updates[] = [
-                'version' => $version,
-                'channel' => $channel,
-                'build' => 1,
-                'zip_url' => $zipUrl,
-                'source' => 'github',
-                'source_type' => 'github',
-                'tag' => $tagName,
-                'visible_for' => ['all'],
-                'notes' => 'GitHub tag ' . $tagName,
-                'changelog' => 'Core-Update aus GitHub-Tag ' . $tagName,
-            ];
-        }
-
-        usort($updates, static function (array $a, array $b): int {
-            return version_compare((string)$a['version'], (string)$b['version']);
-        });
-
+    if (!file_exists($jsonFile)) {
         return [
             'source' => 'github',
             'repository' => 'nexpell/nexpell',
-            'updates' => $updates,
+            'updates' => []
         ];
     }
+
+    $json = json_decode(file_get_contents($jsonFile), true);
+
+    if (!isset($json['updates']) || !is_array($json['updates'])) {
+        return [
+            'source' => 'github',
+            'repository' => 'nexpell/nexpell',
+            'updates' => []
+        ];
+    }
+
+    $githubTags = [];
+
+    foreach ($tags as $tag) {
+        $tagName = (string)($tag['name'] ?? '');
+        $version = nx_normalize_github_tag_version($tagName);
+
+        if ($version !== '') {
+            $githubTags[$version] = true;
+        }
+    }
+
+    foreach ($json['updates'] as $update) {
+
+        $version = (string)($update['version'] ?? '');
+
+        // Nur anzeigen wenn Git-Tag existiert
+        if (!isset($githubTags[$version])) {
+            continue;
+        }
+
+        $updates[] = $update;
+    }
+
+    usort($updates, static function (array $a, array $b): int {
+        return version_compare(
+            (string)$a['version'],
+            (string)$b['version']
+        );
+    });
+
+    return [
+        'source' => 'github',
+        'repository' => 'nexpell/nexpell',
+        'updates' => $updates,
+    ];
 }
+
+
+}
+
 
 if (!function_exists('nx_load_update_info')) {
     function nx_load_update_info(string $url, string &$rawJson): array
@@ -277,6 +304,7 @@ if (!function_exists('nx_load_update_info')) {
 if (!function_exists('nx_update_is_github_package')) {
     function nx_update_is_github_package(array $update): bool
     {
+
         $source = strtolower((string)($update['source'] ?? $update['source_type'] ?? ''));
         $zipUrl = strtolower((string)($update['zip_url'] ?? ''));
 
@@ -332,6 +360,7 @@ if (!function_exists('nx_update_zip_relative_file')) {
     }
 }
 
+
 if (!function_exists('nx_update_copy_directory_contents')) {
     function nx_update_copy_directory_contents(string $source, string $target): void
     {
@@ -367,6 +396,25 @@ if (!function_exists('nx_update_copy_directory_contents')) {
             if (!is_dir(dirname($dst))) {
                 mkdir(dirname($dst), 0755, true);
             }
+
+            /* ---------------------------------------
+               Geschützte Dateien niemals überschreiben
+            ---------------------------------------- */
+
+            $relativePath = str_replace(
+                '\\',
+                '/',
+                substr($dst, strlen(rtrim($_SERVER['DOCUMENT_ROOT'], '/\\')) + 1)
+            );
+
+            $protectedFiles = [
+                'system/config.inc.php',
+            ];
+
+            if (in_array($relativePath, $protectedFiles, true)) {
+                continue;
+            }
+
             copy($src, $dst);
         }
     }
@@ -374,7 +422,8 @@ if (!function_exists('nx_update_copy_directory_contents')) {
 
 if (!function_exists('nx_update_extract_package')) {
     function nx_update_extract_package(ZipArchive $zip, string $extractPath, array $update, string $tmpDir): bool
-    {
+{
+    
         if (!nx_update_is_github_package($update)) {
             return $zip->extractTo($extractPath);
         }
@@ -398,11 +447,304 @@ if (!function_exists('nx_update_extract_package')) {
 
         nx_update_copy_directory_contents($sourceRoot, $extractPath);
 
-        if (function_exists('recursiveRemoveDirectory')) {
+        if (function_exists('recursiveRemoveDirectory') && is_dir($stageDir)) {
             recursiveRemoveDirectory($stageDir);
         }
 
         return true;
+    }
+}
+
+if (!function_exists('nx_update_ensure_dir')) {
+    function nx_update_ensure_dir(string $dir): bool
+    {
+        return is_dir($dir) || mkdir($dir, 0755, true);
+    }
+}
+
+if (!function_exists('nx_update_remove_path')) {
+    function nx_update_remove_path(string $path): void
+    {
+        if (is_dir($path) && !is_link($path)) {
+            $items = scandir($path);
+            if (is_array($items)) {
+                foreach ($items as $item) {
+                    if ($item === '.' || $item === '..') {
+                        continue;
+                    }
+                    nx_update_remove_path($path . DIRECTORY_SEPARATOR . $item);
+                }
+            }
+            @rmdir($path);
+            return;
+        }
+
+        if (file_exists($path) || is_link($path)) {
+            @unlink($path);
+        }
+    }
+}
+
+if (!function_exists('nx_update_copy_path')) {
+    function nx_update_copy_path(string $source, string $target): bool
+    {
+        if (is_dir($source) && !is_link($source)) {
+            if (!nx_update_ensure_dir($target)) {
+                return false;
+            }
+
+            $items = scandir($source);
+            if (!is_array($items)) {
+                return false;
+            }
+
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') {
+                    continue;
+                }
+                if (!nx_update_copy_path($source . DIRECTORY_SEPARATOR . $item, $target . DIRECTORY_SEPARATOR . $item)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if (!nx_update_ensure_dir(dirname($target))) {
+            return false;
+        }
+
+        return copy($source, $target);
+    }
+}
+
+if (!function_exists('nx_update_backup_database')) {
+    function nx_update_backup_database(mysqli $database, string $snapshotFile): bool
+    {
+        $snapshot = ['created_at' => time(), 'tables' => []];
+        $tablesResult = $database->query('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
+        if (!$tablesResult) {
+            return false;
+        }
+
+        while ($tableRow = $tablesResult->fetch_array(MYSQLI_NUM)) {
+            $tableName = (string)$tableRow[0];
+            $createResult = $database->query('SHOW CREATE TABLE `' . str_replace('`', '``', $tableName) . '`');
+            $createRow = $createResult ? $createResult->fetch_assoc() : null;
+            $createSql = (string)($createRow['Create Table'] ?? '');
+            if ($createSql === '') {
+                return false;
+            }
+
+            $columns = [];
+            $columnsResult = $database->query('SHOW COLUMNS FROM `' . str_replace('`', '``', $tableName) . '`');
+            while ($columnsResult && ($column = $columnsResult->fetch_assoc())) {
+                $columns[] = (string)$column['Field'];
+            }
+
+            $rows = [];
+            $rowsResult = $database->query('SELECT * FROM `' . str_replace('`', '``', $tableName) . '`');
+            while ($rowsResult && ($row = $rowsResult->fetch_assoc())) {
+                $rows[] = $row;
+            }
+
+            $snapshot['tables'][] = [
+                'name' => $tableName,
+                'create' => $createSql,
+                'columns' => $columns,
+                'rows' => $rows,
+            ];
+        }
+
+        if (!nx_update_ensure_dir(dirname($snapshotFile))) {
+            return false;
+        }
+
+        return file_put_contents($snapshotFile, serialize($snapshot), LOCK_EX) !== false;
+    }
+}
+
+if (!function_exists('nx_update_restore_database')) {
+    function nx_update_restore_database(mysqli $database, string $snapshotFile): bool
+    {
+        if (!is_file($snapshotFile)) {
+            return false;
+        }
+
+        $snapshot = @unserialize((string)file_get_contents($snapshotFile), ['allowed_classes' => false]);
+        if (!is_array($snapshot) || empty($snapshot['tables']) || !is_array($snapshot['tables'])) {
+            return false;
+        }
+
+        $database->query('SET FOREIGN_KEY_CHECKS=0');
+
+        $currentTables = [];
+        $currentResult = $database->query('SHOW FULL TABLES WHERE Table_type = "BASE TABLE"');
+        while ($currentResult && ($row = $currentResult->fetch_array(MYSQLI_NUM))) {
+            $currentTables[] = (string)$row[0];
+        }
+
+        foreach ($currentTables as $tableName) {
+            $database->query('DROP TABLE IF EXISTS `' . str_replace('`', '``', $tableName) . '`');
+        }
+
+        foreach ($snapshot['tables'] as $table) {
+            if (empty($table['name']) || empty($table['create'])) {
+                continue;
+            }
+
+            if (!$database->query((string)$table['create'])) {
+                $database->query('SET FOREIGN_KEY_CHECKS=1');
+                return false;
+            }
+
+            $columns = array_values(array_filter(array_map('strval', $table['columns'] ?? [])));
+            $rows = is_array($table['rows'] ?? null) ? $table['rows'] : [];
+            if ($columns === [] || $rows === []) {
+                continue;
+            }
+
+            $columnSql = '`' . implode('`, `', array_map(static fn(string $column): string => str_replace('`', '``', $column), $columns)) . '`';
+            foreach ($rows as $row) {
+                $values = [];
+                foreach ($columns as $column) {
+                    $value = $row[$column] ?? null;
+                    $values[] = $value === null ? 'NULL' : "'" . $database->real_escape_string((string)$value) . "'";
+                }
+
+                $sql = 'INSERT INTO `' . str_replace('`', '``', (string)$table['name']) . "` ({$columnSql}) VALUES (" . implode(', ', $values) . ')';
+                if (!$database->query($sql)) {
+                    $database->query('SET FOREIGN_KEY_CHECKS=1');
+                    return false;
+                }
+            }
+        }
+
+        $database->query('SET FOREIGN_KEY_CHECKS=1');
+        return true;
+    }
+}
+
+if (!function_exists('nx_update_backup_file_snapshot')) {
+    function nx_update_backup_file_snapshot(ZipArchive $zip, array $update, string $extractPath, string $rollbackDir): bool
+    {
+        $manifestFile = rtrim($rollbackDir, '/\\') . '/files_manifest.json';
+        $filesDir = rtrim($rollbackDir, '/\\') . '/files';
+        $manifest = is_file($manifestFile)
+            ? json_decode((string)file_get_contents($manifestFile), true)
+            : ['entries' => []];
+        if (!is_array($manifest) || !isset($manifest['entries']) || !is_array($manifest['entries'])) {
+            $manifest = ['entries' => []];
+        }
+
+        $known = [];
+        foreach ($manifest['entries'] as $entry) {
+            if (!empty($entry['path'])) {
+                $known[(string)$entry['path']] = true;
+            }
+        }
+
+        $paths = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $file = (string)$zip->getNameIndex($i);
+            if ($file === '' || str_ends_with($file, '/')) {
+                continue;
+            }
+            $relative = nx_update_zip_relative_file($file, $zip, $update);
+            if ($relative !== '') {
+                $paths[] = $relative;
+            }
+        }
+
+        foreach (['delete_files', 'delete_dirs'] as $key) {
+            if (!empty($update[$key]) && is_array($update[$key])) {
+                foreach ($update[$key] as $path) {
+                    $paths[] = trim(str_replace('\\', '/', (string)$path), '/');
+                }
+            }
+        }
+
+        foreach (array_values(array_unique($paths)) as $relative) {
+            if ($relative === '' || isset($known[$relative])) {
+                continue;
+            }
+
+            $source = rtrim($extractPath, '/\\') . '/' . $relative;
+            $backup = $filesDir . '/' . $relative;
+            $entry = ['path' => $relative, 'existed' => file_exists($source), 'is_dir' => is_dir($source)];
+
+            if ($entry['existed'] && !nx_update_copy_path($source, $backup)) {
+                return false;
+            }
+
+            $manifest['entries'][] = $entry;
+            $known[$relative] = true;
+        }
+
+        if (!nx_update_ensure_dir(dirname($manifestFile))) {
+            return false;
+        }
+
+        return file_put_contents($manifestFile, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX) !== false;
+    }
+}
+
+if (!function_exists('nx_update_restore_file_snapshot')) {
+    function nx_update_restore_file_snapshot(string $extractPath, string $rollbackDir): bool
+    {
+        $manifestFile = rtrim($rollbackDir, '/\\') . '/files_manifest.json';
+        if (!is_file($manifestFile)) {
+            return true;
+        }
+
+        $manifest = json_decode((string)file_get_contents($manifestFile), true);
+        if (!is_array($manifest) || empty($manifest['entries']) || !is_array($manifest['entries'])) {
+            return false;
+        }
+
+        $entries = $manifest['entries'];
+        usort($entries, static function (array $a, array $b): int {
+            return substr_count((string)($b['path'] ?? ''), '/') <=> substr_count((string)($a['path'] ?? ''), '/');
+        });
+
+        $ok = true;
+        $filesDir = rtrim($rollbackDir, '/\\') . '/files';
+        foreach ($entries as $entry) {
+            $relative = trim(str_replace('\\', '/', (string)($entry['path'] ?? '')), '/');
+            if ($relative === '') {
+                continue;
+            }
+
+            $target = rtrim($extractPath, '/\\') . '/' . $relative;
+            $backup = $filesDir . '/' . $relative;
+            nx_update_remove_path($target);
+
+            if (!empty($entry['existed']) && file_exists($backup)) {
+                $ok = nx_update_copy_path($backup, $target) && $ok;
+            }
+        }
+
+        return $ok;
+    }
+}
+
+if (!function_exists('nx_update_run_rollback')) {
+    function nx_update_run_rollback(mysqli $database, string $dbSnapshot, string $extractPath, string $rollbackDir, array &$stepsLog): bool
+    {
+        $filesOk = nx_update_restore_file_snapshot($extractPath, $rollbackDir);
+        $dbOk = nx_update_restore_database($database, $dbSnapshot);
+        $type = ($filesOk && $dbOk) ? 'success' : 'danger';
+        $message = ($filesOk && $dbOk)
+            ? 'Rollback erfolgreich: Datenbank und Dateien wurden wiederhergestellt.'
+            : 'Rollback unvollstaendig: Bitte Sicherung im tmp-Verzeichnis pruefen.';
+
+        $stepsLog[] = "
+        <div class='alert alert-{$type} mb-2'>
+            <i class='bi bi-arrow-counterclockwise me-2'></i>
+            {$message}
+        </div>";
+
+        return $filesOk && $dbOk;
     }
 }
 
@@ -489,18 +831,6 @@ function nx_update_normalize_initial_history(mysqli $_database, string $currentV
 nx_update_normalize_initial_history($_database, CURRENT_VERSION, (int)($userID ?? 1));
 
 
-/*$installedBuilds = [];
-
-$res = safe_query("
-    SELECT version, MAX(build) AS build
-    FROM system_update_history
-    GROUP BY version
-");
-
-while ($row = mysqli_fetch_assoc($res)) {
-    $installedBuilds[$row['version']] = (int)$row['build'];
-}*/
-
 // 🔄 Installed Builds neu einlesen (SEHR WICHTIG)
 $installedBuilds = [];
 
@@ -561,18 +891,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_channel'])) {
 $settings = [];
 $settings['update_channel'] = nx_get_update_channel();
 
-
-
-
-
-
-
 $action = $_GET['action'] ?? 'start';
 
 // ============================================================
 // 🧩 Update-Info-Datei abrufen und prüfen
 // ============================================================
-$update_info_url = "https://api.github.com/repos/nexpell/nexpell/tags?per_page=100";
+$update_info_url = "https://update.nexpell.de/updates/git_update_core.json";
 $update_source_host = 'github.com';
 $update_source_label = 'GitHub Tags';
 $update_source_resource = 'nexpell/nexpell';
@@ -693,11 +1017,6 @@ if (json_last_error() !== JSON_ERROR_NONE || !isset($update_info['updates']) || 
     exit;
 }
 
-// --- Erfolgreich: Updates einlesen ---
-#$updates = array_values(array_filter(
-#    $update_info['updates'],
-#    fn($entry) => version_compare($entry['version'], CURRENT_VERSION, '>')
-#));
 
 // -------------------------------------------------------
 // 🔧 Update-Kanal
@@ -795,7 +1114,16 @@ $updates = array_values(array_filter(
         // 3️⃣ VERSION + BUILD
         // ------------------------------
         // Neue Version → immer anzeigen
+        $currentBuild = $installedBuilds[$version] ?? 0;
+
         if (version_compare($version, CURRENT_VERSION, '>')) {
+            return true;
+        }
+
+        if (
+            version_compare($version, CURRENT_VERSION, '==')
+            && $build > $currentBuild
+        ) {
             return true;
         }
 
@@ -1144,9 +1472,6 @@ switch ($channel) {
         break;
 }
 
-
-
-
 $channelBadgeClass = match ($channel) {
     'dev' => 'nx-update-badge--danger',
     'beta' => 'nx-update-badge--warning',
@@ -1166,15 +1491,6 @@ $beta_badge = '<div class="nx-channel-status"><span class="nx-update-badge ' . $
 
 $data_array['channel_form'] = $channel_form;
 $data_array['beta_badge'] = $beta_badge;
-
-
-// -------------------------------------------------------
-// Nur neuere Versionen als aktuelle anzeigen
-// -------------------------------------------------------
-#$updates = array_values(array_filter(
-#    $updates,
-#    fn($entry) => version_compare($entry['version'], CURRENT_VERSION, '>')
-#));
 
 // -------------------------------------------------------
 // 🔧 Update-Kanal
@@ -1271,7 +1587,16 @@ $updates = array_values(array_filter(
         // 3️⃣ VERSION + BUILD
         // ------------------------------
         // Neue Version → immer anzeigen
+        $currentBuild = $installedBuilds[$version] ?? 0;
+
         if (version_compare($version, CURRENT_VERSION, '>')) {
+            return true;
+        }
+
+        if (
+            version_compare($version, CURRENT_VERSION, '==')
+            && $build > $currentBuild
+        ) {
             return true;
         }
 
@@ -1612,8 +1937,6 @@ if ($channel === 'dev') {
 
         $data_array['content'] = "
 
-
-
 <!-- 🔹 Aktuelle Version -->
 <div class='alert  " . $alertClass ." mb-4 d-flex align-items-center justify-content-between'>
 
@@ -1640,10 +1963,6 @@ if ($channel === 'dev') {
 
 </div>
 
-
-
-
-
 <!-- 🔹 Verbindung zum Update-Server -->
 <div class='alert alert-light mb-4'>
 
@@ -1663,10 +1982,6 @@ if ($channel === 'dev') {
     </div>
 
 </div>
-
-
-    
-
 
 <!-- 🔹 Update-Informationen -->
 <div class='alert alert-primary mb-4'>
@@ -1777,9 +2092,6 @@ if ($channel === 'dev') {
 }
 
 
-
-
-
 /* ========================================================================
    🧩 ACTION: PROGRESS
    ======================================================================== */
@@ -1788,6 +2100,10 @@ if ($action === 'progress') {
     $steps_log = [];
     $tmp_dir = __DIR__ . '/tmp';
     $extract_path = __DIR__ . '/..';
+    $rollback_dir = $tmp_dir . '/rollback_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4));
+    $rollback_db_snapshot = $rollback_dir . '/database.snapshot';
+    $rollback_available = false;
+    $rollback_done = false;
 
     $new_version = CURRENT_VERSION;
     $all_updates_succeeded = true;
@@ -1816,38 +2132,6 @@ if ($action === 'progress') {
         $baseVersion = $rowBase['version'];
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-if (
-    file_exists(__DIR__ . '/.updater_lock')
-    && empty($_GET['confirm_continue'])
-) {
-    $data_array['content'] = "
-    <div class='alert alert-warning'>
-        <i class='bi bi-shield-lock-fill me-2'></i>
-        Der neue Updater ist aktiv.<br>
-        Bitte entscheide explizit, ob du fortfahren möchtest.
-    </div>
-    ";
-    echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
-    exit;
-}
 
     // ============================================================
     // 🧩 Schritt 1: tmp prüfen
@@ -1878,6 +2162,15 @@ if (!is_dir($tmp_dir) && !mkdir($tmp_dir, 0755, true)) {
 }
 
 // 🔥 Log sichtbar machen (DAS fehlte!)
+if ($all_updates_succeeded && !is_dir($rollback_dir)) {
+    if (nx_update_ensure_dir($rollback_dir)) {
+        $migrator->log("Rollback-Verzeichnis vorbereitet: {$rollback_dir}");
+    } else {
+        $migrator->log("Rollback-Verzeichnis konnte nicht erstellt werden: {$rollback_dir}");
+        $all_updates_succeeded = false;
+    }
+}
+
 $logHtml = $migrator->getLog();
 if ($logHtml !== '') {
     $steps_log[] = "
@@ -1904,21 +2197,6 @@ if ($all_updates_succeeded) {
         <b>2️⃣ Lade Updates herunter</b>
     </div>";
 
-    /*foreach ($updates as $update) {
-
-        $version   = $update['version'];
-        $zip_url   = $update['zip_url'];
-        $zip_file  = "$tmp_dir/update_$version.zip";
-        $sql_file  = "$tmp_dir/migrations/$version.php";
-
-        if (!is_dir("$tmp_dir/migrations")) {
-            mkdir("$tmp_dir/migrations", 0755, true);
-            $migrator->log("📁 Migrations-Verzeichnis erstellt");
-        }
-
-        $migrator->log("⬇️ Lade Update {$version} von {$zip_url}");
-
-        $zip_content = @file_get_contents($zip_url);*/
     foreach ($updates as $update) {
 
         $version = (string)$update['version'];
@@ -2075,15 +2353,6 @@ if ($all_updates_succeeded) {
     }
 }
 
-
-// ============================================================
-// 🧩 Schritt 3: Migrationen ausführen
-// ============================================================
-// 🔒 IMMER initialisieren
-// ============================================================
-// 🧩 Schritt 3: Migrationen ausführen (ROBUST & BUFFER-SICHER)
-// ============================================================
-
 /* ============================================================
    🧩 SCHRITT 3: Datenbank-Migrationen ausführen
    ============================================================ */
@@ -2094,7 +2363,7 @@ $requiresVersion    = null;
 $updatesToRun       = [];
 $migrationExecuted  = [];
 
-/* ---------------------------------------
+/*---------------------------------------
    Updates begrenzen (bis Hard-Stop)
 ---------------------------------------- */
 foreach ($updates as $update) {
@@ -2115,6 +2384,47 @@ if (!$all_updates_succeeded) {
         Update wurde abgebrochen. Bitte pruefe die Meldungen oben und starte den Schritt danach erneut.
     </div>";
 
+    $data_array['content'] = "
+    <div class='nx-update-overview nx-update-progress-log'>
+        <div class='nx-steps'>
+            " . implode("\n", $steps_log) . "
+        </div>
+        <div class='nx-update-actions'>
+            <a href='admincenter.php?site=update_core&action=start' class='btn btn-secondary'>
+                <i class='bi bi-arrow-left-circle'></i> Zurueck zur Uebersicht
+            </a>
+        </div>
+    </div>";
+
+    echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
+    exit;
+}
+
+if (!empty($updatesToRun)) {
+    $steps_log[] = "
+    <div class='alert alert-info mb-2'>
+        <i class='bi bi-shield-check me-2'></i>
+        Erstelle Rollback-Sicherung vor der Migration.
+    </div>";
+
+    if (nx_update_backup_database($_database, $rollback_db_snapshot)) {
+        $rollback_available = true;
+        $steps_log[] = "
+        <div class='alert alert-success py-1 my-1 small'>
+            <i class='bi bi-check-circle-fill me-2'></i>
+            Datenbank-Snapshot wurde erstellt.
+        </div>";
+    } else {
+        $steps_log[] = "
+        <div class='alert alert-danger py-1 my-1 small'>
+            <i class='bi bi-x-circle-fill me-2'></i>
+            Datenbank-Snapshot konnte nicht erstellt werden. Update wurde aus Sicherheitsgruenden gestoppt.
+        </div>";
+        $all_updates_succeeded = false;
+    }
+}
+
+if (!$all_updates_succeeded) {
     $data_array['content'] = "
     <div class='nx-update-overview nx-update-progress-log'>
         <div class='nx-steps'>
@@ -2305,9 +2615,9 @@ foreach ($updatesToRun as $update) {
         /* ====================================================
            ⛔ HARD STOP NUR NACH MIGRATION + HISTORY
         ===================================================== */
-        if (!empty($update['requires_new_updater'])) {
+        /*if (!empty($update['requires_new_updater'])) {
             break;
-        }
+        }*/
 
     } catch (Throwable $e) {
 
@@ -2323,6 +2633,10 @@ foreach ($updatesToRun as $update) {
         </div>";
 
         $all_updates_succeeded = false;
+        if ($rollback_available && !$rollback_done) {
+            nx_update_run_rollback($_database, $rollback_db_snapshot, $extract_path, $rollback_dir, $steps_log);
+            $rollback_done = true;
+        }
         break;
     }
 }
@@ -2331,17 +2645,6 @@ foreach ($updatesToRun as $update) {
 $steps_log[] = "</div></div>";
 
 
-
-
-
-
-
-    // ============================================================
-    // 🧩 Schritt 4: Dateien entpacken & Änderungen auflisten
-    // ============================================================
-/* ============================================================
-   🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
-   ============================================================ */
 /* ============================================================
    🧩 SCHRITT 4: Dateien entpacken & Dateiänderungen erfassen
    ============================================================ */
@@ -2426,6 +2729,10 @@ foreach ($updatesToRun as $update) {
     $zip = new ZipArchive;
     if ($zip->open($zip_file) !== true) {
         $all_updates_succeeded = false;
+        if ($rollback_available && !$rollback_done) {
+            nx_update_run_rollback($_database, $rollback_db_snapshot, $extract_path, $rollback_dir, $steps_log);
+            $rollback_done = true;
+        }
         break;
     }
 
@@ -2451,9 +2758,23 @@ foreach ($updatesToRun as $update) {
     /* ===============================
        📂 Dateien entpacken
     ================================ */
+    if (!nx_update_backup_file_snapshot($zip, $update, $extract_path, $rollback_dir)) {
+        $zip->close();
+        $all_updates_succeeded = false;
+        if ($rollback_available && !$rollback_done) {
+            nx_update_run_rollback($_database, $rollback_db_snapshot, $extract_path, $rollback_dir, $steps_log);
+            $rollback_done = true;
+        }
+        break;
+    }
+
     if (!nx_update_extract_package($zip, $extract_path, $update, $tmp_dir)) {
         $zip->close();
         $all_updates_succeeded = false;
+        if ($rollback_available && !$rollback_done) {
+            nx_update_run_rollback($_database, $rollback_db_snapshot, $extract_path, $rollback_dir, $steps_log);
+            $rollback_done = true;
+        }
         break;
     }
     $zip->close();
@@ -2520,46 +2841,16 @@ foreach ($updatesToRun as $update) {
     ");
 
     $finalVersion = $version;
-
-    /* ====================================================
-       ⛔ HARD STOP – NUR NACH HISTORY
-    ===================================================== */
-    if (!empty($update['requires_new_updater'])) {
-
-        $lockDir = __DIR__;
-        if (!is_dir($lockDir)) {
-            mkdir($lockDir, 0755, true);
-        }
-
-        file_put_contents(
-            $lockDir . '/.updater_lock',
-            json_encode([
-                'version' => $version,
-                'time'    => time()
-            ])
-        );
-
-        $data_array['content'] = "
-        <div class='alert alert-warning'>
-            <i class='bi bi-exclamation-triangle-fill me-2'></i>
-            <b>Updater {$version} wurde installiert.</b><br><br>
-            Der Update-Prozess wurde bewusst angehalten,
-            damit der neue Updater neu geladen wird.
-        </div>
-
-        <a href='admincenter.php?site=update_core&action=start'
-           class='btn btn-secondary mt-3'>
-            Neuer Updater laden
-        </a>";
-
-        echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
-        exit;
-    }
 }
 
 /* ---------------------------------------
    📊 Änderungsübersicht (NACH LOOP!)
 ---------------------------------------- */
+if (!$all_updates_succeeded && $rollback_available && !$rollback_done) {
+    nx_update_run_rollback($_database, $rollback_db_snapshot, $extract_path, $rollback_dir, $steps_log);
+    $rollback_done = true;
+}
+
 $changes = [];
 
 if ($files_created) {
@@ -2604,12 +2895,54 @@ if ($all_updates_succeeded && $finalVersion !== null) {
     );
 }
 
+if ($requiresNewUpdater) {
+
+    file_put_contents(
+        __DIR__ . '/.updater_lock',
+        json_encode([
+            'version' => $requiresVersion,
+            'time'    => time()
+        ])
+    );
+
+    $data_array['content'] = "
+
+    <div class='alert alert-info mb-2'>
+        <i class='bi bi-download me-2'></i>
+        Update-Paket erfolgreich heruntergeladen
+    </div>
+
+    <div class='alert alert-warning mb-2'>
+        <i class='bi bi-arrow-repeat me-2'></i>
+        Diese Version benötigt einen neuen Updater
+    </div>
+
+    <div class='alert alert-info mb-2'>
+        <i class='bi bi-gear me-2'></i>
+        Neuer Updater wurde installiert
+    </div>
+
+    <div class='alert alert-success mb-3'>
+        <i class='bi bi-check-circle me-2'></i>
+        Updater {$requiresVersion} erfolgreich eingerichtet
+    </div>
+
+    <div class='alert alert-warning'>
+        <strong>Nächster Schritt:</strong><br>
+        Bitte den neuen Updater laden, um das Update fortzusetzen.
+    </div>
+
+    <a href='admincenter.php?site=update_core&action=start'
+       class='btn btn-success mt-3'>
+        <i class='bi bi-arrow-clockwise me-1'></i>
+        Neuen Updater laden
+    </a>";
+
+    echo $tpl->loadTemplate('update_core', 'wizard', $data_array, 'admin');
+    exit;
+}
 
 
-
-    // ============================================================
-    // 🧩 Schritt 5: CMSUpdater
-    // ============================================================
 // ============================================================
 // 🧩 Schritt 5: System-Synchronisation (NUR LOG / DRY-RUN)
 // ============================================================
@@ -2661,14 +2994,6 @@ if ($all_updates_succeeded) {
     </div>";
 }
 
-
-
-
-
-
-
-
-
     // ============================================================
     // 🧩 Abschlussanzeige
     // ============================================================
@@ -2710,10 +3035,6 @@ if ($all_updates_succeeded) {
    🧩 ACTION: FINISH
    ======================================================================== */
 if ($action === 'finish') {
-
-
-
-
 
     $version_file = __DIR__ . '/../system/version.php';
     $core_version = file_exists($version_file) ? include $version_file : 'unbekannt';
